@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  name        String
+  email       String   @unique
+  password    String?  @default("autopartner2026")
+  role        String   @default("KAM") // "SUPER_ADMIN" | "DIRECTEUR" | "MANAGER" | "KAM"
+  status      String   @default("ACTIVE") // "ACTIVE" | "DISABLED"
+  avatar      String?
+  title       String?  @default("Key Account Manager")
+  permissions String?  @default("view_clients,edit_clients,view_ca,add_notes,add_visits")
+  managerId   String?
+  manager     User?    @relation("ManagerToKams", fields: [managerId], references: [id])
+  kams        User[]   @relation("ManagerToKams")
+  clients     Client[]
+  notes       Note[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Client {
+  id            String    @id @default(cuid())
+  company       String
+  contactName   String
+  position      String
+  email         String
+  phone         String
+  city          String
+  status        String    @default("ACTIVE") // "VIP" | "ACTIVE" | "NEW" | "FOLLOW_UP" | "INACTIVE"
+  healthScore   Int       @default(85)       // 0 to 100
+  lastContactAt DateTime  @default(now())
+  kamId         String
+  kam           User      @relation(fields: [kamId], references: [id], onDelete: Cascade)
+  notes         Note[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  title     String?
+  content   String
+  category  String   @default("LIBRE") // "LIBRE" | "COMPTE_RENDU" | "RELANCE" | "STRATEGIE" | "ALERTE" | "IDEE"
+  pinned    Boolean  @default(false)
+  clientId  String?
+  client    Client?  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  kamId     String
+  kam       User     @relation(fields: [kamId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
