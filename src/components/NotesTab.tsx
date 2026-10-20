@@ -15,6 +15,9 @@ import {
   Compass,
   Check,
   ChevronDown,
+  LayoutGrid,
+  List,
+  Maximize2,
 } from "lucide-react";
 import {
   ClientItem,
@@ -52,6 +55,7 @@ export function NotesTab({
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [selectedClientFilter, setSelectedClientFilter] = useState<string>("ALL");
+  const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
 
   // Inline note composer state
   const [inlineContent, setInlineContent] = useState("");
@@ -357,6 +361,33 @@ export function NotesTab({
             ))}
           </select>
 
+          <div className="flex items-center gap-1 border border-zinc-200/80 dark:border-zinc-800 rounded-lg p-0.5 bg-white dark:bg-zinc-900 shrink-0">
+            <button
+              type="button"
+              onClick={() => setViewMode("cards")}
+              title="Vue Grille / Cartes"
+              className={`p-1.5 rounded-md text-xs transition ${
+                viewMode === "cards"
+                  ? "bg-red-50 dark:bg-red-950/40 text-[#d90416] font-bold shadow-2xs"
+                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("list")}
+              title="Vue Liste Détaillée & Lisible"
+              className={`p-1.5 rounded-md text-xs transition ${
+                viewMode === "list"
+                  ? "bg-red-50 dark:bg-red-950/40 text-[#d90416] font-bold shadow-2xs"
+                  : "text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
           <div className="relative w-full sm:w-48">
             <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
@@ -380,6 +411,94 @@ export function NotesTab({
           <p className="text-xs text-zinc-400 mt-1">
             Ajoutez une note de visite ou compte-rendu ci-dessus.
           </p>
+        </div>
+      ) : (
+        viewMode === "list" ? (
+        <div className="space-y-3">
+          {filteredNotes.map((note) => {
+            const catCfg =
+              NOTE_CATEGORIES.find((c) => c.value === note.category) ||
+              NOTE_CATEGORIES[0];
+            return (
+              <div
+                key={note.id}
+                className="group rounded-2xl border border-zinc-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 sm:p-5 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all shadow-sm"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 mb-3 border-b border-zinc-100 dark:border-zinc-800/80">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {note.pinned && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 text-xs font-bold border border-amber-500/30">
+                        <Pin className="w-3 h-3 fill-current" /> Épinglée
+                      </span>
+                    )}
+                    <span className={`px-3 py-1 rounded-full text-xs font-bold border ${catCfg.badgeClass}`}>
+                      {catCfg.label}
+                    </span>
+                    {note.client ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-100">
+                        <Building2 className="w-3.5 h-3.5 text-[#d90416]" />
+                        {note.client.company}
+                        {note.client.contactName && (
+                          <span className="text-slate-400 font-normal">({note.client.contactName})</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full text-xs text-zinc-500 bg-zinc-100 dark:bg-zinc-800">
+                        Note libre
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between sm:justify-end gap-3 text-xs text-slate-500">
+                    <span className="flex items-center gap-1.5 font-mono text-xs">
+                      <Clock className="w-3.5 h-3.5 text-[#d90416]" />
+                      {formatFullTimestamp(note.createdAt)}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onTogglePin(note)}
+                        title={note.pinned ? "Désépingler" : "Épingler"}
+                        className={`p-1.5 rounded-lg transition ${
+                          note.pinned
+                            ? "text-amber-500 bg-amber-50 dark:bg-amber-950/40"
+                            : "text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        }`}
+                      >
+                        <Pin className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onEditNote(note)}
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                        title="Modifier"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDeleteNote(note.id)}
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition"
+                        title="Supprimer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {note.title && (
+                  <h3 className="text-sm sm:text-base font-bold text-zinc-900 dark:text-zinc-100 mb-2">
+                    {note.title}
+                  </h3>
+                )}
+
+                <div className="bg-slate-50/70 dark:bg-zinc-950/60 p-3.5 rounded-xl border border-slate-100 dark:border-zinc-800/80 text-xs sm:text-sm">
+                  <FormattedNoteText content={note.content} />
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -470,6 +589,7 @@ export function NotesTab({
             );
           })}
         </div>
+      )
       )}
     </div>
   );

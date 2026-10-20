@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { ClientItem, KamUser, NoteItem, ClientVisit, getInitials, hasPermission } from "@/types/kam";
 import { QuickNoteModal } from "@/components/QuickNoteModal";
+import { NoteWorkspaceDrawer } from "@/components/NoteWorkspaceDrawer";
 import { ClientFormModal } from "@/components/ClientFormModal";
 import { getAllPortfolioVisits } from "@/lib/visits";
 
@@ -1068,7 +1069,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Global Quick Note & Client Modals */}
         {activeUser && (
           <>
-            <QuickNoteModal
+            <NoteWorkspaceDrawer
               isOpen={isQuickNoteOpen}
               onClose={() => {
                 setIsQuickNoteOpen(false);
@@ -1076,10 +1077,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 setNoteModalClientId(null);
               }}
               clients={clients}
+              notes={notes}
               activeKamId={activeUser.id}
               defaultClientId={noteModalClientId}
-              editingNote={editingNote}
-              onSaved={() => refreshWorkspace(activeUser.id)}
+              selectedNote={editingNote}
+              onRefresh={() => refreshWorkspace(activeUser.id)}
             />
 
             <ClientFormModal
