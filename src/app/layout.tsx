@@ -11,7 +11,17 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "APFLOW — Auto Partner KAM",
   description:
-    "Gestion épurée de portefeuille clients et prise de notes rapide pour Key Account Manager",
+    "Plateforme de gestion de portefeuille clients, suivi des visites terrain et prise de notes rapide pour Auto Partner KAM",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.png", type: "image/png", sizes: "32x32" },
+    ],
+    apple: [
+      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
 };
 
 export default function RootLayout({
@@ -21,6 +31,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+        <link rel="alternate icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href="/apple-icon.png" />
+      </head>
       <body
         className={`${inter.className} min-h-screen antialiased selection:bg-[#d90416] selection:text-white`}
       >
