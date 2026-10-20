@@ -37,7 +37,7 @@ import {
 } from "lucide-react";
 import { ClientItem, KamUser, NoteItem, ClientVisit, getInitials, hasPermission } from "@/types/kam";
 import { QuickNoteModal } from "@/components/QuickNoteModal";
-import { NoteWorkspaceDrawer } from "@/components/NoteWorkspaceDrawer";
+import { NoteWorkspaceDrawer, NoteDockMode } from "@/components/NoteWorkspaceDrawer";
 import { ClientFormModal } from "@/components/ClientFormModal";
 import { getAllPortfolioVisits } from "@/lib/visits";
 
@@ -97,6 +97,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [isQuickNoteOpen, setIsQuickNoteOpen] = useState(false);
   const [noteModalClientId, setNoteModalClientId] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState<NoteItem | null>(null);
+  const [noteDockMode, setNoteDockMode] = useState<NoteDockMode>("dock");
+
+  // Sync dock mode from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("apflow_notes_dock_mode") as NoteDockMode;
+    if (saved && (saved === "dock" || saved === "split" || saved === "floating")) {
+      setNoteDockMode(saved);
+    }
+  }, []);
 
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<ClientItem | null>(null);
@@ -1061,7 +1070,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </aside>
 
           {/* 3. MAIN WORKSPACE AREA */}
-          <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+          <main
+            className={`flex flex-col min-w-0 overflow-y-auto transition-all duration-200 ${
+              isQuickNoteOpen && noteDockMode === "split"
+                ? "flex-1 md:w-1/2 lg:w-[52%] max-w-[52%] shrink-0"
+                : isQuickNoteOpen && noteDockMode === "dock"
+                ? "flex-1 md:pr-[480px] lg:pr-[500px]"
+                : "flex-1"
+            }`}
+          >
             {children}
           </main>
         </div>
@@ -1071,6 +1088,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <>
             <NoteWorkspaceDrawer
               isOpen={isQuickNoteOpen}
+              dockMode={noteDockMode}
+              onDockModeChange={(mode: NoteDockMode) => {
+                setNoteDockMode(mode);
+                localStorage.setItem("apflow_notes_dock_mode", mode);
+              }}
               onClose={() => {
                 setIsQuickNoteOpen(false);
                 setEditingNote(null);

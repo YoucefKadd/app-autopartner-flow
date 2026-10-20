@@ -1520,14 +1520,16 @@ export function ClientFullPage({
                 )}
 
                 {clientLogoUrl ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center relative z-10">
-                    <img
-                      src={clientLogoUrl}
-                      alt={client.company}
-                      className="max-h-14 sm:max-h-20 max-w-full object-contain drop-shadow-sm rounded-lg p-1 bg-white/10 backdrop-blur-xs"
-                    />
-                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-white/95 mt-1 sm:mt-2 px-2 sm:px-2.5 py-0.5 rounded-full bg-black/35 border border-white/20 flex items-center gap-1 shadow-xs">
-                      <Store className="w-2.5 h-2.5" />
+                  <div className="w-full h-full flex flex-col items-center justify-center relative z-10 gap-1.5 py-1">
+                    <div className="w-full max-w-[120px] bg-white rounded-xl p-2 shadow-xs border border-white/30 flex items-center justify-center transition-transform group-hover/logo:scale-105">
+                      <img
+                        src={clientLogoUrl}
+                        alt={client.company}
+                        className="max-h-12 sm:max-h-14 w-auto max-w-full object-contain"
+                      />
+                    </div>
+                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-white mt-0.5 px-2.5 py-0.5 rounded-full bg-black/40 border border-white/25 flex items-center gap-1 shadow-xs">
+                      <Store className="w-2.5 h-2.5 text-white/90" />
                       Magasin
                     </span>
                   </div>

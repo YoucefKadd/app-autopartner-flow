@@ -38,7 +38,7 @@ import { NoteFormattingToolbar, FormattedNoteText } from "@/components/NoteForma
 
 export type NoteDockMode = "dock" | "split" | "floating";
 
-interface NoteWorkspaceDrawerProps {
+export interface NoteWorkspaceDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   clients: ClientItem[];
@@ -50,6 +50,8 @@ interface NoteWorkspaceDrawerProps {
   onSelectNote?: (note: NoteItem | null) => void;
   onDeleteNote?: (noteId: string) => void;
   onTogglePin?: (note: NoteItem) => void;
+  dockMode?: NoteDockMode;
+  onDockModeChange?: (mode: NoteDockMode) => void;
 }
 
 export function NoteWorkspaceDrawer({
@@ -64,9 +66,12 @@ export function NoteWorkspaceDrawer({
   onSelectNote,
   onDeleteNote,
   onTogglePin,
+  dockMode: controlledDockMode,
+  onDockModeChange,
 }: NoteWorkspaceDrawerProps) {
   // Mode: "dock" (volet droit glissant 460px), "split" (partage moitié écran 50%), "floating" (fenêtre libre déplaçable / modale style navigateur)
-  const [dockMode, setDockMode] = useState<NoteDockMode>("dock");
+  const [localDockMode, setLocalDockMode] = useState<NoteDockMode>("dock");
+  const dockMode = controlledDockMode !== undefined ? controlledDockMode : localDockMode;
 
   // Form state
   const [title, setTitle] = useState("");
@@ -105,12 +110,20 @@ export function NoteWorkspaceDrawer({
   useEffect(() => {
     const saved = localStorage.getItem("apflow_notes_dock_mode") as NoteDockMode;
     if (saved && (saved === "dock" || saved === "split" || saved === "floating")) {
-      setDockMode(saved);
+      if (onDockModeChange) {
+        onDockModeChange(saved);
+      } else {
+        setLocalDockMode(saved);
+      }
     }
   }, []);
 
   function changeDockMode(mode: NoteDockMode) {
-    setDockMode(mode);
+    if (onDockModeChange) {
+      onDockModeChange(mode);
+    } else {
+      setLocalDockMode(mode);
+    }
     localStorage.setItem("apflow_notes_dock_mode", mode);
   }
 
