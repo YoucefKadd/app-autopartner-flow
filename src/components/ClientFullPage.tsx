@@ -711,9 +711,10 @@ export function ClientFullPage({
     if (savedFiche) {
       try {
         const parsed = JSON.parse(savedFiche);
-        if (customApCode) parsed.apClientNumber = customApCode;
-        setFicheData(parsed);
-        setTempFicheData(parsed);
+        const merged = { ...ficheData, ...parsed };
+        if (customApCode) merged.apClientNumber = customApCode;
+        setFicheData(merged);
+        setTempFicheData(merged);
       } catch {
         // ignore
       }
@@ -3626,7 +3627,7 @@ export function ClientFullPage({
                         {isEditingAdmin ? (
                           <input
                             type="text"
-                            value={tempFicheData.legalName}
+                            value={tempFicheData.legalName || ""}
                             onChange={(e) =>
                               setTempFicheData({
                                 ...tempFicheData,
@@ -3681,7 +3682,7 @@ export function ClientFullPage({
                         {isEditingAdmin ? (
                           <input
                             type="text"
-                            value={tempFicheData.rcsCity}
+                            value={tempFicheData.rcsCity || ""}
                             onChange={(e) =>
                               setTempFicheData({
                                 ...tempFicheData,
@@ -3736,7 +3737,7 @@ export function ClientFullPage({
                         {isEditingAdmin ? (
                           <input
                             type="text"
-                            value={tempFicheData.rcsNumber}
+                            value={tempFicheData.rcsNumber || ""}
                             onChange={(e) =>
                               setTempFicheData({
                                 ...tempFicheData,
@@ -3897,7 +3898,7 @@ export function ClientFullPage({
                         {isEditingAdmin ? (
                           <input
                             type="text"
-                            value={tempFicheData.siret}
+                            value={tempFicheData.siret || ""}
                             onChange={(e) =>
                               setTempFicheData({
                                 ...tempFicheData,
@@ -3952,7 +3953,7 @@ export function ClientFullPage({
                         {isEditingAdmin ? (
                           <input
                             type="text"
-                            value={tempFicheData.siren}
+                            value={tempFicheData.siren || ""}
                             onChange={(e) =>
                               setTempFicheData({
                                 ...tempFicheData,
@@ -4007,7 +4008,7 @@ export function ClientFullPage({
                         {isEditingAdmin ? (
                           <input
                             type="text"
-                            value={tempFicheData.vatNumber}
+                            value={tempFicheData.vatNumber || ""}
                             onChange={(e) =>
                               setTempFicheData({
                                 ...tempFicheData,
@@ -4096,7 +4097,7 @@ export function ClientFullPage({
                         {isEditingAdmin ? (
                           <input
                             type="text"
-                            value={tempFicheData.iban}
+                            value={tempFicheData.iban || ""}
                             onChange={(e) =>
                               setTempFicheData({
                                 ...tempFicheData,
@@ -4151,7 +4152,7 @@ export function ClientFullPage({
                         {isEditingAdmin ? (
                           <input
                             type="text"
-                            value={tempFicheData.bic}
+                            value={tempFicheData.bic || ""}
                             onChange={(e) =>
                               setTempFicheData({
                                 ...tempFicheData,
@@ -4206,7 +4207,7 @@ export function ClientFullPage({
                         {isEditingAdmin ? (
                           <input
                             type="text"
-                            value={tempFicheData.bankName}
+                            value={tempFicheData.bankName || ""}
                             onChange={(e) =>
                               setTempFicheData({
                                 ...tempFicheData,
@@ -4269,7 +4270,7 @@ export function ClientFullPage({
                       <div className="flex-1 flex items-center justify-between gap-3">
                         {isEditingAdmin ? (
                           <select
-                            value={tempFicheData.docKbisStatus}
+                            value={tempFicheData.docKbisStatus || ""}
                             onChange={(e) =>
                               setTempFicheData({
                                 ...tempFicheData,
@@ -4338,7 +4339,7 @@ export function ClientFullPage({
                       <div className="flex-1 flex items-center justify-between gap-3">
                         {isEditingAdmin ? (
                           <select
-                            value={tempFicheData.docRibStatus}
+                            value={tempFicheData.docRibStatus || ""}
                             onChange={(e) =>
                               setTempFicheData({
                                 ...tempFicheData,
@@ -4407,7 +4408,7 @@ export function ClientFullPage({
                       <div className="flex-1 flex items-center justify-between gap-3">
                         {isEditingAdmin ? (
                           <select
-                            value={tempFicheData.docFicheTechStatus}
+                            value={tempFicheData.docFicheTechStatus || ""}
                             onChange={(e) =>
                               setTempFicheData({
                                 ...tempFicheData,
@@ -4532,7 +4533,7 @@ export function ClientFullPage({
                     {isEditingCompteAP ? (
                       <input
                         type="text"
-                        value={tempFicheData.apClientNumber}
+                        value={tempFicheData.apClientNumber || ""}
                         onChange={(e) =>
                           setTempFicheData({
                             ...tempFicheData,
@@ -4571,7 +4572,7 @@ export function ClientFullPage({
                     {isEditingCompteAP ? (
                       <input
                         type="text"
-                        value={tempFicheData.webshopLogin}
+                        value={tempFicheData.webshopLogin || ""}
                         onChange={(e) =>
                           setTempFicheData({
                             ...tempFicheData,
@@ -4594,7 +4595,7 @@ export function ClientFullPage({
                     {isEditingCompteAP ? (
                       <input
                         type="text"
-                        value={tempFicheData.tecdocAccess}
+                        value={tempFicheData.tecdocAccess || ""}
                         onChange={(e) =>
                           setTempFicheData({
                             ...tempFicheData,
@@ -4617,7 +4618,7 @@ export function ClientFullPage({
                     {isEditingCompteAP ? (
                       <input
                         type="text"
-                        value={tempFicheData.discountGrid}
+                        value={tempFicheData.discountGrid || ""}
                         onChange={(e) =>
                           setTempFicheData({
                             ...tempFicheData,
@@ -4640,7 +4641,7 @@ export function ClientFullPage({
                     {isEditingCompteAP ? (
                       <input
                         type="text"
-                        value={tempFicheData.creditLimit}
+                        value={tempFicheData.creditLimit || ""}
                         onChange={(e) =>
                           setTempFicheData({
                             ...tempFicheData,
@@ -4663,7 +4664,7 @@ export function ClientFullPage({
                     {isEditingCompteAP ? (
                       <input
                         type="text"
-                        value={tempFicheData.paymentTerms}
+                        value={tempFicheData.paymentTerms || ""}
                         onChange={(e) =>
                           setTempFicheData({
                             ...tempFicheData,
@@ -4686,7 +4687,7 @@ export function ClientFullPage({
                     {isEditingCompteAP ? (
                       <input
                         type="text"
-                        value={tempFicheData.annualTarget}
+                        value={tempFicheData.annualTarget || ""}
                         onChange={(e) =>
                           setTempFicheData({
                             ...tempFicheData,
@@ -4709,7 +4710,7 @@ export function ClientFullPage({
                     {isEditingCompteAP ? (
                       <input
                         type="text"
-                        value={tempFicheData.rfaAgreement}
+                        value={tempFicheData.rfaAgreement || ""}
                         onChange={(e) =>
                           setTempFicheData({
                             ...tempFicheData,
@@ -4803,7 +4804,7 @@ export function ClientFullPage({
                     {isEditingLogistique ? (
                       <input
                         type="text"
-                        value={tempFicheData.hubDepot}
+                        value={tempFicheData.hubDepot || ""}
                         onChange={(e) =>
                           setTempFicheData({
                             ...tempFicheData,
@@ -4826,7 +4827,7 @@ export function ClientFullPage({
                     {isEditingLogistique ? (
                       <input
                         type="text"
-                        value={tempFicheData.routeTourCode}
+                        value={tempFicheData.routeTourCode || ""}
                         onChange={(e) =>
                           setTempFicheData({
                             ...tempFicheData,
@@ -4849,7 +4850,7 @@ export function ClientFullPage({
                     {isEditingLogistique ? (
                       <input
                         type="text"
-                        value={tempFicheData.deliverySchedule}
+                        value={tempFicheData.deliverySchedule || ""}
                         onChange={(e) =>
                           setTempFicheData({
                             ...tempFicheData,
@@ -4872,7 +4873,7 @@ export function ClientFullPage({
                     {isEditingLogistique ? (
                       <input
                         type="text"
-                        value={tempFicheData.sasAccessType}
+                        value={tempFicheData.sasAccessType || ""}
                         onChange={(e) =>
                           setTempFicheData({
                             ...tempFicheData,
@@ -4896,7 +4897,7 @@ export function ClientFullPage({
                     {isEditingLogistique ? (
                       <input
                         type="text"
-                        value={tempFicheData.sasAccessCode}
+                        value={tempFicheData.sasAccessCode || ""}
                         onChange={(e) =>
                           setTempFicheData({
                             ...tempFicheData,
@@ -4919,7 +4920,7 @@ export function ClientFullPage({
                     {isEditingLogistique ? (
                       <input
                         type="text"
-                        value={tempFicheData.alarmInstructions}
+                        value={tempFicheData.alarmInstructions || ""}
                         onChange={(e) =>
                           setTempFicheData({
                             ...tempFicheData,
