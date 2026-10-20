@@ -1494,56 +1494,56 @@ export function ClientFullPage({
               {/* Photo / Enseigne Magasin à gauche — cliquable avec survol pour changer le logo */}
               <div
                 onClick={() => logoInputRef.current?.click()}
-                className="group/logo cursor-pointer w-24 h-24 sm:w-32 sm:h-auto sm:self-stretch rounded-2xl bg-gradient-to-br from-[#d90416] via-[#c40314] to-[#99020e] text-white flex flex-col items-center justify-center shrink-0 shadow-md p-2.5 sm:p-3 relative overflow-hidden select-none hover:shadow-lg transition-all mx-auto sm:mx-0"
+                className="group/logo cursor-pointer w-28 h-28 sm:w-36 sm:h-32 shrink-0 rounded-2xl relative select-none mx-auto sm:mx-0 transition-all hover:scale-[1.02] shadow-sm hover:shadow-md"
                 title="Cliquer pour changer ou ajouter le logo du magasin"
               >
                 {/* Overlay au survol */}
-                <div className="absolute inset-0 z-30 bg-black/65 backdrop-blur-[2px] opacity-0 group-hover/logo:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-2 text-center pointer-events-none">
-                  <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white shadow-xs">
-                    <Camera className="w-4 h-4" />
+                <div className="absolute inset-0 z-30 bg-black/60 rounded-2xl opacity-0 group-hover/logo:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1.5 p-2 text-center pointer-events-none backdrop-blur-[1px]">
+                  <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white">
+                    <Camera className="w-3.5 h-3.5" />
                   </div>
                   <span className="text-[10px] font-bold text-white leading-tight">
                     {clientLogoUrl ? "Changer le logo" : "Ajouter un logo"}
                   </span>
                 </div>
 
-                {/* Bouton pour supprimer le logo existant et revenir aux initiales */}
+                {/* Bouton supprimer le logo */}
                 {clientLogoUrl && (
                   <button
                     type="button"
                     onClick={handleRemoveLogo}
                     title="Supprimer le logo (revenir aux initiales)"
-                    className="absolute top-1.5 right-1.5 z-40 p-1 rounded-md bg-black/60 text-white/80 hover:text-white hover:bg-rose-600 transition-all opacity-0 group-hover/logo:opacity-100 shadow-sm"
+                    className="absolute -top-1.5 -right-1.5 z-40 p-1.5 rounded-full bg-slate-900/80 text-white hover:bg-rose-600 transition-colors shadow-md opacity-0 group-hover/logo:opacity-100"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
                 )}
 
                 {clientLogoUrl ? (
-                  <div className="w-full h-full flex flex-col items-center justify-center relative z-10 gap-1.5 py-1">
-                    <div className="w-full max-w-[120px] bg-white rounded-xl p-2 shadow-xs border border-white/30 flex items-center justify-center transition-transform group-hover/logo:scale-105">
+                  <div className="w-full h-full rounded-2xl border-2 border-slate-200/90 dark:border-zinc-700 bg-white dark:bg-zinc-950 p-2.5 flex flex-col items-center justify-between shadow-2xs">
+                    <div className="w-full flex-1 flex items-center justify-center min-h-0 overflow-hidden">
                       <img
                         src={clientLogoUrl}
                         alt={client.company}
-                        className="max-h-12 sm:max-h-14 w-auto max-w-full object-contain"
+                        className="max-h-full max-w-full object-contain"
                       />
                     </div>
-                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-white mt-0.5 px-2.5 py-0.5 rounded-full bg-black/40 border border-white/25 flex items-center gap-1 shadow-xs">
-                      <Store className="w-2.5 h-2.5 text-white/90" />
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-50 dark:bg-red-950/40 text-[#d90416] text-[9px] font-bold uppercase tracking-wider border border-red-200/60 dark:border-red-900/40 shrink-0 mt-1.5">
+                      <Store className="w-2.5 h-2.5" />
                       Magasin
                     </span>
                   </div>
                 ) : (
-                  <>
+                  <div className="w-full h-full rounded-2xl bg-gradient-to-br from-[#d90416] via-[#c40314] to-[#99020e] text-white flex flex-col items-center justify-center p-3 relative overflow-hidden shadow-sm">
                     <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-white/20 via-transparent to-black/30 pointer-events-none" />
-                    <span className="text-2xl sm:text-4xl font-black tracking-wider relative z-10 drop-shadow-sm">
+                    <span className="text-2xl sm:text-3xl font-black tracking-wider relative z-10 drop-shadow-sm">
                       {getInitials(primaryContact?.name || client.contactName || client.company)}
                     </span>
-                    <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-white/95 mt-1 sm:mt-2 px-2 sm:px-2.5 py-0.5 rounded-full bg-black/25 border border-white/20 relative z-10 flex items-center gap-1 shadow-xs">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-white/95 mt-1.5 px-2.5 py-0.5 rounded-full bg-black/25 border border-white/20 relative z-10 flex items-center gap-1 shadow-xs">
                       <Store className="w-2.5 h-2.5" />
                       Magasin
                     </span>
-                  </>
+                  </div>
                 )}
               </div>
 
