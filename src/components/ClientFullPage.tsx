@@ -1494,7 +1494,7 @@ export function ClientFullPage({
               {/* Photo / Enseigne Magasin à gauche — cliquable avec survol pour changer le logo */}
               <div
                 onClick={() => logoInputRef.current?.click()}
-                className="group/logo cursor-pointer w-28 h-28 sm:w-36 sm:h-32 shrink-0 rounded-2xl relative select-none mx-auto sm:mx-0 transition-all hover:scale-[1.02] shadow-sm hover:shadow-md"
+                className="group/logo cursor-pointer w-32 sm:w-44 sm:self-stretch shrink-0 rounded-2xl relative select-none mx-auto sm:mx-0 transition-all hover:scale-[1.01] shadow-sm hover:shadow-md flex flex-col"
                 title="Cliquer pour changer ou ajouter le logo du magasin"
               >
                 {/* Overlay au survol */}
