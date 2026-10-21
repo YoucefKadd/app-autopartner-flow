@@ -15,7 +15,7 @@ import {
   Eye,
   Plus,
 } from "lucide-react";
-import { ClientItem, CLIENT_STATUS_CONFIG, formatRelativeDate } from "@/types/kam";
+import { ClientItem, ClientStatus, CLIENT_STATUS_CONFIG, formatRelativeDate } from "@/types/kam";
 import { getClientVisitStatus } from "@/lib/visits";
 
 // Approximate coordinates for major French cities / departments as reliable fallback
@@ -66,7 +66,7 @@ const FRENCH_CITIES_COORDINATES: Record<string, [number, number]> = {
   antibes: [43.5804, 7.1251],
   cannes: [43.5528, 7.0174],
   valence: [44.9334, 4.8924],
-  chambéry: [45.5646, 5.9178],
+  chambery: [45.5646, 5.9178],
   lorient: [47.7483, -3.3667],
   troyes: [48.2973, 4.0744],
   montauban: [44.0176, 1.3547],
@@ -75,6 +75,48 @@ const FRENCH_CITIES_COORDINATES: Record<string, [number, number]> = {
   agen: [44.2031, 0.6164],
   bastia: [42.7028, 9.45],
   ajaccio: [41.9192, 8.7386],
+};
+
+// Exact visual styling according to ClientStatus (VIP, Active, Prospect, New, A relancer, Inactif, Archivé)
+export const STATUS_PIN_COLORS: Record<
+  ClientStatus,
+  { bg: string; ring: string; label: string }
+> = {
+  VIP: {
+    bg: "#f59e0b", // Amber / Gold
+    ring: "#fef3c7",
+    label: "VIP",
+  },
+  ACTIVE: {
+    bg: "#10b981", // Emerald Green
+    ring: "#d1fae5",
+    label: "Active",
+  },
+  PROSPECT: {
+    bg: "#a855f7", // Purple
+    ring: "#f3e8ff",
+    label: "Prospect",
+  },
+  NEW: {
+    bg: "#0284c7", // Sky Blue
+    ring: "#e0f2fe",
+    label: "New",
+  },
+  FOLLOW_UP: {
+    bg: "#f97316", // Orange
+    ring: "#ffedd5",
+    label: "À relancer",
+  },
+  INACTIVE: {
+    bg: "#71717a", // Zinc / Gray
+    ring: "#f4f4f5",
+    label: "Inactif",
+  },
+  ARCHIVED: {
+    bg: "#64748b", // Slate
+    ring: "#f1f5f9",
+    label: "Archivé",
+  },
 };
 
 function normalizeCityKey(city: string): string {
@@ -87,7 +129,7 @@ function normalizeCityKey(city: string): string {
     .replace(/^_|_$/g, "");
 }
 
-// Pseudo-hash to slightly spread stores located in the same city so markers don't overlap completely
+// Spread stores located in the same city slightly so markers don't overlap completely
 function getDisplacedCoordinates(lat: number, lng: number, id: string): [number, number] {
   let hash = 0;
   for (let i = 0; i < id.length; i++) {
@@ -96,7 +138,6 @@ function getDisplacedCoordinates(lat: number, lng: number, id: string): [number,
   }
   const angle = (Math.abs(hash) % 360) * (Math.PI / 180);
   const distanceKm = ((Math.abs(hash >> 3) % 25) + 5) / 100; // 0.05km to 0.30km
-  // 1 deg lat ~ 111km, 1 deg lng ~ 111km * cos(lat)
   const dLat = (distanceKm * Math.cos(angle)) / 111;
   const dLng = (distanceKm * Math.sin(angle)) / (111 * Math.cos((lat * Math.PI) / 180));
   return [lat + dLat, lng + dLng];
@@ -119,7 +160,7 @@ export function ClientsMapView({
 
   const [selectedClient, setSelectedClient] = useState<ClientItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterUrgency, setFilterUrgency] = useState<string>("ALL");
+  const [filterStatus, setFilterStatus] = useState<string>("ALL");
 
   // Geocode clients from saved addresses or city dictionary
   const geocodedClients = useMemo(() => {
@@ -136,7 +177,6 @@ export function ClientsMapView({
             const list = JSON.parse(stored);
             const primary = list.find((item: any) => item.isPrimary) || list[0];
             if (primary?.coordinates && Array.isArray(primary.coordinates)) {
-              // AddressSuggestion coordinates: [longitude, latitude]
               lng = primary.coordinates[0];
               lat = primary.coordinates[1];
             }
@@ -151,14 +191,12 @@ export function ClientsMapView({
         if (FRENCH_CITIES_COORDINATES[key]) {
           [lat, lng] = FRENCH_CITIES_COORDINATES[key];
         } else {
-          // If city not found, use department / zip code heuristic or France center
           const zip = parseInt(postalCode, 10);
           if (!isNaN(zip)) {
             const dept = Math.floor(zip / 1000);
-            // approximate regions
-            if (dept === 75 || dept >= 91 && dept <= 95 || dept === 77 || dept === 78) {
+            if (dept === 75 || (dept >= 91 && dept <= 95) || dept === 77 || dept === 78) {
               lat = 48.8566; lng = 2.3522; // Île-de-France
-            } else if (dept >= 13 && dept <= 13 || dept === 83 || dept === 6) {
+            } else if (dept === 13 || dept === 83 || dept === 6) {
               lat = 43.5; lng = 6.0; // PACA
             } else if (dept === 69 || dept === 38 || dept === 42 || dept === 73 || dept === 74) {
               lat = 45.75; lng = 4.85; // Rhône-Alpes
@@ -209,12 +247,12 @@ export function ClientsMapView({
       );
     }
 
-    if (filterUrgency !== "ALL") {
-      list = list.filter((item) => item.visitStatus.urgency === filterUrgency);
+    if (filterStatus !== "ALL") {
+      list = list.filter((item) => item.client.status === filterStatus);
     }
 
     return list;
-  }, [geocodedClients, searchQuery, filterUrgency]);
+  }, [geocodedClients, searchQuery, filterStatus]);
 
   // Initialize Leaflet map
   useEffect(() => {
@@ -240,10 +278,10 @@ export function ClientsMapView({
         zoomControl: true,
       });
 
-      // CartoDB Positron clean elegant tiles
-            // 100% Free OpenStreetMap standard tiles (No API key needed)
+      // 100% Free OpenStreetMap standard tiles (No API key needed)
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19,
       }).addTo(map);
 
@@ -280,25 +318,18 @@ export function ClientsMapView({
     filteredList.forEach((item) => {
       const { client, lat, lng, visitStatus } = item;
 
-      // Color based on visit urgency
-      let markerBg = "#d90416"; // Auto Partner red by default
-      let ringColor = "#fee2e2";
+      // Color STRICTLY based on client status
+      const statusColor = STATUS_PIN_COLORS[client.status] || {
+        bg: "#d90416",
+        ring: "#fee2e2",
+        label: client.status,
+      };
 
-      if (visitStatus.urgency === "OVERDUE") {
-        markerBg = "#e11d48"; // Rose/Red overdue
-        ringColor = "#ffe4e6";
-      } else if (visitStatus.urgency === "SOON") {
-        markerBg = "#d97706"; // Amber soon
-        ringColor = "#fef3c7";
-      } else if (visitStatus.urgency === "OK") {
-        markerBg = "#059669"; // Emerald fresh
-        ringColor = "#d1fae5";
-      } else if (visitStatus.urgency === "NEVER") {
-        markerBg = "#64748b"; // Slate never visited
-        ringColor = "#f1f5f9";
-      }
+      const markerBg = statusColor.bg;
+      const ringColor = statusColor.ring;
+      const statusLabel = CLIENT_STATUS_CONFIG[client.status]?.label || client.status;
 
-      // Custom HTML Pin Marker
+      // Custom HTML Pin Marker with distinct color and clean white core
       const iconHtml = `
         <div style="
           width: 32px;
@@ -307,7 +338,7 @@ export function ClientsMapView({
           background: ${markerBg};
           transform: rotate(-45deg);
           border: 2px solid #ffffff;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.25);
+          box-shadow: 0 4px 10px rgba(0,0,0,0.3);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -339,19 +370,21 @@ export function ClientsMapView({
 
       const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
 
-      // Popup Content
+      // Popup Content with status badge clearly highlighted
       const popupHtml = `
-        <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; padding: 4px;">
+        <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; padding: 4px; min-width: 150px;">
           <div style="font-weight: 700; color: #0f172a; font-size: 13px; margin-bottom: 2px;">
             ${client.company}
           </div>
           <div style="color: #64748b; font-size: 11px; margin-bottom: 6px;">
             📍 ${client.city} ${item.postalCode ? `(${item.postalCode})` : ""}
           </div>
-          <div style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 600; background: ${ringColor}; color: ${markerBg}; margin-bottom: 8px;">
-            ${visitStatus.urgency === "OVERDUE" ? `⚠️ En retard (+${visitStatus.daysOverdue}j)` : visitStatus.urgency === "OK" ? `✓ Visité il y a ${visitStatus.daysSinceLastVisit}j` : visitStatus.urgency === "SOON" ? `🕒 À re-visiter bientôt` : "Jamais visité"}
+          <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+            <span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; background: ${ringColor}; color: ${markerBg}; border: 1px solid ${markerBg}40;">
+              ● Statut : ${statusLabel}
+            </span>
           </div>
-          <div style="border-top: 1px solid #f1f5f9; padding-top: 6px; display: flex; gap: 8px;">
+          <div style="border-top: 1px solid #f1f5f9; padding-top: 6px; display: flex; justify-content: space-between; align-items: center;">
             <a href="/clients/${client.id}" style="color: #d90416; font-weight: 700; text-decoration: none; font-size: 11px;">
               Ouvrir fiche →
             </a>
@@ -400,16 +433,18 @@ export function ClientsMapView({
             />
           </div>
 
+          {/* Filter by Client Status */}
           <select
-            value={filterUrgency}
-            onChange={(e) => setFilterUrgency(e.target.value)}
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
             className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-300 focus:outline-none focus:border-[#d90416] cursor-pointer"
           >
-            <option value="ALL">Tous les statuts de visite</option>
-            <option value="OVERDUE">⚠️ En retard de re-visite</option>
-            <option value="OK">✓ Visités récemment</option>
-            <option value="SOON">🕒 Re-visite proche</option>
-            <option value="NEVER">⚪ Jamais visités</option>
+            <option value="ALL">Tous les statuts clients</option>
+            {(Object.keys(CLIENT_STATUS_CONFIG) as ClientStatus[]).map((st) => (
+              <option key={st} value={st}>
+                {CLIENT_STATUS_CONFIG[st].label}
+              </option>
+            ))}
           </select>
 
           <span className="text-[11px] font-bold text-slate-500 dark:text-zinc-400 px-1">
@@ -417,24 +452,32 @@ export function ClientsMapView({
           </span>
         </div>
 
-        {/* Legend Overlay at bottom left */}
-        <div className="absolute bottom-3 left-3 z-[1000] bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md p-2.5 rounded-xl border border-slate-200/90 dark:border-zinc-800 shadow-md text-[11px] flex items-center gap-3">
-          <span className="font-bold text-slate-700 dark:text-zinc-300">Légende :</span>
+        {/* Legend Overlay at bottom left: By Client Status */}
+        <div className="absolute bottom-3 left-3 z-[1000] bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md p-2.5 rounded-xl border border-slate-200/90 dark:border-zinc-800 shadow-md text-[11px] flex flex-wrap items-center gap-3">
+          <span className="font-bold text-slate-700 dark:text-zinc-300">Statuts :</span>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#059669]" />
-            <span className="text-slate-600 dark:text-zinc-400">À jour</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-[#f59e0b]" />
+            <span className="text-slate-600 dark:text-zinc-400">VIP</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#d97706]" />
-            <span className="text-slate-600 dark:text-zinc-400">Bientôt</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-[#10b981]" />
+            <span className="text-slate-600 dark:text-zinc-400">Active</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#e11d48]" />
-            <span className="text-slate-600 dark:text-zinc-400">En retard</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-[#a855f7]" />
+            <span className="text-slate-600 dark:text-zinc-400">Prospect</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#64748b]" />
-            <span className="text-slate-600 dark:text-zinc-400">Jamais</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-[#0284c7]" />
+            <span className="text-slate-600 dark:text-zinc-400">New</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#f97316]" />
+            <span className="text-slate-600 dark:text-zinc-400">À relancer</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#71717a]" />
+            <span className="text-slate-600 dark:text-zinc-400">Inactif</span>
           </div>
         </div>
       </div>
@@ -454,6 +497,20 @@ export function ClientsMapView({
                   <MapPin className="w-3.5 h-3.5 text-slate-400" />
                   <span>{selectedClient.city}</span>
                 </p>
+                <div className="mt-1.5">
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                      CLIENT_STATUS_CONFIG[selectedClient.status]?.badgeClass
+                    }`}
+                  >
+                    <span
+                      className={`w-1.5 h-1.5 rounded-full ${
+                        CLIENT_STATUS_CONFIG[selectedClient.status]?.dotClass
+                      }`}
+                    />
+                    {CLIENT_STATUS_CONFIG[selectedClient.status]?.label || selectedClient.status}
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
@@ -513,8 +570,9 @@ export function ClientsMapView({
             </div>
           ) : (
             filteredList.map((item) => {
-              const { client, lat, lng, visitStatus, postalCode } = item;
+              const { client, lat, lng, postalCode } = item;
               const isSelected = selectedClient?.id === client.id;
+              const statusCfg = CLIENT_STATUS_CONFIG[client.status];
 
               return (
                 <div
@@ -531,23 +589,11 @@ export function ClientsMapView({
                       {client.company}
                     </span>
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[9px] font-bold shrink-0 ${
-                        visitStatus.urgency === "OVERDUE"
-                          ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400"
-                          : visitStatus.urgency === "SOON"
-                          ? "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
-                          : visitStatus.urgency === "OK"
-                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400"
-                          : "bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-400"
+                      className={`px-2 py-0.5 rounded-full text-[9px] font-bold border shrink-0 ${
+                        statusCfg?.badgeClass || "bg-slate-100 text-slate-600"
                       }`}
                     >
-                      {visitStatus.urgency === "OVERDUE"
-                        ? `Retard (+${visitStatus.daysOverdue}j)`
-                        : visitStatus.urgency === "OK"
-                        ? `${visitStatus.daysSinceLastVisit}j`
-                        : visitStatus.urgency === "SOON"
-                        ? "Bientôt"
-                        : "Jamais"}
+                      {statusCfg?.label || client.status}
                     </span>
                   </div>
 
