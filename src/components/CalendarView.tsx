@@ -75,7 +75,9 @@ export function CalendarView({
 }: CalendarViewProps) {
   const [currentDate, setCurrentDate] = useState(() => new Date());
   const [selectedDayStr, setSelectedDayStr] = useState<string | null>(() => {
-    return new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
   });
 
   // Filter toggles: Show Visits, Show Notes
@@ -95,7 +97,8 @@ export function CalendarView({
   function goToToday() {
     const today = new Date();
     setCurrentDate(new Date(today.getFullYear(), today.getMonth(), 1));
-    setSelectedDayStr(today.toISOString().slice(0, 10));
+    const pad = (n: number) => String(n).padStart(2, "0");
+    setSelectedDayStr(`${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`);
   }
 
   // Convert visits and notes into unified CalendarEventItems
@@ -187,12 +190,17 @@ export function CalendarView({
   }, [allEvents]);
 
   // Build Month Grid Matrix
+  // Helper to format local date without UTC shift
+  function formatLocalDate(y: number, m: number, d: number): string {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${y}-${pad(m + 1)}-${pad(d)}`;
+  }
+
+  // Build Month Grid Matrix
   const monthMatrix = useMemo(() => {
     const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
 
-    // Day of week for 1st of month: 0=Sun, 1=Mon, ..., 6=Sat
-    // Convert to Monday=0, ..., Sunday=6
     let startingDayOfWeek = firstDay.getDay() - 1;
     if (startingDayOfWeek === -1) startingDayOfWeek = 6;
 
@@ -201,22 +209,23 @@ export function CalendarView({
 
     // Previous month padding
     const prevMonthLastDay = new Date(year, month, 0).getDate();
+    const prevYear = month === 0 ? year - 1 : year;
+    const prevMonth = month === 0 ? 11 : month - 1;
+
     for (let i = startingDayOfWeek - 1; i >= 0; i--) {
       const d = prevMonthLastDay - i;
-      const prevDate = new Date(year, month - 1, d);
       days.push({
         day: d,
-        dateStr: prevDate.toISOString().slice(0, 10),
+        dateStr: formatLocalDate(prevYear, prevMonth, d),
         isCurrentMonth: false,
       });
     }
 
     // Current month days
     for (let d = 1; d <= totalDaysInMonth; d++) {
-      const currDate = new Date(year, month, d);
       days.push({
         day: d,
-        dateStr: currDate.toISOString().slice(0, 10),
+        dateStr: formatLocalDate(year, month, d),
         isCurrentMonth: true,
       });
     }
@@ -224,11 +233,12 @@ export function CalendarView({
     // Next month padding to fill complete rows of 7
     const remaining = 7 - (days.length % 7);
     if (remaining < 7) {
+      const nextYear = month === 11 ? year + 1 : year;
+      const nextMonth = month === 11 ? 0 : month + 1;
       for (let i = 1; i <= remaining; i++) {
-        const nextDate = new Date(year, month + 1, i);
         days.push({
           day: i,
-          dateStr: nextDate.toISOString().slice(0, 10),
+          dateStr: formatLocalDate(nextYear, nextMonth, i),
           isCurrentMonth: false,
         });
       }
@@ -237,7 +247,11 @@ export function CalendarView({
     return days;
   }, [year, month]);
 
-  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const todayStr = useMemo(() => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  }, []);
 
   // Events for selected day
   const selectedDayEvents = useMemo(() => {
