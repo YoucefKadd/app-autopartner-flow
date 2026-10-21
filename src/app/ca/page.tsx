@@ -28,7 +28,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { useWorkspace } from "@/components/AppShell";
-import { ClientItem, hasPermission } from "@/types/kam";
+import { ClientItem, hasPermission, getAssignedManagerIds } from "@/types/kam";
 import { MONTH_NAMES, SHORT_MONTHS, MonthlyTurnover } from "@/components/ClientCaSection";
 import { CaImportModal } from "@/components/CaImportModal";
 
@@ -403,7 +403,7 @@ export default function CaGlobalDashboardPage() {
                 {users
                   .filter((u) => {
                     if (loggedUser?.role === "MANAGER") {
-                      return u.managerId === loggedUser.id || u.id === loggedUser.id;
+                      return getAssignedManagerIds(u).includes(loggedUser.id) || u.id === loggedUser.id;
                     }
                     return u.role === "KAM";
                   })

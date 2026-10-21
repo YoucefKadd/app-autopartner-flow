@@ -23,6 +23,7 @@ import {
   ClientStatus,
   CLIENT_STATUS_CONFIG,
   ClientItem,
+  getAssignedManagerIds,
 } from "@/types/kam";
 import { useWorkspace } from "@/components/AppShell";
 import { ClientsViews } from "@/components/ClientsViews";
@@ -578,7 +579,7 @@ export default function ClientsRoutePage() {
                 {users
                   .filter((u) => {
                     if (loggedUser?.role === "MANAGER") {
-                      return u.managerId === loggedUser.id || u.id === loggedUser.id;
+                      return getAssignedManagerIds(u).includes(loggedUser.id) || u.id === loggedUser.id;
                     }
                     return u.role === "KAM";
                   })

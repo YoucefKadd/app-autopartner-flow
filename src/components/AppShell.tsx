@@ -38,7 +38,7 @@ import {
   Camera,
   LayoutDashboard,
 } from "lucide-react";
-import { ClientItem, KamUser, NoteItem, ClientVisit, getInitials, hasPermission } from "@/types/kam";
+import { ClientItem, KamUser, NoteItem, ClientVisit, getInitials, hasPermission, getAssignedManagerIds } from "@/types/kam";
 import { QuickNoteModal } from "@/components/QuickNoteModal";
 import { NoteWorkspaceDrawer, NoteDockMode } from "@/components/NoteWorkspaceDrawer";
 import { ClientFormModal } from "@/components/ClientFormModal";
@@ -479,7 +479,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     >
       <div className="h-screen flex flex-col overflow-hidden bg-[#f8f9fb] dark:bg-zinc-950 text-slate-900 dark:text-zinc-100">
         {/* 1. TOP DARK HEADER BAR */}
-        <header className="h-14 bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 px-3 sm:px-4 lg:px-6 flex items-center justify-between shrink-0 z-30 border-b border-slate-200/90 dark:border-zinc-800 shadow-2xs">
+        <header className="h-14 bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 px-3 sm:px-4 lg:px-6 flex items-center justify-between shrink-0 z-20 border-b border-slate-200/90 dark:border-zinc-800 shadow-xs">
           {/* Left: Sidebar toggle + Auto Partner Logo + Divider + Route Title */}
           <div className="flex items-center gap-2 sm:gap-3.5">
             <button
@@ -876,7 +876,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       {users
                         .filter((u) => {
                           if (loggedUser?.role === "MANAGER") {
-                            return u.managerId === loggedUser.id || u.id === loggedUser.id;
+                            return getAssignedManagerIds(u).includes(loggedUser.id) || u.id === loggedUser.id;
                           }
                           return u.role === "KAM";
                         })

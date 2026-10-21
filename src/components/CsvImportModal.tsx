@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useId, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   UploadCloud,
   FileSpreadsheet,
@@ -55,6 +56,20 @@ const CRM_TARGET_FIELDS: CRMTargetField[] = [
     required: false,
     description: "Numéro de TVA de l'entreprise (ex: VATNUM1)",
     defaultCsvMatches: ["vatnum1", "vatnum", "tva", "num tva", "vat"],
+  },
+  {
+    id: "address",
+    label: "Adresse postale (Voie / Rue)",
+    required: false,
+    description: "Adresse du magasin (ex: ADDRESS, STREET, RUE)",
+    defaultCsvMatches: ["address", "adresse", "street", "rue", "voie", "streetname", "address1", "deliveryaddress", "adressevoie", "adressedistr"],
+  },
+  {
+    id: "postalCode",
+    label: "Code Postal",
+    required: false,
+    description: "Code postal d'implantation (ex: ZIPCODE, CP, CODEPOSTAL)",
+    defaultCsvMatches: ["zipcode", "zip", "cp", "codepostal", "postalcode", "code_postal", "postcode"],
   },
   {
     id: "city",
@@ -240,8 +255,13 @@ export function CsvImportModal({
     const companyIdx = rawHeaders.indexOf(fieldMapping.company);
     const apCodeIdx = fieldMapping.apClientNumber ? rawHeaders.indexOf(fieldMapping.apClientNumber) : -1;
     const vatIdx = fieldMapping.vatNumber ? rawHeaders.indexOf(fieldMapping.vatNumber) : -1;
+    const addressIdx = fieldMapping.address ? rawHeaders.indexOf(fieldMapping.address) : -1;
+    const postalCodeIdx = fieldMapping.postalCode ? rawHeaders.indexOf(fieldMapping.postalCode) : -1;
     const cityIdx = fieldMapping.city ? rawHeaders.indexOf(fieldMapping.city) : -1;
     const kamIdx = fieldMapping.kamName ? rawHeaders.indexOf(fieldMapping.kamName) : -1;
+    const contactIdx = fieldMapping.contactName ? rawHeaders.indexOf(fieldMapping.contactName) : -1;
+    const emailIdx = fieldMapping.email ? rawHeaders.indexOf(fieldMapping.email) : -1;
+    const phoneIdx = fieldMapping.phone ? rawHeaders.indexOf(fieldMapping.phone) : -1;
     const dateIdx = fieldMapping.invoiceDate ? rawHeaders.indexOf(fieldMapping.invoiceDate) : -1;
     const amountIdx = fieldMapping.amount ? rawHeaders.indexOf(fieldMapping.amount) : -1;
 
@@ -251,8 +271,13 @@ export function CsvImportModal({
         company: string;
         apClientNumber?: string;
         vatNumber?: string;
+        address?: string;
+        postalCode?: string;
         city: string;
         kamName?: string;
+        contactName?: string;
+        email?: string;
+        phone?: string;
         turnovers: Array<{ year: number; month: number; amount: number }>;
         totalCa: number;
         rowsCount: number;
@@ -271,8 +296,13 @@ export function CsvImportModal({
           company: companyVal,
           apClientNumber: apVal,
           vatNumber: vatIdx >= 0 ? row[vatIdx]?.trim() : undefined,
+          address: addressIdx >= 0 ? row[addressIdx]?.trim() : undefined,
+          postalCode: postalCodeIdx >= 0 ? row[postalCodeIdx]?.trim() : undefined,
           city: cityIdx >= 0 ? row[cityIdx]?.trim() : "France",
           kamName: kamIdx >= 0 ? row[kamIdx]?.trim() : undefined,
+          contactName: contactIdx >= 0 ? row[contactIdx]?.trim() : undefined,
+          email: emailIdx >= 0 ? row[emailIdx]?.trim() : undefined,
+          phone: phoneIdx >= 0 ? row[phoneIdx]?.trim() : undefined,
           turnovers: [],
           totalCa: 0,
           rowsCount: 0,
@@ -321,7 +351,12 @@ export function CsvImportModal({
         targetKamId,
         clients: previewClients.map((c) => ({
           company: c.company,
+          address: c.address,
+          postalCode: c.postalCode,
           city: c.city,
+          contactName: c.contactName,
+          email: c.email,
+          phone: c.phone,
           apClientNumber: c.apClientNumber,
           vatNumber: c.vatNumber,
           kamName: c.kamName,
@@ -422,8 +457,8 @@ export function CsvImportModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
       <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Modal Header */}
         <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-zinc-950/40">
@@ -686,6 +721,7 @@ export function CsvImportModal({
                     <tr>
                       <th className="py-2.5 px-3.5">Code AP</th>
                       <th className="py-2.5 px-3.5">Enseigne / Client</th>
+                      <th className="py-2.5 px-3.5">Adresse &amp; CP</th>
                       <th className="py-2.5 px-3.5">Ville</th>
                       <th className="py-2.5 px-3.5">N° TVA</th>
                       <th className="py-2.5 px-3.5">Mois de CA</th>
@@ -700,6 +736,20 @@ export function CsvImportModal({
                         </td>
                         <td className="py-2 px-3.5 font-semibold text-slate-900 dark:text-zinc-100">
                           {client.company}
+                        </td>
+                        <td className="py-2 px-3.5 text-slate-600 dark:text-zinc-300">
+                          {client.address ? (
+                            <div className="text-[11px] leading-tight">
+                              <div>{client.address}</div>
+                              {client.postalCode && (
+                                <span className="text-slate-400 font-mono text-[10px]">{client.postalCode}</span>
+                              )}
+                            </div>
+                          ) : client.postalCode ? (
+                            <span className="font-mono text-[11px]">{client.postalCode}</span>
+                          ) : (
+                            <span className="text-slate-400 italic text-[11px]">—</span>
+                          )}
                         </td>
                         <td className="py-2 px-3.5 text-slate-600 dark:text-zinc-300">
                           {client.city}
@@ -813,4 +863,9 @@ export function CsvImportModal({
       </div>
     </div>
   );
+
+  if (typeof document !== "undefined") {
+    return createPortal(modalContent, document.body);
+  }
+  return modalContent;
 }

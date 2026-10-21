@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   UploadCloud,
   FileSpreadsheet,
@@ -118,7 +119,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
     unmatchedItems: string[];
   } | null>(null);
 
-  if (!isOpen) return null;
+
 
   function resetState() {
     setStep("upload");
@@ -300,8 +301,10 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+  if (!isOpen) return null;
+
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between">
@@ -608,4 +611,9 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
       </div>
     </div>
   );
+
+  if (typeof document !== "undefined") {
+    return createPortal(modalContent, document.body);
+  }
+  return modalContent;
 }

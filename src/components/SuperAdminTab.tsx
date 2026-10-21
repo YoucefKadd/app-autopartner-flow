@@ -27,7 +27,7 @@ import {
   UserCheck,
   Plus,
 } from "lucide-react";
-import { KamUser, getInitials } from "@/types/kam";
+import { KamUser, getInitials, getAssignedManagerIds } from "@/types/kam";
 
 interface SuperAdminTabProps {
   users: KamUser[];
@@ -63,6 +63,7 @@ export function SuperAdminTab({
   const [role, setRole] = useState<"KAM" | "MANAGER" | "DIRECTEUR" | "SUPER_ADMIN">("KAM");
   const [title, setTitle] = useState("Key Account Manager");
   const [managerId, setManagerId] = useState<string>("");
+  const [selectedNewUserManagerIds, setSelectedNewUserManagerIds] = useState<string[]>([]);
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([
     "view_clients",
     "edit_clients",
@@ -81,10 +82,10 @@ export function SuperAdminTab({
 
   // Manager attribution modal (for DIRECTEUR / SUPER_ADMIN)
   const [assigningKam, setAssigningKam] = useState<KamUser | null>(null);
-  const [selectedNewManagerId, setSelectedNewManagerId] = useState<string>("");
+  const [selectedManagerIds, setSelectedManagerIds] = useState<string[]>([]);
   const [savingAttribution, setSavingAttribution] = useState(false);
 
-  const managersList = users.filter((u) => u.role === "MANAGER" || u.role === "DIRECTEUR");
+  const managersList = users.filter((u) => u.role === "MANAGER" || u.role === "DIRECTEUR" || u.role === "SUPER_ADMIN");
 
   // Toggle permission checkbox
   const togglePermission = (permId: string) => {
@@ -108,7 +109,8 @@ export function SuperAdminTab({
           password: password.trim() || undefined,
           title: title.trim() || undefined,
           role,
-          managerId: role === "KAM" && managerId ? managerId : undefined,
+          managerId: role === "KAM" && selectedNewUserManagerIds[0] ? selectedNewUserManagerIds[0] : undefined,
+          managerIds: role === "KAM" ? selectedNewUserManagerIds : undefined,
           permissions: selectedPermissions.join(","),
         }),
       });
@@ -119,6 +121,7 @@ export function SuperAdminTab({
         setTitle("Key Account Manager");
         setRole("KAM");
         setManagerId("");
+        setSelectedNewUserManagerIds([]);
         setIsCreateModalOpen(false);
         setActionMessage("Nouveau compte créé avec succès !");
         onRefresh();
@@ -213,7 +216,7 @@ export function SuperAdminTab({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: assigningKam.id,
-          managerId: selectedNewManagerId || null,
+          managerIds: selectedManagerIds,
         }),
       });
       if (res.ok) {
@@ -370,7 +373,7 @@ export function SuperAdminTab({
                     const userPerms = (u.permissions || "view_clients,edit_clients,view_ca,add_notes,add_visits").split(",");
 
                     // Find assigned manager name
-                    const assignedManager = users.find((m) => m.id === u.managerId);
+                    const assignedManagers = managersList.filter((m) => getAssignedManagerIds(u).includes(m.id));
 
                     return (
                       <tr
@@ -423,33 +426,41 @@ export function SuperAdminTab({
                         {/* Manager attribution */}
                         <td className="py-3.5 px-4">
                           {u.role === "KAM" ? (
-                            <div className="flex items-center gap-1.5">
-                              {assignedManager ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-medium text-[11px]">
-                                  <Briefcase className="w-3 h-3 text-purple-500" />
-                                  {assignedManager.name}
-                                </span>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {assignedManagers.length > 0 ? (
+                                assignedManagers.map((m) => (
+                                  <span
+                                    key={m.id}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-medium text-[11px] border border-purple-200/50"
+                                  >
+                                    <Briefcase className="w-3 h-3 text-purple-500" />
+                                    <span>{m.name}</span>
+                                    <span className="text-[9px] text-purple-500 font-semibold">
+                                      ({m.role === "DIRECTEUR" ? "Dir." : m.role === "SUPER_ADMIN" ? "Admin" : "Mgr"})
+                                    </span>
+                                  </span>
+                                ))
                               ) : (
                                 <span className="text-[11px] text-slate-400 italic">
-                                  Non attribué
+                                  Autonome (Non attribué)
                                 </span>
                               )}
                               <button
                                 type="button"
                                 onClick={() => {
                                   setAssigningKam(u);
-                                  setSelectedNewManagerId(u.managerId || "");
+                                  setSelectedManagerIds(getAssignedManagerIds(u));
                                 }}
-                                title="Modifier le manager de rattachement"
-                                className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-semibold ml-1"
+                                title="Modifier les managers et superviseurs de rattachement"
+                                className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline font-semibold ml-1 shrink-0"
                               >
-                                {assignedManager ? "Modifier" : "+ Attribuer"}
+                                {assignedManagers.length > 0 ? "Modifier" : "+ Attribuer"}
                               </button>
                             </div>
-                          ) : u.role === "MANAGER" ? (
+                          ) : u.role === "MANAGER" || u.role === "DIRECTEUR" ? (
                             <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1">
                               <Users className="w-3 h-3 text-purple-500" />
-                              <span>{users.filter((k) => k.managerId === u.id).length} KAM sous sa gestion</span>
+                              <span>{users.filter((k) => k.role === "KAM" && getAssignedManagerIds(k).includes(u.id)).length} KAM sous sa gestion / supervision</span>
                             </div>
                           ) : (
                             <span className="text-[11px] text-slate-400">— Direction —</span>
@@ -671,24 +682,45 @@ export function SuperAdminTab({
                 />
               </div>
 
-              {/* If KAM: select manager */}
+              {/* If KAM: select multiple managers & supervisors */}
               {role === "KAM" && managersList.length > 0 && (
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                    Manager de rattachement (Optionnel)
-                  </label>
-                  <select
-                    value={managerId}
-                    onChange={(e) => setManagerId(e.target.value)}
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-800 dark:text-zinc-200 focus:outline-none cursor-pointer"
-                  >
-                    <option value="">Aucun manager (Autonome)</option>
-                    {managersList.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({m.role})
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-medium text-slate-700 dark:text-slate-300">
+                      Managers &amp; Superviseurs de rattachement
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      {selectedNewUserManagerIds.length} sélectionné(s)
+                    </span>
+                  </div>
+                  <div className="max-h-36 overflow-y-auto space-y-1.5 border border-slate-200 dark:border-zinc-800 rounded-xl p-2 bg-slate-50 dark:bg-zinc-950">
+                    {managersList.map((m) => {
+                      const isChecked = selectedNewUserManagerIds.includes(m.id);
+                      return (
+                        <label
+                          key={m.id}
+                          className="flex items-center justify-between p-1.5 rounded-lg text-xs cursor-pointer hover:bg-slate-100 dark:hover:bg-zinc-900 transition"
+                        >
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                setSelectedNewUserManagerIds((prev) =>
+                                  isChecked ? prev.filter((id) => id !== m.id) : [...prev, m.id]
+                                );
+                              }}
+                              className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                            />
+                            <span className="font-medium text-slate-800 dark:text-zinc-200">{m.name}</span>
+                          </div>
+                          <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-slate-200 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+                            {m.role === "SUPER_ADMIN" ? "Super Admin" : m.role === "DIRECTEUR" ? "Directeur" : "Manager"}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -784,35 +816,83 @@ export function SuperAdminTab({
       {/* MODAL 2: ATTRIBUTE KAM TO MANAGER */}
       {assigningKam && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-2">
+          <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
               <Briefcase className="w-4 h-4 text-purple-600" />
-              Attribution du Manager pour {assigningKam.name}
+              Attribution des Managers &amp; Superviseurs pour {assigningKam.name}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
-              Sélectionnez le Manager qui aura la visibilité et la supervision sur le portefeuille de clients et le CA de ce KAM.
+              Sélectionnez un ou plusieurs Managers, Directeurs ou Superviseurs qui auront accès au portefeuille et au suivi de ce KAM.
             </p>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  Manager responsable :
-                </label>
-                <select
-                  value={selectedNewManagerId}
-                  onChange={(e) => setSelectedNewManagerId(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-white focus:outline-none"
-                >
-                  <option value="">Aucun manager (Indépendant)</option>
-                  {managersList.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} ({m.role})
-                    </option>
-                  ))}
-                </select>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-xs pb-1">
+                <span className="font-semibold text-slate-700 dark:text-slate-300">
+                  Responsables assignés ({selectedManagerIds.length}) :
+                </span>
+                {selectedManagerIds.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedManagerIds([])}
+                    className="text-[11px] text-rose-600 hover:underline font-medium"
+                  >
+                    Tout désélectionner (Autonome)
+                  </button>
+                )}
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
+              <div className="max-h-60 overflow-y-auto space-y-2 border border-slate-200 dark:border-zinc-800 rounded-xl p-2 bg-slate-50/50 dark:bg-zinc-950/40">
+                {managersList.length === 0 ? (
+                  <p className="text-xs text-slate-400 p-2">Aucun manager ou superviseur configuré.</p>
+                ) : (
+                  managersList.map((m) => {
+                    const isChecked = selectedManagerIds.includes(m.id);
+                    return (
+                      <label
+                        key={m.id}
+                        className={`flex items-center justify-between p-2.5 rounded-xl border text-xs cursor-pointer transition ${
+                          isChecked
+                            ? "bg-purple-50/80 dark:bg-purple-950/30 border-purple-300 dark:border-purple-800 text-purple-900 dark:text-purple-200"
+                            : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 hover:bg-slate-50 text-slate-700 dark:text-zinc-300"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {
+                              setSelectedManagerIds((prev) =>
+                                isChecked ? prev.filter((id) => id !== m.id) : [...prev, m.id]
+                              );
+                            }}
+                            className="rounded border-slate-300 text-purple-600 focus:ring-purple-500"
+                          />
+                          <div>
+                            <div className="font-semibold flex items-center gap-1.5">
+                              <span>{m.name}</span>
+                              <span
+                                className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                                  m.role === "SUPER_ADMIN"
+                                    ? "bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300"
+                                    : m.role === "DIRECTEUR"
+                                    ? "bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300"
+                                    : "bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300"
+                                }`}
+                              >
+                                {m.role === "SUPER_ADMIN" ? "Super Admin" : m.role === "DIRECTEUR" ? "Directeur" : "Manager"}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-slate-400">{m.email}</div>
+                          </div>
+                        </div>
+                        {isChecked && <Check className="w-4 h-4 text-purple-600 shrink-0" />}
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-zinc-800">
                 <button
                   type="button"
                   onClick={() => setAssigningKam(null)}
@@ -883,7 +963,7 @@ export function SuperAdminTab({
     const isCurrent = user.id === activeUser.id;
     const isDisabled = user.status === "DISABLED";
     const userPerms = (user.permissions || "view_clients,edit_clients,view_ca,add_notes,add_visits").split(",");
-    const assignedManager = users.find((m) => m.id === user.managerId);
+    const assignedManagers = managersList.filter((m) => getAssignedManagerIds(user).includes(m.id));
 
     return (
       <div
@@ -946,12 +1026,19 @@ export function SuperAdminTab({
 
           {/* Assigned Manager Badge */}
           {user.role === "KAM" && (
-            <div className="text-[11px] mb-3 flex items-center gap-1.5 bg-slate-50 dark:bg-zinc-950/40 p-2 rounded-xl border border-slate-100 dark:border-zinc-800">
-              <span className="text-slate-400">Manager :</span>
-              {assignedManager ? (
-                <span className="font-semibold text-purple-600 dark:text-purple-400">
-                  {assignedManager.name}
-                </span>
+            <div className="text-[11px] mb-3 flex flex-wrap items-center gap-1.5 bg-slate-50 dark:bg-zinc-950/40 p-2 rounded-xl border border-slate-100 dark:border-zinc-800">
+              <span className="text-slate-400">Managers :</span>
+              {assignedManagers.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {assignedManagers.map((m) => (
+                    <span
+                      key={m.id}
+                      className="font-semibold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/40 px-1.5 py-0.5 rounded text-[10px]"
+                    >
+                      {m.name}
+                    </span>
+                  ))}
+                </div>
               ) : (
                 <span className="text-slate-400 italic">Non rattaché</span>
               )}
@@ -959,11 +1046,11 @@ export function SuperAdminTab({
                 type="button"
                 onClick={() => {
                   setAssigningKam(user);
-                  setSelectedNewManagerId(user.managerId || "");
+                  setSelectedManagerIds(getAssignedManagerIds(user));
                 }}
                 className="text-[10px] text-blue-600 hover:underline ml-auto font-semibold"
               >
-                Changer
+                {assignedManagers.length > 0 ? "Modifier" : "+ Attribuer"}
               </button>
             </div>
           )}

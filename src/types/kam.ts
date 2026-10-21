@@ -99,6 +99,7 @@ export interface KamUser {
   status: "ACTIVE" | "DISABLED";
   permissions?: string | null;
   managerId?: string | null;
+  managerIds?: string[];
   manager?: {
     id: string;
     name: string;
@@ -327,5 +328,49 @@ export function hasPermission(
   if (!user.permissions) return false;
   const list = user.permissions.split(",").map((p) => p.trim());
   return list.includes(permissionId);
+}
+
+/**
+ * Returns all manager and supervisor user IDs assigned to a KAM.
+ * Combines direct managerId and any managers/supervisors encoded in permissions.
+ */
+export function getAssignedManagerIds(user: KamUser | null | undefined): string[] {
+  if (!user) return [];
+  const ids = new Set<string>();
+  if (user.managerId) {
+    ids.add(user.managerId);
+  }
+  if (Array.isArray(user.managerIds)) {
+    user.managerIds.forEach((id) => id && ids.add(id));
+  }
+  if (user.permissions) {
+    const parts = user.permissions.split(",");
+    for (const p of parts) {
+      if (p.startsWith("managers:") || p.startsWith("mgr:")) {
+        const raw = p.replace(/^(managers:|mgr:)/, "").trim();
+        raw.split("|").map((s) => s.trim()).filter(Boolean).forEach((id) => ids.add(id));
+      }
+    }
+  }
+  return Array.from(ids);
+}
+
+/**
+ * Encodes multiple manager/supervisor IDs into the user's permissions string.
+ */
+export function encodeAssignedManagerIds(
+  basePermissions: string | null | undefined,
+  managerIds: string[]
+): string {
+  const cleanBase = (basePermissions || "view_clients,edit_clients,view_ca,add_notes,add_visits")
+    .split(",")
+    .map((p) => p.trim())
+    .filter((p) => p && !p.startsWith("managers:") && !p.startsWith("mgr:"));
+
+  const validIds = Array.from(new Set(managerIds.filter(Boolean)));
+  if (validIds.length > 0) {
+    cleanBase.push(`managers:${validIds.join("|")}`);
+  }
+  return cleanBase.join(",");
 }
 
