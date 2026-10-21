@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -56,6 +56,27 @@ export default function CaGlobalDashboardPage() {
   const [selectedStatus, setSelectedStatus] = useState("ALL");
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
+  const [dbTurnovers, setDbTurnovers] = useState<any[]>([]);
+  const [loadingTurnovers, setLoadingTurnovers] = useState(true);
+
+  const fetchTurnovers = useCallback(async () => {
+    setLoadingTurnovers(true);
+    try {
+      const res = await fetch(`/api/ca?year=${selectedYear}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDbTurnovers(data.turnovers || []);
+      }
+    } catch (err) {
+      console.error("Error loading turnovers:", err);
+    } finally {
+      setLoadingTurnovers(false);
+    }
+  }, [selectedYear]);
+
+  useEffect(() => {
+    fetchTurnovers();
+  }, [fetchTurnovers, dataVersion]);
 
 
   // Sorting state
@@ -97,82 +118,40 @@ export default function CaGlobalDashboardPage() {
     return Array.from(set).sort();
   }, [clients]);
 
-  // Load CA & Objectives for all clients
+  // Load CA & Objectives for all clients strictly from real data (STRICTLY 0 € IF NO DATA)
   const clientsWithCa = useMemo(() => {
     return clients.map((client) => {
-      // 1. Retrieve or generate monthly data
-      const caKey = `apflow_ca_${client.id}_${selectedYear}`;
-      let monthly: MonthlyTurnover[] = [];
+      // Find client's turnovers from MySQL DB
+      const clientTurnovers = dbTurnovers.filter((t: any) => t.clientId === client.id);
 
-      if (typeof window !== "undefined") {
-        const saved = localStorage.getItem(caKey);
-        if (saved) {
-          try {
-            monthly = JSON.parse(saved);
-          } catch {}
-        }
-      }
+      // Monthly data: 12 months, STRICTLY 0 € for any month without data!
+      const monthly: MonthlyTurnover[] = MONTH_NAMES.map((name, idx) => {
+        const monthNum = idx + 1;
+        const found = clientTurnovers.find((t: any) => t.month === monthNum);
+        const amount = found ? Number(found.amount) || 0 : 0;
+        const ordersCount = found ? Number(found.ordersCount) || 0 : 0;
+        return {
+          month: monthNum,
+          monthName: name,
+          amount,
+          ordersCount,
+          status: amount > 0 ? "FACTURE" : "NON_COMMUNIQUE",
+        };
+      });
 
-      // If no data saved, generate default
-      if (monthly.length === 0) {
-        const baseAmount =
-          client.status === "VIP"
-            ? 18500
-            : client.status === "ACTIVE"
-            ? 9500
-            : client.status === "NEW"
-            ? 3200
-            : client.status === "PROSPECT"
-            ? 1800
-            : 4500;
-
-        let seed = 0;
-        for (let i = 0; i < client.id.length; i++) {
-          seed = (seed * 31 + client.id.charCodeAt(i)) % 1000;
-        }
-
-        monthly = MONTH_NAMES.map((name, idx) => {
-          const isPastOrCurrent =
-            selectedYear < currentYear || (selectedYear === currentYear && idx <= currentMonthIdx);
-          const variance = (((seed + idx * 77) % 35) - 15) / 100;
-          const amount = isPastOrCurrent ? Math.round(baseAmount * (1 + variance)) : 0;
-          return {
-            month: idx + 1,
-            monthName: name,
-            amount,
-            ordersCount: isPastOrCurrent ? Math.max(2, Math.round(amount / 450)) : 0,
-            status: idx < currentMonthIdx ? "CLOTURE" : idx === currentMonthIdx ? "FACTURE" : "ESTIME",
-          };
-        });
-      }
-
-      // 2. Retrieve or compute annual target
-      let target = 0;
-      const targetKey = `apflow_ca_target_${client.id}_${selectedYear}`;
-      if (typeof window !== "undefined") {
-        const savedTarget = localStorage.getItem(targetKey);
+      // Target: check db month 0 or target field, then localStorage fallback, else 0
+      const targetItem = clientTurnovers.find((t: any) => t.month === 0) || clientTurnovers.find((t: any) => t.target && t.target > 0);
+      let target = targetItem && targetItem.target > 0 ? Number(targetItem.target) : 0;
+      if (!target && typeof window !== "undefined") {
+        const savedTarget = localStorage.getItem(`apflow_ca_target_${client.id}_${selectedYear}`);
         if (savedTarget) {
-          target = parseInt(savedTarget, 10);
+          const parsed = parseInt(savedTarget, 10);
+          if (!isNaN(parsed) && parsed > 0) target = parsed;
         }
-      }
-      if (!target || isNaN(target)) {
-        target =
-          client.status === "VIP"
-            ? 240000
-            : client.status === "ACTIVE"
-            ? 120000
-            : client.status === "NEW"
-            ? 40000
-            : client.status === "PROSPECT"
-            ? 30000
-            : 60000;
       }
 
       // Retrieve AP Code
-      let apCode = "";
-      if (typeof window !== "undefined") {
-        apCode = localStorage.getItem(`apflow_apcode_${client.id}`) || "";
-      }
+      const apCode = client.apClientNumber || (typeof window !== "undefined" ? localStorage.getItem(`apflow_apcode_${client.id}`) || "" : "");
 
       const totalTurnover = monthly.reduce((acc, m) => acc + m.amount, 0);
       const totalOrders = monthly.reduce((acc, m) => acc + m.ordersCount, 0);
@@ -188,7 +167,7 @@ export default function CaGlobalDashboardPage() {
         achievementRate,
       };
     });
-  }, [clients, selectedYear, dataVersion]);
+  }, [clients, dbTurnovers, selectedYear]);
 
   // Filter and sort clients
   const filteredClients = useMemo(() => {
@@ -283,14 +262,27 @@ export default function CaGlobalDashboardPage() {
   }, [filteredClients]);
 
   // Handle Target Update
-  function handleSaveTarget(clientId: string) {
-    const num = parseInt(editingTargetValue.replace(/\D/g, ""), 10);
-    if (!isNaN(num) && num >= 0) {
-      localStorage.setItem(`apflow_ca_target_${clientId}_${selectedYear}`, num.toString());
-      setDataVersion((prev) => prev + 1);
-      window.dispatchEvent(new CustomEvent("apflow_ca_changed"));
-    }
+  async function handleSaveTarget(clientId: string) {
+    const num = parseInt(editingTargetValue.replace(/\D/g, ""), 10) || 0;
+    localStorage.setItem(`apflow_ca_target_${clientId}_${selectedYear}`, num.toString());
+    setDataVersion((prev) => prev + 1);
     setEditingTargetClientId(null);
+
+    try {
+      await fetch("/api/ca", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId,
+          year: selectedYear,
+          month: 0,
+          target: num,
+        }),
+      });
+      window.dispatchEvent(new CustomEvent("apflow_ca_changed"));
+    } catch (err) {
+      console.error("Error saving target to DB:", err);
+    }
   }
 
   function formatEuro(val: number) {
@@ -480,19 +472,25 @@ export default function CaGlobalDashboardPage() {
             <Target className="w-4 h-4 text-blue-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-zinc-100">
-            {formatEuro(globalStats.totalTarget)}
+            {globalStats.totalTarget > 0 ? formatEuro(globalStats.totalTarget) : "NC"}
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 bg-slate-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
-              <div
-                className="bg-emerald-500 h-full rounded-full transition-all"
-                style={{ width: `${Math.min(100, globalStats.globalRate)}%` }}
-              />
+          {globalStats.totalTarget > 0 ? (
+            <div className="flex items-center gap-2">
+              <div className="flex-1 bg-slate-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
+                <div
+                  className="bg-emerald-500 h-full rounded-full transition-all"
+                  style={{ width: `${Math.min(100, globalStats.globalRate)}%` }}
+                />
+              </div>
+              <span className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                {globalStats.globalRate}%
+              </span>
             </div>
-            <span className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
-              {globalStats.globalRate}%
-            </span>
-          </div>
+          ) : (
+            <div className="text-[11px] text-slate-500">
+              Aucun objectif fixé pour cet exercice
+            </div>
+          )}
         </div>
 
         {/* Card 3: Total Orders */}
@@ -842,13 +840,13 @@ export default function CaGlobalDashboardPage() {
                       ) : (
                         <div className="inline-flex items-center gap-1.5 justify-end">
                           <span className="font-mono font-semibold text-slate-700 dark:text-zinc-300">
-                            {formatEuro(client.target)}
+                            {client.target > 0 ? formatEuro(client.target) : "NC"}
                           </span>
                           <button
                             type="button"
                             onClick={() => {
                               setEditingTargetClientId(client.id);
-                              setEditingTargetValue(client.target.toString());
+                              setEditingTargetValue(client.target > 0 ? client.target.toString() : "");
                             }}
                             className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
                             title="Modifier l'objectif annuel de ce client"
@@ -861,17 +859,21 @@ export default function CaGlobalDashboardPage() {
 
                     {/* % Achievement */}
                     <td className="py-3 px-3 text-center">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold font-mono ${
-                          client.achievementRate >= 100
-                            ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
-                            : client.achievementRate >= 60
-                            ? "bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
-                            : "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800"
-                        }`}
-                      >
-                        {client.achievementRate}%
-                      </span>
+                      {client.target > 0 ? (
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold font-mono ${
+                            client.achievementRate >= 100
+                              ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                              : client.achievementRate >= 60
+                              ? "bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
+                              : "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800"
+                          }`}
+                        >
+                          {client.achievementRate}%
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400 font-mono">NC</span>
+                      )}
                     </td>
 
                     {/* Monthly Mini Sparkline / Grid */}

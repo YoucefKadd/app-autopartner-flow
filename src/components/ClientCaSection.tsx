@@ -29,7 +29,8 @@ export interface MonthlyTurnover {
   monthName: string;
   amount: number;
   ordersCount: number;
-  status: "FACTURE" | "ESTIME" | "CLOTURE";
+  axPurchases?: number;
+  status: "FACTURE" | "ESTIME" | "CLOTURE" | "NON_COMMUNIQUE";
 }
 
 export const MONTH_NAMES = [
@@ -86,70 +87,72 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
   const [isCsvModalOpen, setIsCsvModalOpen] = useState(false);
   const [caRefreshKey, setCaRefreshKey] = useState(0);
 
-  // Generate realistic default turnover data for a client based on status
-  function generateDefaultMonthlyData(year: number): MonthlyTurnover[] {
-    const baseAmount =
-      client.status === "VIP"
-        ? 18500
-        : client.status === "ACTIVE"
-        ? 9500
-        : client.status === "NEW"
-        ? 3200
-        : client.status === "PROSPECT"
-        ? 1800
-        : 4500;
-
-    // Deterministic seed based on client.id
-    let seed = 0;
-    for (let i = 0; i < client.id.length; i++) {
-      seed = (seed * 31 + client.id.charCodeAt(i)) % 1000;
-    }
-
-    return MONTH_NAMES.map((name, idx) => {
-      // Future months in the current year default to 0 or estimated
-      const isPastOrCurrent = year < currentYear || (year === currentYear && idx <= currentMonthIdx);
-      const variance = (((seed + idx * 77) % 35) - 15) / 100; // -15% to +20%
-      const amount = isPastOrCurrent
-        ? Math.round(baseAmount * (1 + variance))
-        : 0;
-      const orders = isPastOrCurrent ? Math.max(2, Math.round(amount / 450)) : 0;
-
-      return {
-        month: idx + 1,
-        monthName: name,
-        amount,
-        ordersCount: orders,
-        status: idx < currentMonthIdx ? "CLOTURE" : idx === currentMonthIdx ? "FACTURE" : "ESTIME",
-      };
-    });
+  // Default zero monthly turnover data (NO FAKE / FICTITIOUS DATA)
+  function generateZeroMonthlyData(): MonthlyTurnover[] {
+    return MONTH_NAMES.map((name, idx) => ({
+      month: idx + 1,
+      monthName: name,
+      amount: 0,
+      ordersCount: 0,
+      status: "NON_COMMUNIQUE",
+    }));
   }
 
-  // Load from local storage or initialize
+  // Load real turnover data from MySQL API
   useEffect(() => {
-    // 1. Turnover data
-    const key = `apflow_ca_${client.id}_${selectedYear}`;
-    const saved = localStorage.getItem(key);
-    if (saved) {
+    let isCancelled = false;
+
+    async function loadData() {
       try {
-        setMonthlyData(JSON.parse(saved));
-      } catch {
-        const initial = generateDefaultMonthlyData(selectedYear);
-        setMonthlyData(initial);
-        localStorage.setItem(key, JSON.stringify(initial));
+        const res = await fetch(`/api/ca?year=${selectedYear}&clientId=${client.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          const items: any[] = data.turnovers || [];
+          if (!isCancelled) {
+            const mapped: MonthlyTurnover[] = MONTH_NAMES.map((name, idx) => {
+              const monthNum = idx + 1;
+              const found = items.find((t: any) => t.month === monthNum);
+              const amount = found ? Number(found.amount) || 0 : 0;
+              const orders = found ? Number(found.ordersCount) || 0 : 0;
+              return {
+                month: monthNum,
+                monthName: name,
+                amount,
+                ordersCount: orders,
+                status: amount > 0 ? "FACTURE" : "NON_COMMUNIQUE",
+              };
+            });
+            setMonthlyData(mapped);
+
+            // Target
+            const targetItem = items.find((t: any) => t.month === 0) || items.find((t: any) => t.target && t.target > 0);
+            if (targetItem && targetItem.target > 0) {
+              setAnnualTarget(Number(targetItem.target));
+            } else {
+              const savedTarget = localStorage.getItem(`apflow_ca_target_${client.id}_${selectedYear}`);
+              if (savedTarget) {
+                setAnnualTarget(parseInt(savedTarget, 10) || 0);
+              } else {
+                setAnnualTarget(0);
+              }
+            }
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Error loading CA for client:", err);
       }
-    } else {
-      const initial = generateDefaultMonthlyData(selectedYear);
-      setMonthlyData(initial);
-      localStorage.setItem(key, JSON.stringify(initial));
+
+      if (!isCancelled) {
+        setMonthlyData(generateZeroMonthlyData());
+      }
     }
 
-    // 2. Annual Target
-    const targetKey = `apflow_ca_target_${client.id}_${selectedYear}`;
-    const savedTarget = localStorage.getItem(targetKey);
-    if (savedTarget) {
-      const parsed = parseInt(savedTarget, 10);
-      if (!isNaN(parsed) && parsed >= 0) setAnnualTarget(parsed);
-    }
+    loadData();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [client.id, selectedYear, caRefreshKey]);
 
   // Calculations
@@ -180,7 +183,7 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
     };
   }, [monthlyData, annualTarget]);
 
-  function handleSaveEdit(monthNumber: number) {
+  async function handleSaveEdit(monthNumber: number) {
     const numericAmount = parseFloat(editAmount.replace(/[^0-9.]/g, "")) || 0;
     const numericOrders = parseInt(editOrders, 10) || 0;
 
@@ -190,7 +193,7 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
             ...m,
             amount: numericAmount,
             ordersCount: numericOrders,
-            status: (numericAmount > 0 ? "FACTURE" : "ESTIME") as any,
+            status: (numericAmount > 0 ? "FACTURE" : "NON_COMMUNIQUE") as any,
           }
         : m
     );
@@ -198,6 +201,23 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
     setMonthlyData(updated);
     localStorage.setItem(`apflow_ca_${client.id}_${selectedYear}`, JSON.stringify(updated));
     setEditingMonth(null);
+
+    try {
+      await fetch("/api/ca", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientId: client.id,
+          year: selectedYear,
+          month: monthNumber,
+          amount: numericAmount,
+          ordersCount: numericOrders,
+        }),
+      });
+      window.dispatchEvent(new CustomEvent("apflow_ca_changed"));
+    } catch (err) {
+      console.error("Error saving CA month to DB:", err);
+    }
   }
 
   function formatEuro(amount: number) {
@@ -290,10 +310,12 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
               Mois Record
             </span>
             <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-              {formatEuro(stats.peakMonth.amount)}
+              {stats.peakMonth.amount > 0 ? formatEuro(stats.peakMonth.amount) : "NC"}
             </div>
             <div className="text-[11px] text-slate-400">
-              {stats.peakMonth.monthName} ({stats.peakMonth.ordersCount} cmd)
+              {stats.peakMonth.amount > 0
+                ? `${stats.peakMonth.monthName} (${stats.peakMonth.ordersCount} cmd)`
+                : "Aucune donnée"}
             </div>
           </div>
 
@@ -331,14 +353,26 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    const num = parseInt(editTargetInput.replace(/\D/g, ""), 10);
-                    if (!isNaN(num) && num >= 0) {
-                      setAnnualTarget(num);
-                      localStorage.setItem(`apflow_ca_target_${client.id}_${selectedYear}`, num.toString());
-                      window.dispatchEvent(new CustomEvent("apflow_ca_changed"));
-                    }
+                  onClick={async () => {
+                    const num = parseInt(editTargetInput.replace(/\D/g, ""), 10) || 0;
+                    setAnnualTarget(num);
+                    localStorage.setItem(`apflow_ca_target_${client.id}_${selectedYear}`, num.toString());
                     setIsEditingTarget(false);
+                    try {
+                      await fetch("/api/ca", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          clientId: client.id,
+                          year: selectedYear,
+                          month: 0,
+                          target: num,
+                        }),
+                      });
+                      window.dispatchEvent(new CustomEvent("apflow_ca_changed"));
+                    } catch (err) {
+                      console.error("Error saving target to DB:", err);
+                    }
                   }}
                   className="p-1 rounded bg-[#d90416] text-white hover:bg-[#b80312]"
                   title="Enregistrer"
@@ -356,7 +390,7 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
               </div>
             ) : (
               <div className="text-xl font-bold text-slate-900 dark:text-zinc-100">
-                {formatEuro(annualTarget)}
+                {annualTarget > 0 ? formatEuro(annualTarget) : "NC (Non défini)"}
               </div>
             )}
 

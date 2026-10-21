@@ -5,10 +5,16 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const yearParam = searchParams.get("year");
+    const clientIdParam = searchParams.get("clientId");
     const year = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
 
+    const where: any = { year };
+    if (clientIdParam) {
+      where.clientId = clientIdParam;
+    }
+
     const turnovers = await prisma.turnover.findMany({
-      where: { year },
+      where,
       include: {
         client: {
           select: {
