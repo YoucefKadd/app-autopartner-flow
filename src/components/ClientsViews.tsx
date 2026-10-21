@@ -140,6 +140,7 @@ export type TableSortField =
   | "email"
   | "phone"
   | "status"
+  | "lastVisit"
   | "visit";
 
 export function ClientsViews({
@@ -301,6 +302,12 @@ export function ClientsViews({
         const daysA = vsA.daysSinceLastVisit ?? 99999;
         const daysB = vsB.daysSinceLastVisit ?? 99999;
         cmp = daysA - daysB;
+      } else if (sortField === "lastVisit") {
+        const vsA = getClientVisitStatus(a);
+        const vsB = getClientVisitStatus(b);
+        const timeA = vsA.lastVisitDate ? new Date(vsA.lastVisitDate).getTime() : 0;
+        const timeB = vsB.lastVisitDate ? new Date(vsB.lastVisitDate).getTime() : 0;
+        cmp = timeA - timeB;
       }
       return sortOrder === "asc" ? cmp : -cmp;
     });
@@ -456,6 +463,16 @@ export function ClientsViews({
                       <div className="flex items-center gap-1.5">
                         <span>LE STATUT</span>
                         <ArrowUpDown className={`w-3 h-3 ${sortField === "status" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
+                      </div>
+                    </th>
+                    {/* Colonne : Dernière Visite */}
+                    <th
+                      onClick={() => handleToggleSort("lastVisit")}
+                      className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[145px] cursor-pointer hover:text-[#d90416] transition-colors select-none`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>DERNIÈRE VISITE</span>
+                        <ArrowUpDown className={`w-3 h-3 ${sortField === "lastVisit" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
                       </div>
                     </th>
                     {/* Colonne 8 : Visite & Rythme de re-visite */}
@@ -698,6 +715,31 @@ export function ClientsViews({
                             />
                             {statusCfg.label}
                           </span>
+                        </td>
+
+                        {/* DERNIÈRE VISITE */}
+                        <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 whitespace-nowrap`}>
+                          {(() => {
+                            const vs = getClientVisitStatus(client);
+                            if (!vs.lastVisitDate) {
+                              return <span className="text-slate-400 text-[11px] italic">Jamais visité</span>;
+                            }
+                            const d = new Date(vs.lastVisitDate);
+                            const formattedDate = d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+                            return (
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-semibold text-slate-800 dark:text-zinc-100 text-xs flex items-center gap-1.5">
+                                  <Calendar className="w-3.5 h-3.5 text-[#d90416] shrink-0" />
+                                  {formattedDate}
+                                </span>
+                                {vs.daysSinceLastVisit !== null && (
+                                  <span className="text-[10px] text-slate-400 dark:text-zinc-500 pl-5">
+                                    {vs.daysSinceLastVisit === 0 ? "Aujourd'hui" : `Il y a ${vs.daysSinceLastVisit} j`}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
 
                         {/* 8. VISITE / RE-VISITE */}
