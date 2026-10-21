@@ -475,16 +475,6 @@ export function ClientsViews({
                         <ArrowUpDown className={`w-3 h-3 ${sortField === "lastVisit" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
                       </div>
                     </th>
-                    {/* Colonne 8 : Visite & Rythme de re-visite */}
-                    <th
-                      onClick={() => handleToggleSort("visit")}
-                      className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[165px] cursor-pointer hover:text-[#d90416] transition-colors select-none`}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>VISITE / RE-VISITE</span>
-                        <ArrowUpDown className={`w-3 h-3 ${sortField === "visit" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
-                      </div>
-                    </th>
                     {/* Colonne 9 : Actions */}
                     <th className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-5"} text-right min-w-[130px]`}>
                       ACTIONS
@@ -740,27 +730,6 @@ export function ClientsViews({
                               </div>
                             );
                           })()}
-                        </td>
-
-                        {/* 8. VISITE / RE-VISITE */}
-                        <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40`}>
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            {renderVisitStatusBadge(client)}
-                            {onAddVisitForClient && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onAddVisitForClient(client.id);
-                                }}
-                                title="Consigner une visite pour ce client"
-                                className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-0.5 text-[10px] font-semibold text-[#d90416] hover:bg-red-50 dark:hover:bg-red-950/40 px-1.5 py-0.5 rounded transition-all"
-                              >
-                                <Plus className="w-2.5 h-2.5" />
-                                Visite
-                              </button>
-                            )}
-                          </div>
                         </td>
 
                         {/* 9. ACTIONS */}
