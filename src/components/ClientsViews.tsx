@@ -167,6 +167,7 @@ export function ClientsViews({
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [logoUpdateTrigger, setLogoUpdateTrigger] = useState(0);
   const [targetClientForLogo, setTargetClientForLogo] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   const quickLogoInputRef = useRef<HTMLInputElement>(null);
 
   // Sorting state for table

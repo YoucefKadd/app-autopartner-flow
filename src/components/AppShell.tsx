@@ -36,6 +36,7 @@ import {
   ArrowRight,
   Hash,
   Camera,
+  LayoutDashboard,
 } from "lucide-react";
 import { ClientItem, KamUser, NoteItem, ClientVisit, getInitials, hasPermission } from "@/types/kam";
 import { QuickNoteModal } from "@/components/QuickNoteModal";
@@ -367,7 +368,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [globalSearch, clients, notes]);
 
-  const isClientsRoute = pathname === "/" || pathname?.startsWith("/clients");
+  const isDashboardRoute = pathname === "/" || pathname === "/dashboard";
+  const isClientsRoute = pathname?.startsWith("/clients");
   const isVisitesRoute = pathname?.startsWith("/visites");
   const isCaRoute = pathname?.startsWith("/ca");
   const isNotesRoute = pathname?.startsWith("/notes");
@@ -399,7 +401,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     >
       <div className="h-screen flex flex-col overflow-hidden bg-[#f8f9fb] dark:bg-zinc-950 text-slate-900 dark:text-zinc-100">
         {/* 1. TOP DARK HEADER BAR */}
-        <header className="h-14 bg-[#161920] text-white px-3 sm:px-4 lg:px-6 flex items-center justify-between shrink-0 z-30 border-b border-slate-800">
+        <header className="h-14 bg-white dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 px-3 sm:px-4 lg:px-6 flex items-center justify-between shrink-0 z-30 border-b border-slate-200/90 dark:border-zinc-800 shadow-2xs">
           {/* Left: Sidebar toggle + Auto Partner Logo + Divider + Route Title */}
           <div className="flex items-center gap-2 sm:gap-3.5">
             <button
@@ -410,7 +412,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   ? "Réduire la barre latérale"
                   : "Développer la barre latérale"
               }
-              className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               {/* Mobile hamburger icon */}
               <Menu className="w-5 h-5 md:hidden" />
@@ -424,28 +426,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
             </button>
 
-            <Link href="/clients" className="flex items-center gap-2 sm:gap-3">
-              <div className="bg-white px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center shadow-sm">
+            <Link href="/" className="flex items-center gap-2 sm:gap-3">
+              <div className="bg-white px-2 sm:px-2.5 py-1 rounded-md flex items-center justify-center border border-slate-200/80 shadow-2xs">
                 <img
                   src="/autopartner-logo.png"
                   alt="Auto Partner"
                   className="h-5 sm:h-6 w-auto object-contain"
                 />
               </div>
-              <span className="font-bold text-sm tracking-wider text-white hidden md:inline-block">
+              <span className="font-bold text-sm tracking-wider text-slate-900 dark:text-white hidden md:inline-block">
                 APFLOW
               </span>
             </Link>
 
-            <span className="h-5 w-[1px] bg-slate-700/80 hidden sm:inline-block" />
+            <span className="h-5 w-[1px] bg-slate-200 dark:bg-slate-700/80 hidden sm:inline-block" />
 
-            <span className="text-sm font-medium text-slate-200 hidden sm:inline-block">
+            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 hidden sm:inline-block">
               {currentRouteClientId
                 ? "Fiche Client"
+                : isDashboardRoute
+                ? "Tableau de Bord"
                 : isVisitesRoute
                 ? "Visites Terrain"
                 : isCaRoute
-                ? "Pilotage CA Global"
+                ? "Pilotage CA Global & AX"
                 : isNotesRoute
                 ? "Notes & Mémos"
                 : isAdminRoute
@@ -468,7 +472,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 }}
                 onFocus={() => setSearchDropdownOpen(true)}
                 placeholder="Rechercher clients, code AP, notes, visites..."
-                className="w-full pl-8 sm:pl-9 pr-3 py-1.5 rounded-full bg-[#252932] border border-slate-700/70 text-xs text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416] transition-colors"
+                className="w-full pl-8 sm:pl-9 pr-3 py-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-xs text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416] transition-colors"
               />
               {globalSearch && (
                 <button
@@ -492,8 +496,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             {/* Global Search Results Dropdown Overlay */}
             {searchDropdownOpen && searchResults && (
-              <div className="absolute top-full left-0 right-0 mt-2 rounded-2xl bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-2xl p-3 z-50 text-slate-100 max-h-[80vh] overflow-y-auto space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-[11px] text-slate-400">
+              <div className="absolute top-full left-0 right-0 mt-2 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl p-3 z-50 text-slate-800 dark:text-zinc-200 max-h-[80vh] overflow-y-auto space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-zinc-800 text-[11px] text-slate-500 dark:text-slate-400">
                   <span>Résultats trouvés : <strong>{searchResults.totalCount}</strong></span>
                   <button
                     onClick={() => setSearchDropdownOpen(false)}
@@ -516,13 +520,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           key={c.id}
                           href={`/clients/${c.id}`}
                           onClick={() => setSearchDropdownOpen(false)}
-                          className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-800 transition text-xs group"
+                          className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 transition text-xs group"
                         >
                           <div>
-                            <div className="font-semibold text-white group-hover:text-blue-400 flex items-center gap-1.5">
+                            <div className="font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 flex items-center gap-1.5">
                               <span>{c.company}</span>
                               {c.apClientNumber && (
-                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-800 border border-slate-700 text-slate-300 font-mono">
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-mono">
                                   #{c.apClientNumber}
                                 </span>
                               )}
@@ -545,7 +549,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
                 {/* Notes section */}
                 {searchResults.notes.length > 0 && (
-                  <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                  <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-zinc-800">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1">
                       <FileText className="w-3 h-3" />
                       Notes & Mémos ({searchResults.notes.length})
@@ -556,10 +560,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           key={n.id}
                           href={n.clientId ? `/clients/${n.clientId}?tab=notes` : "/notes"}
                           onClick={() => setSearchDropdownOpen(false)}
-                          className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-800 transition text-xs group"
+                          className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 transition text-xs group"
                         >
                           <div className="max-w-[85%]">
-                            <p className="font-medium text-slate-200 line-clamp-1 group-hover:text-amber-400">
+                            <p className="font-medium text-slate-800 dark:text-slate-200 line-clamp-1 group-hover:text-amber-600">
                               {n.title || stripMarkdown(n.content).substring(0, 60)}
                             </p>
                             <p className="text-[10px] text-slate-400">
@@ -575,7 +579,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
                 {/* Visits section */}
                 {searchResults.visits.length > 0 && (
-                  <div className="space-y-1.5 pt-2 border-t border-slate-800">
+                  <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-zinc-800">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
                       <Calendar className="w-3 h-3" />
                       Visites Terrain ({searchResults.visits.length})
@@ -586,10 +590,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                           key={v.id}
                           href={`/clients/${v.client.id}?tab=visites`}
                           onClick={() => setSearchDropdownOpen(false)}
-                          className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-800 transition text-xs group"
+                          className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 transition text-xs group"
                         >
                           <div className="max-w-[85%]">
-                            <p className="font-semibold text-white group-hover:text-emerald-400">
+                            <p className="font-semibold text-slate-900 dark:text-white group-hover:text-emerald-600">
                               {v.client.company} — {v.interlocutor}
                             </p>
                             <p className="text-[11px] text-slate-400 line-clamp-1">
@@ -619,7 +623,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               type="button"
               onClick={toggleDarkMode}
               title={darkMode ? "Mode clair" : "Mode sombre"}
-              className="p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
               {darkMode ? (
                 <Sun className="w-4 h-4 text-amber-400" />
@@ -628,24 +632,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               )}
             </button>
 
-            <span className="h-5 w-[1px] bg-slate-700/80 hidden sm:inline-block" />
+            <span className="h-5 w-[1px] bg-slate-200 dark:bg-slate-700/80 hidden sm:inline-block" />
 
             {/* User Profile & KAM Switcher Dropdown */}
             <div className="relative">
               <button
                 type="button"
                 onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-                className="flex items-center gap-2.5 py-1 px-2 rounded-lg hover:bg-slate-800 transition-colors"
+                className="flex items-center gap-2.5 py-1 px-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 <div className="w-8 h-8 rounded-full bg-[#d90416] text-white flex items-center justify-center text-xs font-bold shadow-sm">
                   {activeUser ? getInitials(activeUser.name) : "AP"}
                 </div>
                 <div className="text-left hidden sm:block">
-                  <div className="text-xs font-semibold text-white leading-tight flex items-center gap-1">
+                  <div className="text-xs font-semibold text-slate-800 dark:text-white leading-tight flex items-center gap-1">
                     <span>{activeUser?.name || "Espace KAM"}</span>
                     <ChevronDown className="w-3 h-3 text-slate-400" />
                   </div>
-                  <div className="text-[10px] text-slate-400 leading-tight">
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">
                     {activeUser?.role === "SUPER_ADMIN"
                       ? "Super Admin"
                       : activeUser?.role === "DIRECTEUR"
@@ -841,6 +845,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   Navigation
                 </p>
                 <Link
+                  href="/"
+                  onClick={() => setMobileDrawerOpen(false)}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-colors ${
+                    isDashboardRoute
+                      ? "bg-red-50/80 dark:bg-red-950/30 text-[#d90416] font-semibold"
+                      : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100/80 dark:hover:bg-zinc-800/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <LayoutDashboard className="w-4 h-4 shrink-0" />
+                    <span>Tableau de Bord</span>
+                  </div>
+                </Link>
+                <Link
                   href="/clients"
                   onClick={() => setMobileDrawerOpen(false)}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-colors ${
@@ -985,6 +1003,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     Navigation
                   </p>
                 )}
+
+                {/* ITEM: ROUTE / (Dashboard) */}
+                <Link
+                  href="/"
+                  title="Tableau de Bord (/)"
+                  className={`relative w-full flex items-center ${
+                    sidebarExpanded
+                      ? "justify-between px-3 py-2.5"
+                      : "justify-center py-2.5"
+                  } rounded-xl text-xs font-medium transition-colors ${
+                    isDashboardRoute
+                      ? "bg-red-50/80 dark:bg-red-950/30 text-[#d90416] font-semibold"
+                      : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100/80 dark:hover:bg-zinc-800/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <LayoutDashboard className="w-4 h-4 shrink-0" />
+                    {sidebarExpanded && <span>Tableau de Bord</span>}
+                  </div>
+                </Link>
 
                 {/* 2ND ITEM: ROUTE /clients */}
                 <Link

@@ -746,7 +746,7 @@ export function ClientFullPage({
       });
 
     const savedFiche = localStorage.getItem(`apflow_fiche_v4_${client.id}`);
-    const customApCode = localStorage.getItem(`apflow_apcode_${client.id}`);
+    const customApCode = (client as any).apClientNumber || localStorage.getItem(`apflow_apcode_${client.id}`);
     const customLogo = (client as any).logo || localStorage.getItem(`apflow_logo_${client.id}`);
     if (customLogo) {
       setClientLogoUrl(customLogo);
@@ -1000,7 +1000,10 @@ export function ClientFullPage({
           position: contactForm.role.trim(),
           email: contactForm.email.trim(),
           phone: contactForm.phone.trim(),
+          address: addressForm.street.trim() || null,
+          postalCode: addressForm.postalCode.trim() || null,
           city: addressForm.city.trim(),
+          apClientNumber: (ficheData.apClientNumber || tempFicheData.apClientNumber || (client as any).apClientNumber || "").trim() || null,
           status: generalFormData.status,
           healthScore: Number(generalFormData.healthScore),
           lastContactAt: generalFormData.lastContactAt

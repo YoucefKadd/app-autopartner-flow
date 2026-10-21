@@ -152,6 +152,7 @@ export interface ClientItem {
   position: string;
   email: string;
   phone: string;
+  address?: string;
   city: string;
   postalCode?: string;
   apClientNumber?: string;

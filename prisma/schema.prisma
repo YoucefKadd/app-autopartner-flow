@@ -28,24 +28,44 @@ model User {
 }
 
 model Client {
-  id            String        @id @default(cuid())
-  company       String
-  contactName   String
-  position      String
-  email         String
-  phone         String
-  city          String
-  logo          String?       @db.LongText
-  status        String        @default("ACTIVE") // "VIP" | "ACTIVE" | "NEW" | "FOLLOW_UP" | "INACTIVE"
-  healthScore   Int           @default(85)       // 0 to 100
-  lastContactAt DateTime      @default(now())
-  kamId         String
-  kam           User          @relation(fields: [kamId], references: [id], onDelete: Cascade)
-  notes         Note[]
-  visits        Visit[]
-  photos        ClientPhoto[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id             String        @id @default(cuid())
+  company        String
+  contactName    String
+  position       String
+  email          String
+  phone          String
+  address        String?       @db.Text
+  postalCode     String?
+  city           String
+  apClientNumber String?
+  logo           String?       @db.LongText
+  status         String        @default("ACTIVE") // "VIP" | "ACTIVE" | "NEW" | "FOLLOW_UP" | "INACTIVE" | "PROSPECT" | "ARCHIVED"
+  healthScore    Int           @default(85)       // 0 to 100
+  lastContactAt  DateTime      @default(now())
+  kamId          String
+  kam            User          @relation(fields: [kamId], references: [id], onDelete: Cascade)
+  notes          Note[]
+  visits         Visit[]
+  photos         ClientPhoto[]
+  turnovers      Turnover[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Turnover {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  year        Int
+  month       Int      // 1 to 12 (0 = total / cumul)
+  amount      Float    @default(0) // Montant CA Facturé HT
+  axPurchases Float?   @default(0) // Montant Achats AX
+  ordersCount Int?     @default(0) // Nombre de commandes
+  target      Float?   @default(0) // Objectif
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([clientId, year, month])
 }
 
 model ClientPhoto {

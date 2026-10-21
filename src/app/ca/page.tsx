@@ -30,7 +30,7 @@ import {
 import { useWorkspace } from "@/components/AppShell";
 import { ClientItem, hasPermission } from "@/types/kam";
 import { MONTH_NAMES, SHORT_MONTHS, MonthlyTurnover } from "@/components/ClientCaSection";
-import { CsvImportModal } from "@/components/CsvImportModal";
+import { CaImportModal } from "@/components/CaImportModal";
 
 type CaSortField = "apCode" | "company" | "city" | "totalTurnover" | "target" | "achievementRate";
 
@@ -437,10 +437,10 @@ export default function CaGlobalDashboardPage() {
             type="button"
             onClick={() => setIsCsvModalOpen(true)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-slate-50 dark:hover:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-200 transition-colors shadow-xs"
-            title="Importer un fichier de ventes CSV pour mettre à jour les données de CA"
+            title="Importer un fichier de CA et achats AX au format CSV"
           >
             <UploadCloud className="w-3.5 h-3.5 text-[#d90416]" />
-            <span>Importer CSV</span>
+            <span>Importer Fichier CA & AX (CSV)</span>
           </button>
 
           {/* Export CSV */}
@@ -913,7 +913,7 @@ export default function CaGlobalDashboardPage() {
       </div>
 
       {/* Csv Import Modal */}
-      <CsvImportModal
+      <CaImportModal
         isOpen={isCsvModalOpen}
         onClose={() => setIsCsvModalOpen(false)}
         targetKamId={activeUser?.id}

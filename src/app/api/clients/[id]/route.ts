@@ -12,6 +12,7 @@ export async function GET(
       include: {
         kam: { select: { id: true, name: true, email: true } },
         photos: { orderBy: { createdAt: "desc" } },
+        turnovers: { orderBy: [{ year: "desc" }, { month: "asc" }] },
         notes: {
           orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
         },
@@ -50,7 +51,10 @@ export async function PATCH(
     if (body.position !== undefined) updateData.position = body.position;
     if (body.email !== undefined) updateData.email = body.email;
     if (body.phone !== undefined) updateData.phone = body.phone;
+    if (body.address !== undefined) updateData.address = body.address;
+    if (body.postalCode !== undefined) updateData.postalCode = body.postalCode;
     if (body.city !== undefined) updateData.city = body.city;
+    if (body.apClientNumber !== undefined) updateData.apClientNumber = body.apClientNumber;
     if (body.status !== undefined) updateData.status = body.status;
     if (body.logo !== undefined) updateData.logo = body.logo;
     if (body.healthScore !== undefined)
@@ -64,6 +68,7 @@ export async function PATCH(
       include: {
         notes: { orderBy: { createdAt: "desc" } },
         photos: { orderBy: { createdAt: "desc" } },
+        turnovers: { orderBy: [{ year: "desc" }, { month: "asc" }] },
         _count: { select: { notes: true } },
       },
     });
