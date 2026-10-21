@@ -16,6 +16,7 @@ import {
   Download,
   UploadCloud,
   AlertCircle,
+  RotateCcw,
 } from "lucide-react";
 import { ClientItem } from "@/types/kam";
 import { CsvImportModal } from "@/components/CsvImportModal";
@@ -69,17 +70,113 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
 
   // Editing state for monthly inputs
+  // Global Table Editing State (Allows editing ALL months at once)
+  const [isEditingAll, setIsEditingAll] = useState(false);
+  const [allDrafts, setAllDrafts] = useState<Record<number, { amount: string; ordersCount: string }>>({});
+  const [isSavingAll, setIsSavingAll] = useState(false);
+
+  // Single month edit state (kept for backward compatibility, but delegates to global mode)
   const [editingMonth, setEditingMonth] = useState<number | null>(null);
   const [editAmount, setEditAmount] = useState<string>("");
   const [editOrders, setEditOrders] = useState<string>("");
 
-  const [annualTarget, setAnnualTarget] = useState<number>(() => {
-    if (client.status === "VIP") return 240000;
-    if (client.status === "ACTIVE") return 120000;
-    if (client.status === "NEW") return 40000;
-    if (client.status === "PROSPECT") return 30000;
-    return 60000;
-  });
+  function startEditingAll(focusMonth?: number) {
+    const drafts: Record<number, { amount: string; ordersCount: string }> = {};
+    monthlyData.forEach((m) => {
+      drafts[m.month] = {
+        amount: m.amount > 0 ? m.amount.toString() : "0",
+        ordersCount: m.ordersCount > 0 ? m.ordersCount.toString() : "0",
+      };
+    });
+    setAllDrafts(drafts);
+    setIsEditingAll(true);
+    if (focusMonth) {
+      setTimeout(() => {
+        const el = document.getElementById(`input_ca_month_${focusMonth}`);
+        if (el) el.focus();
+      }, 50);
+    }
+  }
+
+  function updateDraft(month: number, field: "amount" | "ordersCount", val: string) {
+    setAllDrafts((prev) => ({
+      ...prev,
+      [month]: {
+        ...prev[month],
+        [field]: val,
+      },
+    }));
+  }
+
+  function resetMonthDraft(month: number) {
+    setAllDrafts((prev) => ({
+      ...prev,
+      [month]: {
+        amount: "0",
+        ordersCount: "0",
+      },
+    }));
+  }
+
+  function fillRemainingMonthsWithZero() {
+    setAllDrafts((prev) => {
+      const next = { ...prev };
+      for (let m = 1; m <= 12; m++) {
+        if (!next[m] || !next[m].amount || next[m].amount === "") {
+          next[m] = { amount: "0", ordersCount: "0" };
+        }
+      }
+      return next;
+    });
+  }
+
+
+
+  async function handleSaveAll() {
+    setIsSavingAll(true);
+    try {
+      const updated = monthlyData.map((m) => {
+        const draft = allDrafts[m.month];
+        const numericAmount = draft ? parseFloat(draft.amount.replace(/[^0-9.]/g, "")) || 0 : m.amount;
+        const numericOrders = draft ? parseInt(draft.ordersCount.replace(/\D/g, ""), 10) || 0 : m.ordersCount;
+        return {
+          ...m,
+          amount: numericAmount,
+          ordersCount: numericOrders,
+          status: (numericAmount > 0 ? "FACTURE" : "NON_COMMUNIQUE") as any,
+        };
+      });
+
+      setMonthlyData(updated);
+      localStorage.setItem(`apflow_ca_${client.id}_${selectedYear}`, JSON.stringify(updated));
+
+      // Batch save all 12 months to MySQL API
+      await Promise.all(
+        updated.map((m) =>
+          fetch("/api/ca", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              clientId: client.id,
+              year: selectedYear,
+              month: m.month,
+              amount: m.amount,
+              ordersCount: m.ordersCount,
+            }),
+          })
+        )
+      );
+
+      setIsEditingAll(false);
+      window.dispatchEvent(new CustomEvent("apflow_ca_changed"));
+    } catch (err) {
+      console.error("Error saving all monthly CA:", err);
+    } finally {
+      setIsSavingAll(false);
+    }
+  }
+
+  const [annualTarget, setAnnualTarget] = useState<number>(0);
   const [isEditingTarget, setIsEditingTarget] = useState(false);
   const [editTargetInput, setEditTargetInput] = useState("");
 
@@ -182,6 +279,22 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
       totalOrders: monthlyData.reduce((acc, m) => acc + m.ordersCount, 0),
     };
   }, [monthlyData, annualTarget]);
+
+  const draftLiveTotal = useMemo(() => {
+    if (!isEditingAll) return stats.totalTurnover;
+    return Object.values(allDrafts).reduce((sum, d) => {
+      const val = parseFloat(d.amount.replace(/[^0-9.]/g, "")) || 0;
+      return sum + val;
+    }, 0);
+  }, [isEditingAll, allDrafts, stats.totalTurnover]);
+
+  const draftTotalOrders = useMemo(() => {
+    if (!isEditingAll) return stats.totalOrders;
+    return Object.values(allDrafts).reduce((sum, d) => {
+      const val = parseInt(d.ordersCount.replace(/\D/g, ""), 10) || 0;
+      return sum + val;
+    }, 0);
+  }, [isEditingAll, allDrafts, stats.totalOrders]);
 
   async function handleSaveEdit(monthNumber: number) {
     const numericAmount = parseFloat(editAmount.replace(/[^0-9.]/g, "")) || 0;
@@ -445,11 +558,7 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
                 <div
                   key={item.month}
                   className="flex-1 flex flex-col items-center gap-2 h-full justify-end group/bar cursor-pointer"
-                  onClick={() => {
-                    setEditingMonth(item.month);
-                    setEditAmount(item.amount ? item.amount.toString() : "");
-                    setEditOrders(item.ordersCount ? item.ordersCount.toString() : "");
-                  }}
+                  onClick={() => startEditingAll(item.month)}
                   title={`${item.monthName} ${selectedYear} : ${formatEuro(item.amount)} (${item.ordersCount} commandes). Cliquer pour modifier.`}
                 >
                   {/* Tooltip on hover */}
@@ -501,20 +610,72 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
 
       {/* 3. Monthly Table & Quick In-line Input */}
       <div className="rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-zinc-800">
+        {/* Table Header Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-4 border-b border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-950/30">
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-zinc-100">
-              Détail Mensuel des Facturations ({selectedYear})
-            </h3>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Cliquez sur le crayon d&apos;un mois pour saisir ou modifier le chiffre d&apos;affaires réel
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
+                Détail Mensuel des Facturations ({selectedYear})
+              </h3>
+              {isEditingAll && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                  <Pencil className="w-2.5 h-2.5" />
+                  Mode Modification Actif
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+              {isEditingAll
+                ? "Tous les mois sont éditables en même temps ci-dessous. Modifiez les montants et validez tout le tableau en un clic."
+                : "Cliquez sur « Modifier tout le tableau » ou sur n'importe quel crayon pour éditer l'ensemble des mois en une seule fois."}
             </p>
           </div>
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
-            12 mois
-          </span>
+
+          <div className="flex items-center gap-2 self-end sm:self-center">
+            {isEditingAll ? (
+              <>
+                <button
+                  type="button"
+                  onClick={fillRemainingMonthsWithZero}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-xs font-medium text-slate-700 dark:text-zinc-200 transition-colors"
+                  title="Mettre à 0€ les mois non renseignés"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Mettre les vides à 0€</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingAll(false)}
+                  disabled={isSavingAll}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-slate-100 dark:hover:bg-zinc-700 text-xs font-semibold text-slate-700 dark:text-zinc-200 transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Annuler</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAll}
+                  disabled={isSavingAll}
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#d90416] hover:bg-[#b80312] text-white text-xs font-bold shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                >
+                  <Check className="w-4 h-4 stroke-[2.5]" />
+                  <span>{isSavingAll ? "Enregistrement..." : "Enregistrer tout"}</span>
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={() => startEditingAll()}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-white text-xs font-semibold shadow-xs transition-all active:scale-95"
+              >
+                <Pencil className="w-3.5 h-3.5 text-[#d90416]" />
+                <span>Modifier tout le tableau</span>
+              </button>
+            )}
+          </div>
         </div>
 
+        {/* The Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
@@ -529,59 +690,79 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
-              {monthlyData.map((item, idx) => {
-                const isEditing = editingMonth === item.month;
-                const prevMonth = idx > 0 ? monthlyData[idx - 1] : null;
-                const evolution =
-                  prevMonth && prevMonth.amount > 0 && item.amount > 0
-                    ? Math.round(((item.amount - prevMonth.amount) / prevMonth.amount) * 100)
-                    : null;
+              {monthlyData.map((item) => {
+                const draft = allDrafts[item.month] || {
+                  amount: item.amount > 0 ? item.amount.toString() : "0",
+                  ordersCount: item.ordersCount > 0 ? item.ordersCount.toString() : "0",
+                };
 
+                const currentAmount = isEditingAll
+                  ? parseFloat(draft.amount.replace(/[^0-9.]/g, "")) || 0
+                  : item.amount;
+                const currentOrders = isEditingAll
+                  ? parseInt(draft.ordersCount.replace(/\D/g, ""), 10) || 0
+                  : item.ordersCount;
+
+                const baseTotal = isEditingAll ? draftLiveTotal : stats.totalTurnover;
                 const shareOfAnnual =
-                  stats.totalTurnover > 0
-                    ? Math.round((item.amount / stats.totalTurnover) * 100)
-                    : 0;
-
+                  baseTotal > 0 ? Math.round((currentAmount / baseTotal) * 100) : 0;
                 const avgBasket =
-                  item.ordersCount > 0 ? Math.round(item.amount / item.ordersCount) : 0;
+                  currentOrders > 0 ? Math.round(currentAmount / currentOrders) : 0;
 
                 return (
                   <tr
                     key={item.month}
-                    className="hover:bg-slate-50/50 dark:hover:bg-zinc-800/30 transition-colors"
+                    className={`transition-colors ${
+                      isEditingAll
+                        ? "bg-amber-50/15 dark:bg-amber-950/10 hover:bg-amber-50/25 dark:hover:bg-amber-950/20"
+                        : "hover:bg-slate-50/50 dark:hover:bg-zinc-800/30"
+                    }`}
                   >
                     {/* Mois */}
-                    <td className="py-3 px-6 font-semibold text-slate-900 dark:text-zinc-100">
-                      {item.monthName} {selectedYear}
+                    <td className="py-3.5 px-6 font-semibold text-slate-900 dark:text-zinc-100 whitespace-nowrap">
+                      <span>{item.monthName}</span>
+                      <span className="text-slate-400 font-normal ml-1.5">{selectedYear}</span>
                     </td>
 
-                    {/* CA Réalisé */}
-                    <td className="py-3 px-6 font-mono font-bold text-slate-900 dark:text-zinc-100">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          value={editAmount}
-                          onChange={(e) => setEditAmount(e.target.value)}
-                          placeholder="Ex: 12500"
-                          className="w-28 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-xs font-mono font-bold text-[#d90416]"
-                        />
+                    {/* CA Réalisé (€ HT) */}
+                    <td className="py-3.5 px-6">
+                      {isEditingAll ? (
+                        <div className="inline-flex items-center gap-1.5">
+                          <input
+                            id={`input_ca_month_${item.month}`}
+                            type="number"
+                            step="any"
+                            value={draft.amount}
+                            onChange={(e) => updateDraft(item.month, "amount", e.target.value)}
+                            placeholder="0"
+                            className="w-28 sm:w-32 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 py-1 text-xs font-mono font-bold text-[#d90416] focus:outline-none focus:border-[#d90416] focus:ring-1 focus:ring-[#d90416]"
+                          />
+                          <span className="text-slate-400 font-mono text-xs">€</span>
+                        </div>
                       ) : (
-                        <span className={item.amount > 0 ? "text-[#d90416]" : "text-slate-400"}>
+                        <span
+                          className={`font-mono font-bold ${
+                            item.amount > 0 ? "text-[#d90416]" : "text-slate-400"
+                          }`}
+                        >
                           {formatEuro(item.amount)}
                         </span>
                       )}
                     </td>
 
                     {/* Nb Commandes */}
-                    <td className="py-3 px-6">
-                      {isEditing ? (
-                        <input
-                          type="number"
-                          value={editOrders}
-                          onChange={(e) => setEditOrders(e.target.value)}
-                          placeholder="Ex: 24"
-                          className="w-16 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2 py-1 text-xs font-mono"
-                        />
+                    <td className="py-3.5 px-6">
+                      {isEditingAll ? (
+                        <div className="inline-flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            value={draft.ordersCount}
+                            onChange={(e) => updateDraft(item.month, "ordersCount", e.target.value)}
+                            placeholder="0"
+                            className="w-20 rounded-lg border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 py-1 text-xs font-mono text-slate-800 dark:text-zinc-100 focus:outline-none focus:border-[#d90416]"
+                          />
+                          <span className="text-slate-400 text-[11px]">cmd</span>
+                        </div>
                       ) : (
                         <span className="text-slate-600 dark:text-zinc-300">
                           {item.ordersCount} cmd
@@ -590,19 +771,19 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
                     </td>
 
                     {/* Panier Moyen */}
-                    <td className="py-3 px-6 font-mono text-slate-600 dark:text-zinc-300">
+                    <td className="py-3.5 px-6 font-mono text-slate-600 dark:text-zinc-300">
                       {avgBasket > 0 ? formatEuro(avgBasket) : "—"}
                     </td>
 
-                    {/* Part CA Annuel */}
-                    <td className="py-3 px-6">
+                    {/* Part du CA Annuel */}
+                    <td className="py-3.5 px-6">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-slate-700 dark:text-zinc-300 w-8">
                           {shareOfAnnual}%
                         </span>
                         <div className="w-16 h-1.5 bg-slate-100 dark:bg-zinc-800 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-slate-400 dark:bg-zinc-500 rounded-full"
+                            className="h-full bg-slate-400 dark:bg-zinc-500 rounded-full transition-all"
                             style={{ width: `${shareOfAnnual}%` }}
                           />
                         </div>
@@ -610,51 +791,38 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
                     </td>
 
                     {/* Statut */}
-                    <td className="py-3 px-6">
+                    <td className="py-3.5 px-6">
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                          item.amount > 0
+                          currentAmount > 0
                             ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
                             : "bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400"
                         }`}
                       >
-                        {item.amount > 0 ? "Facturé" : "À venir"}
+                        {currentAmount > 0 ? "Facturé" : "0 € (Non communiqué)"}
                       </span>
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3 px-6 text-right">
-                      {isEditing ? (
-                        <div className="inline-flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleSaveEdit(item.month)}
-                            className="p-1 rounded bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
-                            title="Valider"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingMonth(null)}
-                            className="p-1 rounded bg-slate-200 text-slate-700 hover:bg-slate-300 transition-colors"
-                            title="Annuler"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
+                    <td className="py-3.5 px-6 text-right">
+                      {isEditingAll ? (
+                        <button
+                          type="button"
+                          onClick={() => resetMonthDraft(item.month)}
+                          className="text-[11px] font-semibold text-slate-400 hover:text-[#d90416] transition-colors"
+                          title="Remettre ce mois à 0€"
+                        >
+                          Mettre à 0€
+                        </button>
                       ) : (
                         <button
                           type="button"
-                          onClick={() => {
-                            setEditingMonth(item.month);
-                            setEditAmount(item.amount ? item.amount.toString() : "");
-                            setEditOrders(item.ordersCount ? item.ordersCount.toString() : "");
-                          }}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
-                          title="Modifier le CA de ce mois"
+                          onClick={() => startEditingAll(item.month)}
+                          className="inline-flex items-center gap-1 p-1.5 rounded-lg text-slate-400 hover:text-[#d90416] hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                          title="Modifier tout le tableau à partir de ce mois"
                         >
                           <Pencil className="w-3.5 h-3.5" />
+                          <span className="text-[10px] font-medium hidden sm:inline">Modifier</span>
                         </button>
                       )}
                     </td>
@@ -662,6 +830,48 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
                 );
               })}
             </tbody>
+
+            {/* Total Row Footer */}
+            <tfoot className="border-t-2 border-slate-200 dark:border-zinc-800 bg-slate-50/80 dark:bg-zinc-950/70 font-semibold">
+              <tr>
+                <td className="py-3.5 px-6 text-slate-900 dark:text-zinc-100 font-bold uppercase tracking-wider text-[11px]">
+                  Total Annuel {selectedYear}
+                </td>
+                <td className="py-3.5 px-6 font-mono font-extrabold text-[#d90416] text-sm">
+                  {formatEuro(isEditingAll ? draftLiveTotal : stats.totalTurnover)}
+                </td>
+                <td className="py-3.5 px-6 text-slate-900 dark:text-zinc-100 font-mono">
+                  {isEditingAll ? draftTotalOrders : stats.totalOrders} cmd
+                </td>
+                <td className="py-3.5 px-6 font-mono text-slate-600 dark:text-zinc-300">
+                  {(isEditingAll ? draftTotalOrders : stats.totalOrders) > 0
+                    ? formatEuro(
+                        Math.round(
+                          (isEditingAll ? draftLiveTotal : stats.totalTurnover) /
+                            (isEditingAll ? draftTotalOrders : stats.totalOrders)
+                        )
+                      )
+                    : "—"}
+                </td>
+                <td className="py-3.5 px-6 font-bold text-slate-700 dark:text-zinc-300">
+                  100%
+                </td>
+                <td className="py-3.5 px-6" />
+                <td className="py-3.5 px-6 text-right">
+                  {isEditingAll && (
+                    <button
+                      type="button"
+                      onClick={handleSaveAll}
+                      disabled={isSavingAll}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#d90416] hover:bg-[#b80312] text-white text-xs font-bold shadow-xs transition"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>{isSavingAll ? "Sauvegarde..." : "Valider tout"}</span>
+                    </button>
+                  )}
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
