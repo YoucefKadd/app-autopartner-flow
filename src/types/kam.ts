@@ -31,6 +31,21 @@ export interface ClientVisit {
   nextVisitDate?: string | null;
   status: ClientVisitStatus;
   createdAt: string;
+  updatedAt?: string;
+  kamId?: string;
+  kam?: {
+    id: string;
+    name: string;
+    email?: string;
+  };
+  client?: {
+    id: string;
+    company: string;
+    contactName?: string;
+    status?: string;
+    city?: string;
+  };
+  notes?: NoteItem[];
 }
 
 export const CLIENT_VISIT_TYPES: Record<
@@ -107,6 +122,13 @@ export interface NoteItem {
   category: NoteCategory | string;
   pinned: boolean;
   clientId: string | null;
+  visitId?: string | null;
+  visit?: {
+    id: string;
+    date: string;
+    type: string;
+    status: string;
+  } | null;
   client?: {
     id: string;
     company: string;
@@ -213,7 +235,7 @@ export const NOTE_CATEGORIES: {
     value: "VISITE",
     label: "Visite terrain",
     badgeClass:
-      "bg-blue-500/10 text-blue-700 border-blue-500/20 dark:bg-blue-400/15 dark:text-blue-300 dark:border-blue-400/20",
+      "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30 font-bold shadow-2xs ring-1 ring-emerald-500/20",
   },
   {
     value: "COMPTE_RENDU",

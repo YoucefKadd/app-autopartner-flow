@@ -47,6 +47,7 @@ interface WorkspaceContextValue {
   loggedUser: KamUser | null;
   clients: ClientItem[];
   notes: NoteItem[];
+  visits: ClientVisit[];
   loading: boolean;
   globalSearch: string;
   setGlobalSearch: (val: string) => void;
@@ -87,6 +88,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [loggedUser, setLoggedUser] = useState<KamUser | null>(null);
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [notes, setNotes] = useState<NoteItem[]>([]);
+  const [visits, setVisits] = useState<ClientVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalSearch, setGlobalSearch] = useState("");
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -201,6 +203,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       setLoggedUser(data.loggedUser || storedUser);
       setClients(data.clients || []);
       setNotes(data.notes || []);
+      setVisits(data.visits || []);
 
       if (targetKamId !== "ALL" && data.activeUser?.id) {
         localStorage.setItem("apflow_active_kam_id", data.activeUser.id);
@@ -340,6 +343,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         loggedUser,
         clients,
         notes,
+        visits,
         loading,
         globalSearch,
         setGlobalSearch,

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useWorkspace } from "@/components/AppShell";
 import { AddVisitModal } from "@/components/AddVisitModal";
+import { CalendarView } from "@/components/CalendarView";
 import { FormattedNoteText } from "@/components/NoteFormatter";
 import {
   ClientItem,
@@ -44,7 +45,7 @@ import {
   DEFAULT_REVISIT_INTERVAL_DAYS,
 } from "@/lib/visits";
 
-type ViewTab = "timeline" | "radar";
+type ViewTab = "calendar" | "timeline" | "radar";
 
 export default function VisitesPage() {
   const router = useRouter();
@@ -59,7 +60,7 @@ export default function VisitesPage() {
   }, [loading, loggedUser, router]);
 
   // Active view tab: timeline (all logged visits) vs radar (clients to visit by urgency)
-  const [activeTab, setActiveTab] = useState<ViewTab>("timeline");
+  const [activeTab, setActiveTab] = useState<ViewTab>("calendar");
 
   // Add visit modal state
   const [isAddVisitModalOpen, setIsAddVisitModalOpen] = useState(false);
@@ -415,6 +416,24 @@ export default function VisitesPage() {
       </div>
 
       {/* 4. TAB 1: TIMELINE / HISTORIQUE & PLANNING */}
+      {/* 4. TAB CONTENT: GLOBAL CALENDAR VIEW */}
+      {activeTab === "calendar" && (
+        <CalendarView
+          visits={allVisits}
+          notes={[]}
+          onAddVisit={(dateStr) => {
+            setAddVisitClientId(null);
+            setIsAddVisitModalOpen(true);
+          }}
+          onSelectVisit={(v) => {
+            if (v.clientId) {
+              router.push(`/clients/${v.clientId}`);
+            }
+          }}
+        />
+      )}
+
+      {/* 5. TAB CONTENT: TIMELINE VIEW */}
       {activeTab === "timeline" && (
         <div className="space-y-4">
           {/* Secondary filter bar */}

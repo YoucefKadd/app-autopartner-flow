@@ -59,6 +59,8 @@ export function AddVisitModal({
   const [summary, setSummary] = useState<string>("");
   const [nextVisitDate, setNextVisitDate] = useState<string>("");
   const [revisitInterval, setRevisitInterval] = useState<number>(30);
+  const [createLinkedNote, setCreateLinkedNote] = useState<boolean>(true);
+  const [noteTitle, setNoteTitle] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -78,6 +80,8 @@ export function AddVisitModal({
       setStatus("EFFECTUEE");
       setSummary("");
       setNextVisitDate("");
+      setCreateLinkedNote(true);
+      setNoteTitle("");
 
       if (selectedId) {
         const found = clients.find((c) => c.id === selectedId);
@@ -313,6 +317,39 @@ export function AddVisitModal({
               placeholder="Détails des points abordés : stock, livraisons, commandes en cours, conditions de remise, besoins pièces..."
               className="w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-zinc-50/70 dark:bg-zinc-950/60 p-3.5 text-xs text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416] resize-none leading-relaxed"
             />
+          </div>
+
+          {/* Option Lier une note */}
+          <div className="p-3.5 rounded-xl border border-slate-200/80 dark:border-zinc-800 bg-emerald-50/20 dark:bg-emerald-950/20 space-y-2.5">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={createLinkedNote}
+                onChange={(e) => setCreateLinkedNote(e.target.checked)}
+                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-zinc-700"
+              />
+              <span className="text-xs font-bold text-slate-800 dark:text-zinc-100 flex items-center gap-1.5">
+                <span>Lier automatiquement un compte-rendu dans les Notes du client</span>
+                <span className="px-1.5 py-0.2 rounded text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-500/20">
+                  Recommandé
+                </span>
+              </span>
+            </label>
+            <p className="text-[11px] text-slate-500 dark:text-zinc-400 pl-6">
+              Permet de retrouver ce compte-rendu dans le flux global des notes, dans le volet rétractable et dans l'historique du dossier.
+            </p>
+
+            {createLinkedNote && (
+              <div className="pl-6 pt-1">
+                <input
+                  type="text"
+                  value={noteTitle}
+                  onChange={(e) => setNoteTitle(e.target.value)}
+                  placeholder={`Objet personnalisé de la note (ex: Point visite comptoir ${selectedClient?.company || ""})...`}
+                  className="w-full rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs text-slate-800 dark:text-zinc-200 placeholder:text-slate-400 focus:outline-none focus:border-emerald-600"
+                />
+              </div>
+            )}
           </div>
 
           {/* Paramétrage du rythme de Re-visite & Prochaine visite */}

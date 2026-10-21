@@ -67,6 +67,7 @@ import {
 import { useWorkspace } from "@/components/AppShell";
 import { NoteFormattingToolbar, FormattedNoteText } from "@/components/NoteFormatter";
 import { AddVisitModal } from "@/components/AddVisitModal";
+import { CalendarView } from "@/components/CalendarView";
 import { ClientCaSection } from "@/components/ClientCaSection";
 import { AddressAutocomplete, AddressSuggestion } from "@/components/AddressAutocomplete";
 import {
@@ -485,6 +486,7 @@ export function ClientFullPage({
   const [clientRevisitInterval, setLocalRevisitInterval] = useState<number>(30);
   const [clientVisits, setClientVisits] = useState<ClientVisit[]>([]);
   const [clientVisitFilterStatus, setClientVisitFilterStatus] = useState<"ALL" | "EFFECTUEE" | "PLANIFIEE">("ALL");
+  const [clientVisitSubTab, setClientVisitSubTab] = useState<"calendar" | "list">("calendar");
   const [clientVisitFilterType, setClientVisitFilterType] = useState<string>("ALL");
 
   function handleDeleteVisit(visitId: string) {
@@ -5532,186 +5534,232 @@ export function ClientFullPage({
               </div>
             </div>
 
-            {/* Barre de Filtres de l'onglet Visites */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
+            {/* Barre de sélection de vue : Calendrier vs Liste */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-3">
+              <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-1 rounded-xl border border-slate-200 dark:border-zinc-700">
                 <button
                   type="button"
-                  onClick={() => setClientVisitFilterStatus("ALL")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors ${
-                    clientVisitFilterStatus === "ALL"
-                      ? "bg-[#d90416] text-white shadow-xs"
-                      : "bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-zinc-800 hover:bg-slate-50"
+                  onClick={() => setClientVisitSubTab("calendar")}
+                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    clientVisitSubTab === "calendar"
+                      ? "bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 shadow-xs"
+                      : "text-slate-500 hover:text-slate-800 dark:text-zinc-400"
                   }`}
                 >
-                  Toutes ({clientVisits.length})
+                  <Calendar className="w-3.5 h-3.5 text-[#d90416]" />
+                  <span>Vue Calendrier</span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setClientVisitFilterStatus("EFFECTUEE")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors ${
-                    clientVisitFilterStatus === "EFFECTUEE"
-                      ? "bg-emerald-600 text-white shadow-xs"
-                      : "bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-zinc-800 hover:bg-slate-50"
+                  onClick={() => setClientVisitSubTab("list")}
+                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    clientVisitSubTab === "list"
+                      ? "bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 shadow-xs"
+                      : "text-slate-500 hover:text-slate-800 dark:text-zinc-400"
                   }`}
                 >
-                  Effectuées ({clientVisits.filter(v => v.status === "EFFECTUEE").length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setClientVisitFilterStatus("PLANIFIEE")}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors ${
-                    clientVisitFilterStatus === "PLANIFIEE"
-                      ? "bg-blue-600 text-white shadow-xs"
-                      : "bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-zinc-800 hover:bg-slate-50"
-                  }`}
-                >
-                  Planifiées ({clientVisits.filter(v => v.status === "PLANIFIEE").length})
+                  <Sliders className="w-3.5 h-3.5" />
+                  <span>Vue Liste & Filtres ({clientVisits.length})</span>
                 </button>
               </div>
 
-              <div className="flex items-center gap-2">
-                <select
-                  value={clientVisitFilterType}
-                  onChange={(e) => setClientVisitFilterType(e.target.value)}
-                  className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-zinc-200 focus:outline-none cursor-pointer"
-                >
-                  <option value="ALL">Tous les types de visites</option>
-                  {(Object.keys(CLIENT_VISIT_TYPES) as ClientVisitType[]).map((t) => (
-                    <option key={t} value={t}>
-                      {CLIENT_VISIT_TYPES[t].label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <span className="text-xs text-slate-400 hidden sm:inline">
+                {clientVisitSubTab === "calendar" ? "Calendrier mensuel interactif" : "Historique chronologique"}
+              </span>
             </div>
 
-            {/* Liste complète des cartes de visites */}
-            {(() => {
-              const filteredVisits = clientVisits.filter((v) => {
-                const matchStatus = clientVisitFilterStatus === "ALL" || v.status === clientVisitFilterStatus;
-                const matchType = clientVisitFilterType === "ALL" || v.type === clientVisitFilterType;
-                return matchStatus && matchType;
-              });
-
-              if (filteredVisits.length === 0) {
-                return (
-                  <div className="rounded-2xl border border-dashed border-slate-200 dark:border-zinc-800 p-12 text-center bg-white dark:bg-zinc-900 space-y-3">
-                    <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-950/40 text-[#d90416] flex items-center justify-center mx-auto">
-                      <Calendar className="w-6 h-6" />
-                    </div>
-                    <h3 className="text-sm font-bold text-slate-800 dark:text-zinc-100">
-                      Aucune visite ne correspond aux filtres
-                    </h3>
-                    <p className="text-xs text-slate-400 max-w-md mx-auto">
-                      Consignez vos passages en magasin ou planifiez vos prochains déplacements terrain pour ce client.
-                    </p>
+            {clientVisitSubTab === "calendar" ? (
+              <CalendarView
+                visits={clientVisits}
+                notes={clientNotes}
+                defaultClientId={client.id}
+                onAddVisit={() => setIsAddVisitModalOpen(true)}
+                onAddNote={() => openQuickNote({ clientId: client.id })}
+              />
+            ) : (
+              <div className="space-y-6">
+                {/* Barre de Filtres de l'onglet Visites */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
                     <button
                       type="button"
-                      onClick={() => setIsAddVisitModalOpen(true)}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#d90416] text-white text-xs font-semibold hover:bg-[#b80312] transition-colors"
+                      onClick={() => setClientVisitFilterStatus("ALL")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors ${
+                        clientVisitFilterStatus === "ALL"
+                          ? "bg-[#d90416] text-white shadow-xs"
+                          : "bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-zinc-800 hover:bg-slate-50"
+                      }`}
                     >
-                      <Plus className="w-4 h-4" />
-                      Consigner une visite maintenant
+                      Toutes ({clientVisits.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClientVisitFilterStatus("EFFECTUEE")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors ${
+                        clientVisitFilterStatus === "EFFECTUEE"
+                          ? "bg-emerald-600 text-white shadow-xs"
+                          : "bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-zinc-800 hover:bg-slate-50"
+                      }`}
+                    >
+                      Effectuées ({clientVisits.filter(v => v.status === "EFFECTUEE").length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setClientVisitFilterStatus("PLANIFIEE")}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-colors ${
+                        clientVisitFilterStatus === "PLANIFIEE"
+                          ? "bg-blue-600 text-white shadow-xs"
+                          : "bg-white dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 border border-slate-200 dark:border-zinc-800 hover:bg-slate-50"
+                      }`}
+                    >
+                      Planifiées ({clientVisits.filter(v => v.status === "PLANIFIEE").length})
                     </button>
                   </div>
-                );
-              }
 
-              return (
-                <div className="space-y-3.5">
-                  {filteredVisits.map((visit) => {
-                    const typeCfg = CLIENT_VISIT_TYPES[visit.type] || CLIENT_VISIT_TYPES.ROUTINE;
-                    const isCompleted = visit.status === "EFFECTUEE";
-                    const isPlanned = visit.status === "PLANIFIEE";
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={clientVisitFilterType}
+                      onChange={(e) => setClientVisitFilterType(e.target.value)}
+                      className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-zinc-200 focus:outline-none cursor-pointer"
+                    >
+                      <option value="ALL">Tous les types de visites</option>
+                      {(Object.keys(CLIENT_VISIT_TYPES) as ClientVisitType[]).map((t) => (
+                        <option key={t} value={t}>
+                          {CLIENT_VISIT_TYPES[t].label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
 
+                {/* Liste complète des cartes de visites */}
+                {(() => {
+                  const filteredVisits = clientVisits.filter((v) => {
+                    const matchStatus = clientVisitFilterStatus === "ALL" || v.status === clientVisitFilterStatus;
+                    const matchType = clientVisitFilterType === "ALL" || v.type === clientVisitFilterType;
+                    return matchStatus && matchType;
+                  });
+
+                  if (filteredVisits.length === 0) {
                     return (
-                      <div
-                        key={visit.id}
-                        className={`rounded-2xl border bg-white dark:bg-zinc-900 p-5 shadow-xs transition-all hover:shadow-md ${
-                          isCompleted
-                            ? "border-l-4 border-l-emerald-500 border-slate-200/80 dark:border-zinc-800"
-                            : isPlanned
-                            ? "border-l-4 border-l-blue-500 border-slate-200/80 dark:border-zinc-800"
-                            : "border-slate-200/80 dark:border-zinc-800"
-                        }`}
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-zinc-800">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span
-                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${typeCfg.badgeClass}`}
-                            >
-                              {typeCfg.label}
-                            </span>
-
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                isCompleted
-                                  ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                                  : isPlanned
-                                  ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
-                                  : "bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-400"
-                              }`}
-                            >
-                              {isCompleted ? "Effectuée" : isPlanned ? "Planifiée" : "Annulée"}
-                            </span>
-
-                            <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
-                              <Calendar className="w-3.5 h-3.5 text-[#d90416]" />
-                              {new Date(visit.date).toLocaleDateString("fr-FR", {
-                                weekday: "short",
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })}
-                              {visit.time && <span className="font-mono text-slate-500">à {visit.time}</span>}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            {visit.interlocutor && (
-                              <span className="text-xs text-slate-600 dark:text-zinc-300 flex items-center gap-1 bg-slate-50 dark:bg-zinc-800 px-2.5 py-1 rounded-lg">
-                                <span className="text-slate-400 font-normal">Interlocuteur :</span>
-                                <strong className="font-semibold">{visit.interlocutor}</strong>
-                              </span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteVisit(visit.id)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                              title="Supprimer cette visite"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                      <div className="rounded-2xl border border-dashed border-slate-200 dark:border-zinc-800 p-12 text-center bg-white dark:bg-zinc-900 space-y-3">
+                        <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-950/40 text-[#d90416] flex items-center justify-center mx-auto">
+                          <Calendar className="w-6 h-6" />
                         </div>
-
-                        {/* Compte-rendu formaté */}
-                        <div className="pt-3.5 text-xs text-slate-700 dark:text-zinc-200 leading-relaxed">
-                          <FormattedNoteText content={visit.summary} />
-                        </div>
-
-                        {/* Prochaine visite convenue si présente */}
-                        {visit.nextVisitDate && (
-                          <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-zinc-800 flex items-center gap-2 text-xs font-medium text-blue-600 dark:text-blue-400">
-                            <Calendar className="w-3.5 h-3.5 shrink-0" />
-                            <span>Prochaine visite convenue :</span>
-                            <strong>
-                              {new Date(visit.nextVisitDate).toLocaleDateString("fr-FR", {
-                                weekday: "short",
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              })}
-                            </strong>
-                          </div>
-                        )}
+                        <h3 className="text-sm font-bold text-slate-800 dark:text-zinc-100">
+                          Aucune visite ne correspond aux filtres
+                        </h3>
+                        <p className="text-xs text-slate-400 max-w-md mx-auto">
+                          Consignez vos passages en magasin ou planifiez vos prochains déplacements terrain pour ce client.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setIsAddVisitModalOpen(true)}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#d90416] text-white text-xs font-semibold hover:bg-[#b80312] transition-colors"
+                        >
+                          <Plus className="w-4 h-4" />
+                          Consigner une visite maintenant
+                        </button>
                       </div>
                     );
-                  })}
-                </div>
-              );
-            })()}
+                  }
+
+                  return (
+                    <div className="space-y-3.5">
+                      {filteredVisits.map((visit) => {
+                        const typeCfg = CLIENT_VISIT_TYPES[visit.type] || CLIENT_VISIT_TYPES.ROUTINE;
+                        const isCompleted = visit.status === "EFFECTUEE";
+                        const isPlanned = visit.status === "PLANIFIEE";
+
+                        return (
+                          <div
+                            key={visit.id}
+                            className={`rounded-2xl border bg-white dark:bg-zinc-900 p-5 shadow-xs transition-all hover:shadow-md ${
+                              isCompleted
+                                ? "border-l-4 border-l-emerald-500 border-slate-200/80 dark:border-zinc-800"
+                                : isPlanned
+                                ? "border-l-4 border-l-blue-500 border-slate-200/80 dark:border-zinc-800"
+                                : "border-slate-200/80 dark:border-zinc-800"
+                            }`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-zinc-800">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${typeCfg.badgeClass}`}
+                                >
+                                  {typeCfg.label}
+                                </span>
+
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    isCompleted
+                                      ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                      : isPlanned
+                                      ? "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                                      : "bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-400"
+                                  }`}
+                                >
+                                  {isCompleted ? "Effectuée" : isPlanned ? "Planifiée" : "Annulée"}
+                                </span>
+
+                                <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
+                                  <Calendar className="w-3.5 h-3.5 text-[#d90416]" />
+                                  {new Date(visit.date).toLocaleDateString("fr-FR", {
+                                    weekday: "short",
+                                    day: "numeric",
+                                    month: "long",
+                                    year: "numeric",
+                                  })}
+                                  {visit.time && <span className="font-mono text-slate-500">à {visit.time}</span>}
+                                </span>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                {visit.interlocutor && (
+                                  <span className="text-xs text-slate-600 dark:text-zinc-300 flex items-center gap-1 bg-slate-50 dark:bg-zinc-800 px-2.5 py-1 rounded-lg">
+                                    <span className="text-slate-400 font-normal">Interlocuteur :</span>
+                                    <strong className="font-semibold">{visit.interlocutor}</strong>
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteVisit(visit.id)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+                                  title="Supprimer cette visite"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Compte-rendu formaté */}
+                            <div className="pt-3.5 text-xs text-slate-700 dark:text-zinc-200 leading-relaxed">
+                              <FormattedNoteText content={visit.summary} />
+                            </div>
+
+                            {/* Prochaine visite convenue si présente */}
+                            {visit.nextVisitDate && (
+                              <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-zinc-800 flex items-center gap-2 text-xs font-medium text-blue-600 dark:text-blue-400">
+                                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                                <span>Prochaine visite convenue :</span>
+                                <strong>
+                                  {new Date(visit.nextVisitDate).toLocaleDateString("fr-FR", {
+                                    weekday: "short",
+                                    day: "numeric",
+                                    month: "long",
+                                    year: "numeric",
+                                  })}
+                                </strong>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
           </div>
         )}
 

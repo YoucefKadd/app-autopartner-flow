@@ -22,6 +22,7 @@ model User {
   kams        User[]   @relation("ManagerToKams")
   clients     Client[]
   notes       Note[]
+  visits      Visit[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -40,6 +41,7 @@ model Client {
   kamId         String
   kam           User      @relation(fields: [kamId], references: [id], onDelete: Cascade)
   notes         Note[]
+  visits        Visit[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -56,5 +58,27 @@ model Note {
   kam       User     @relation(fields: [kamId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  visitId   String?
+  visit     Visit?   @relation(fields: [visitId], references: [id], onDelete: SetNull)
 }
 
+
+
+model Visit {
+  id            String    @id @default(cuid())
+  date          String    // YYYY-MM-DD
+  time          String?   // HH:mm
+  type          String    @default("ROUTINE") // "ROUTINE" | "COMMERCIALE" | "PROSPECTION" | "TECHNIQUE" | "LIVRAISON_SAS" | "LITIGE" | "AUTRE"
+  status        String    @default("EFFECTUEE") // "EFFECTUEE" | "PLANIFIEE" | "ANNULEE"
+  interlocutor  String?
+  summary       String
+  nextVisitDate String?
+  clientId      String
+  client        Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  kamId         String
+  kam           User      @relation(fields: [kamId], references: [id], onDelete: Cascade)
+  notes         Note[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
