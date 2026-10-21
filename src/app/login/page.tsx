@@ -11,7 +11,6 @@ import {
   AlertCircle,
   Eye,
   EyeOff,
-  UserCheck,
 } from "lucide-react";
 
 export default function LoginPage() {
@@ -67,35 +66,21 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickLogin = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword("autopartner2026");
-  };
-
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden text-slate-800">
-      {/* Background soft red/rose ambient glow */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[350px] bg-red-100/60 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-red-50/80 rounded-full blur-3xl pointer-events-none" />
-
-      <div className="w-full max-w-md relative z-10">
-        {/* Brand header with Auto Partner Logo */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Brand Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center p-3 rounded-2xl bg-white shadow-md border border-slate-200/80 mb-3">
-            <img
-              src="/autopartner-logo.png"
-              alt="Auto Partner"
-              className="h-9 w-auto object-contain"
-            />
-          </div>
-          <h1 className="text-2xl font-black tracking-tight text-slate-900 flex items-center justify-center gap-2">
-            APFLOW
-            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#d90416] text-white">
-              V3
+          <div className="inline-flex items-center justify-center gap-2.5 mb-2">
+            <span className="w-9 h-9 rounded-xl bg-[#d90416] flex items-center justify-center text-white font-black text-xl shadow-md shadow-red-500/20 tracking-tighter">
+              AP
             </span>
-          </h1>
-          <p className="text-xs font-medium text-slate-500 mt-1">
-            CRM Automobile Auto Partner — Espace d&apos;accès sécurisé
+            <span className="text-2xl font-black tracking-tight text-slate-900">
+              FLOW
+            </span>
+          </div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-[#d90416]">
+            Plateforme KAM &amp; Réseau Auto Partner
           </p>
         </div>
 
@@ -174,75 +159,6 @@ export default function LoginPage() {
               )}
             </button>
           </form>
-
-          {/* Demo fast-login pills for user testing */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <p className="text-[11px] font-semibold text-slate-500 mb-2.5 flex items-center gap-1.5">
-              <UserCheck className="w-3.5 h-3.5 text-[#d90416]" />
-              <span>Accès rapides de démonstration (Mot de passe : <code className="text-[#d90416] font-bold">autopartner2026</code>) :</span>
-            </p>
-            <div className="grid grid-cols-1 gap-1.5">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("direction@autopartner.fr")}
-                className="w-full text-left p-2 rounded-xl bg-slate-50 hover:bg-red-50/60 border border-slate-200/80 hover:border-red-200 text-xs transition flex items-center justify-between group cursor-pointer"
-              >
-                <div>
-                  <span className="font-bold text-[#d90416] mr-2">[Super Admin]</span>
-                  <span className="text-slate-700 font-medium">Marc Laurent</span>
-                </div>
-                <span className="text-[10px] text-slate-400 group-hover:text-[#d90416] font-semibold">Remplir →</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("directeur@autopartner.fr")}
-                className="w-full text-left p-2 rounded-xl bg-slate-50 hover:bg-amber-50/60 border border-slate-200/80 hover:border-amber-200 text-xs transition flex items-center justify-between group cursor-pointer"
-              >
-                <div>
-                  <span className="font-bold text-amber-700 mr-2">[Directeur]</span>
-                  <span className="text-slate-700 font-medium">Jean-Philippe V. (Supervision)</span>
-                </div>
-                <span className="text-[10px] text-slate-400 group-hover:text-amber-700 font-semibold">Remplir →</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("manager@autopartner.fr")}
-                className="w-full text-left p-2 rounded-xl bg-slate-50 hover:bg-purple-50/60 border border-slate-200/80 hover:border-purple-200 text-xs transition flex items-center justify-between group cursor-pointer"
-              >
-                <div>
-                  <span className="font-bold text-purple-700 mr-2">[Manager]</span>
-                  <span className="text-slate-700 font-medium">Gérard Dupont (Équipe KAM)</span>
-                </div>
-                <span className="text-[10px] text-slate-400 group-hover:text-purple-700 font-semibold">Remplir →</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("youcef.kam@autopartner.fr")}
-                className="w-full text-left p-2 rounded-xl bg-slate-50 hover:bg-emerald-50/60 border border-slate-200/80 hover:border-emerald-200 text-xs transition flex items-center justify-between group cursor-pointer"
-              >
-                <div>
-                  <span className="font-bold text-emerald-700 mr-2">[KAM Dédié]</span>
-                  <span className="text-slate-700 font-medium">Youcef K. (Espace isolé)</span>
-                </div>
-                <span className="text-[10px] text-slate-400 group-hover:text-emerald-700 font-semibold">Remplir →</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("claire.m@autopartner.fr")}
-                className="w-full text-left p-2 rounded-xl bg-slate-50 hover:bg-sky-50/60 border border-slate-200/80 hover:border-sky-200 text-xs transition flex items-center justify-between group cursor-pointer"
-              >
-                <div>
-                  <span className="font-bold text-sky-700 mr-2">[KAM Dédié]</span>
-                  <span className="text-slate-700 font-medium">Claire Moreau (Espace isolé)</span>
-                </div>
-                <span className="text-[10px] text-slate-400 group-hover:text-sky-700 font-semibold">Remplir →</span>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Security badge footer */}
@@ -253,4 +169,3 @@ export default function LoginPage() {
     </div>
   );
 }
-
