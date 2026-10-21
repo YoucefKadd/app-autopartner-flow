@@ -59,16 +59,29 @@ export async function DELETE(
     const { id: clientId } = await context.params;
     const { searchParams } = new URL(request.url);
     const photoId = searchParams.get("photoId");
+    const url = searchParams.get("url");
 
-    if (!photoId) {
-      return NextResponse.json({ error: "ID de photo requis" }, { status: 400 });
+    if (!photoId && !url) {
+      return NextResponse.json({ error: "ID ou URL de photo requis" }, { status: 400 });
     }
 
-    await prisma.clientPhoto.deleteMany({
-      where: { id: photoId, clientId },
-    });
+    let deletedCount = 0;
+    if (photoId) {
+      const res = await prisma.clientPhoto.deleteMany({
+        where: { id: photoId, clientId },
+      });
+      deletedCount += res.count;
+    }
 
-    return NextResponse.json({ success: true });
+    // If ID didn't match (e.g. temporary client-side ID like photo_172...), delete by URL fallback
+    if (deletedCount === 0 && url) {
+      const res = await prisma.clientPhoto.deleteMany({
+        where: { url, clientId },
+      });
+      deletedCount += res.count;
+    }
+
+    return NextResponse.json({ success: true, count: deletedCount });
   } catch (error) {
     console.error("Delete photo error:", error);
     return NextResponse.json({ error: "Erreur suppression photo" }, { status: 500 });

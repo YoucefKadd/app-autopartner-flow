@@ -479,7 +479,7 @@ export function ClientFullPage({
   const [compressionStatusMsg, setCompressionStatusMsg] = useState<string | null>(null);
   const [compressionSuccessMsg, setCompressionSuccessMsg] = useState<string | null>(null);
   const [previewPhotoModal, setPreviewPhotoModal] = useState<DeliveryPhoto | null>(null);
-  const [clientLogoUrl, setClientLogoUrl] = useState<string>("");
+  const [clientLogoUrl, setClientLogoUrl] = useState<string>(() => (client as any)?.logo || "");
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Visit tracking & Revisit interval state
@@ -523,6 +523,19 @@ export function ClientFullPage({
     return () => window.removeEventListener("apflow_logo_changed", handleLogoSync);
   }, [client.id]);
 
+  // Sync clientLogoUrl whenever client prop updates from database
+  useEffect(() => {
+    const dbLogo = (client as any)?.logo;
+    if (dbLogo !== undefined) {
+      setClientLogoUrl(dbLogo || "");
+      if (dbLogo) {
+        localStorage.setItem(`apflow_logo_${client.id}`, dbLogo);
+      } else {
+        localStorage.removeItem(`apflow_logo_${client.id}`);
+      }
+    }
+  }, [client.id, (client as any)?.logo]);
+
   function handleLogoFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -555,12 +568,12 @@ export function ClientFullPage({
               detail: { clientId: client.id, logo: compressed },
             })
           );
-          // Persist logo to MySQL BDD
+          (client as any).logo = compressed;
           fetch(`/api/clients/${client.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ logo: compressed }),
-          }).catch((e) => console.error("Error saving logo to DB:", e));
+          }).then(() => onRefresh?.()).catch((e) => console.error("Error saving logo to DB:", e));
         }
       };
       img.src = event.target?.result as string;
@@ -578,12 +591,12 @@ export function ClientFullPage({
         detail: { clientId: client.id, logo: "" },
       })
     );
-    // Remove logo from MySQL BDD
+    (client as any).logo = null;
     fetch(`/api/clients/${client.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ logo: null }),
-    }).catch((e) => console.error("Error removing logo from DB:", e));
+    }).then(() => onRefresh?.()).catch((e) => console.error("Error removing logo from DB:", e));
   }
 
   // Contacts list initialized ONLY with client's actual entered contact
@@ -712,32 +725,13 @@ export function ClientFullPage({
       );
     }
 
-    // Load photos from MySQL BDD first, fallback to localStorage
+    // Load photos from MySQL BDD (source of truth)
     fetch(`/api/clients/${client.id}/photos`)
       .then((res) => (res.ok ? res.json() : []))
       .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setDeliveryPhotos(data);
           localStorage.setItem(`apflow_photos_v4_${client.id}`, JSON.stringify(data));
-        } else {
-          const savedPhotos = localStorage.getItem(`apflow_photos_v4_${client.id}`);
-          if (savedPhotos) {
-            try {
-              const parsed = JSON.parse(savedPhotos);
-              setDeliveryPhotos(parsed);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                parsed.forEach((ph) => {
-                  fetch(`/api/clients/${client.id}/photos`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(ph),
-                  }).catch(() => {});
-                });
-              }
-            } catch {
-              setDeliveryPhotos(DEFAULT_DELIVERY_PHOTOS);
-            }
-          }
         }
       })
       .catch(() => {
@@ -1407,20 +1401,31 @@ export function ClientFullPage({
       }
 
       if (newPhotos.length > 0) {
+        // Persist each new photo in MySQL BDD and retrieve its real DB id
+        for (let i = 0; i < newPhotos.length; i++) {
+          const ph = newPhotos[i];
+          try {
+            const res = await fetch(`/api/clients/${client.id}/photos`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(ph),
+            });
+            if (res.ok) {
+              const saved = await res.json();
+              if (saved && saved.id) {
+                ph.id = saved.id;
+              }
+            }
+          } catch (e) {
+            console.error("Error saving photo to DB:", e);
+          }
+        }
         const next = [...newPhotos, ...deliveryPhotos];
         setDeliveryPhotos(next);
         localStorage.setItem(
           `apflow_photos_v4_${client.id}`,
           JSON.stringify(next)
         );
-        // Persist each new photo in MySQL BDD
-        for (const ph of newPhotos) {
-          fetch(`/api/clients/${client.id}/photos`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(ph),
-          }).catch((e) => console.error("Error saving photo to DB:", e));
-        }
         setNewPhotoLabel("");
         setNewPhotoNote("");
         setCompressionSuccessMsg(
@@ -1456,10 +1461,16 @@ export function ClientFullPage({
   }
 
   function handleDeletePhoto(photoId: string) {
+    const toDelete = deliveryPhotos.find((p) => p.id === photoId);
     const next = deliveryPhotos.filter((p) => p.id !== photoId);
     setDeliveryPhotos(next);
     localStorage.setItem(`apflow_photos_v4_${client.id}`, JSON.stringify(next));
-    fetch(`/api/clients/${client.id}/photos?photoId=${photoId}`, {
+
+    const params = new URLSearchParams({ photoId });
+    if (toDelete?.url) {
+      params.set("url", toDelete.url);
+    }
+    fetch(`/api/clients/${client.id}/photos?${params.toString()}`, {
       method: "DELETE",
     }).catch((e) => console.error("Error deleting photo from DB:", e));
   }

@@ -212,7 +212,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
-    const { id, name, email, password, title, role, status, permissions, managerId } = body;
+    const { id, name, email, password, title, role, status, permissions, managerId, avatar } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Identifiant utilisateur manquant" }, { status: 400 });
@@ -227,6 +227,7 @@ export async function PATCH(request: Request) {
     if (status !== undefined) updateData.status = status;
     if (permissions !== undefined) updateData.permissions = permissions;
     if (managerId !== undefined) updateData.managerId = managerId || null;
+    if (avatar !== undefined) updateData.avatar = avatar;
 
     const updated = await prisma.user.update({
       where: { id },

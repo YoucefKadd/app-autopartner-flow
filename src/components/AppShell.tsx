@@ -35,6 +35,7 @@ import {
   Clock,
   ArrowRight,
   Hash,
+  Camera,
 } from "lucide-react";
 import { ClientItem, KamUser, NoteItem, ClientVisit, getInitials, hasPermission } from "@/types/kam";
 import { QuickNoteModal } from "@/components/QuickNoteModal";
@@ -96,6 +97,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Modals state
   const [isQuickNoteOpen, setIsQuickNoteOpen] = useState(false);
@@ -232,6 +234,45 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setActiveUser(null);
     router.push("/login");
   };
+
+  function handleUserAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !loggedUser) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const maxDim = 250;
+        let w = img.width;
+        let h = img.height;
+        if (w > h && w > maxDim) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else if (h > maxDim) {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, w, h);
+          const compressed = canvas.toDataURL("image/jpeg", 0.85);
+          fetch("/api/workspace", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: loggedUser.id, avatar: compressed }),
+          })
+            .then(() => refreshWorkspace())
+            .catch((err) => console.error("Error saving avatar:", err));
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
 
   // Extract current client ID if on /clients/[id]
   const currentClientMatch = pathname?.match(/^\/clients\/([^/]+)$/);
@@ -616,14 +657,52 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
               {profileMenuOpen && (
                 <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl p-2 z-50 text-slate-800 dark:text-zinc-200">
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleUserAvatarChange}
+                    className="hidden"
+                  />
                   <div className="px-3 py-2.5 border-b border-slate-100 dark:border-zinc-800">
-                    <p className="text-xs font-bold text-slate-900 dark:text-white">{loggedUser?.name || activeUser?.name}</p>
-                    <p className="text-[11px] text-slate-400 truncate">
-                      {loggedUser?.email || activeUser?.email}
-                    </p>
-                    <span className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold border border-blue-500/20">
-                      Rôle : {loggedUser?.role || activeUser?.role}
-                    </span>
+                    <div className="flex items-center gap-2.5">
+                      <div
+                        onClick={() => avatarInputRef.current?.click()}
+                        className="relative group/avatar cursor-pointer shrink-0"
+                        title="Cliquer pour changer votre photo de profil"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-[#d90416] text-white flex items-center justify-center text-xs font-bold shadow-sm overflow-hidden">
+                          {loggedUser?.avatar ? (
+                            <img src={loggedUser.avatar} alt={loggedUser.name} className="w-full h-full object-cover" />
+                          ) : (
+                            loggedUser ? getInitials(loggedUser.name) : "AP"
+                          )}
+                        </div>
+                        <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center text-white opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+                          <Camera className="w-3.5 h-3.5" />
+                        </div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {loggedUser?.name || activeUser?.name}
+                        </p>
+                        <p className="text-[11px] text-slate-400 truncate">
+                          {loggedUser?.email || activeUser?.email}
+                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="inline-block text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold border border-blue-500/20">
+                            {loggedUser?.role || activeUser?.role}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => avatarInputRef.current?.click()}
+                            className="text-[10px] text-[#d90416] hover:underline font-semibold"
+                          >
+                            Photo profil
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Switcher: Super Admin & Directeur see all; Manager sees their assigned team */}

@@ -64,7 +64,7 @@ export function ClientFormModal({
         } catch {}
       }
 
-      const savedLogo = localStorage.getItem(`apflow_logo_${editingClient.id}`);
+      const savedLogo = (editingClient as any)?.logo || localStorage.getItem(`apflow_logo_${editingClient.id}`);
       setLogoUrl(savedLogo || "");
     } else {
       // Strictly blank fields for a new client!
@@ -143,6 +143,7 @@ export function ClientFormModal({
           healthScore: 85,
           lastContactAt: new Date().toISOString(),
           kamId: activeKamId,
+          logo: logoUrl || null,
         }),
       });
 

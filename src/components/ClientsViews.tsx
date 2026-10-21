@@ -231,6 +231,13 @@ export function ClientsViews({
           ctx.drawImage(img, 0, 0, w, h);
           const compressed = canvas.toDataURL("image/jpeg", 0.88);
           localStorage.setItem(`apflow_logo_${clientId}`, compressed);
+          const foundCl = clients.find((c) => c.id === clientId);
+          if (foundCl) (foundCl as any).logo = compressed;
+          fetch(`/api/clients/${clientId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ logo: compressed }),
+          }).catch((err) => console.error("Error saving logo to DB:", err));
           setLogoUpdateTrigger((prev) => prev + 1);
           window.dispatchEvent(
             new CustomEvent("apflow_logo_changed", {

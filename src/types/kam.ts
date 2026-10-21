@@ -95,6 +95,7 @@ export interface KamUser {
   email: string;
   role: "SUPER_ADMIN" | "DIRECTEUR" | "MANAGER" | "KAM";
   title?: string | null;
+  avatar?: string | null;
   status: "ACTIVE" | "DISABLED";
   permissions?: string | null;
   managerId?: string | null;

@@ -15,6 +15,7 @@ export async function POST(request: Request) {
       healthScore,
       lastContactAt,
       kamId,
+      logo,
     } = body;
 
     if (!company || !contactName || !kamId) {
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
         healthScore: typeof healthScore === "number" ? healthScore : 85,
         lastContactAt: lastContactAt ? new Date(lastContactAt) : new Date(),
         kamId,
+        logo: logo || null,
       },
       include: {
         notes: true,
