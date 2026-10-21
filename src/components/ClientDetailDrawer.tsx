@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { FormattedNoteText } from "@/components/NoteFormatter";
 import {
   X,
   Mail,
@@ -240,9 +241,9 @@ export function ClientDetailDrawer({
                           {note.title}
                         </p>
                       )}
-                      <p className="text-xs text-zinc-600 dark:text-zinc-300 whitespace-pre-line leading-relaxed">
-                        {note.content}
-                      </p>
+                      <div className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                        <FormattedNoteText content={note.content} />
+                      </div>
                     </div>
                   );
                 })}

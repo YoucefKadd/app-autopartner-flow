@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
+import { stripMarkdown } from "@/components/NoteFormatter";
 import {
   ChevronLeft,
   ChevronRight,
@@ -552,7 +553,7 @@ export function CalendarView({
                   </h4>
 
                   <p className="text-xs text-slate-600 dark:text-zinc-400 line-clamp-3 leading-relaxed bg-white/70 dark:bg-zinc-900/70 p-2.5 rounded-xl border border-slate-100 dark:border-zinc-800">
-                    {evt.summary}
+                    {stripMarkdown(evt.summary)}
                   </p>
 
                   {/* If visit has linked notes */}

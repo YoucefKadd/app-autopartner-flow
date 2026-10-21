@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from "react";
 import Link from "next/link";
+import { stripMarkdown } from "@/components/NoteFormatter";
 import {
   Calendar,
   Clock,
@@ -291,8 +292,8 @@ export function VisitsNotesTableView({
                       {r.title}
                     </td>
 
-                    <td className="py-2.5 px-3.5 text-slate-600 dark:text-zinc-400 max-w-[320px] truncate">
-                      {r.content}
+                    <td className="py-2.5 px-3.5 text-slate-600 dark:text-zinc-400 max-w-[320px] truncate" title={stripMarkdown(r.content)}>
+                      {stripMarkdown(r.content)}
                     </td>
 
                     <td className="py-2.5 px-3.5 text-right whitespace-nowrap">

@@ -1,7 +1,17 @@
 "use client";
 
 import React from "react";
-import { Bold, Italic, List, CheckSquare, Heading3, Minus, AlertTriangle } from "lucide-react";
+import {
+  Bold,
+  Italic,
+  List,
+  CheckSquare,
+  Heading3,
+  Minus,
+  AlertTriangle,
+  Strikethrough,
+  Highlighter,
+} from "lucide-react";
 
 interface NoteFormattingToolbarProps {
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -82,6 +92,24 @@ export function NoteFormattingToolbar({
         <Italic className="w-3.5 h-3.5" />
       </button>
 
+      <button
+        type="button"
+        onClick={() => applyFormatting("~~", "~~", "texte barré")}
+        title="Barré (~~texte~~)"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-slate-700 dark:text-zinc-200 hover:bg-white dark:hover:bg-zinc-700 transition-colors"
+      >
+        <Strikethrough className="w-3.5 h-3.5" />
+      </button>
+
+      <button
+        type="button"
+        onClick={() => applyFormatting("==", "==", "texte surligné")}
+        title="Surligner (==texte==)"
+        className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-amber-700 dark:text-amber-400 hover:bg-white dark:hover:bg-zinc-700 transition-colors"
+      >
+        <Highlighter className="w-3.5 h-3.5" />
+      </button>
+
       <div className="h-3.5 w-px bg-slate-300 dark:bg-zinc-700 mx-0.5" />
 
       <button
@@ -147,11 +175,43 @@ export function NoteFormattingToolbar({
   );
 }
 
-// Helper to render inline formatting: bold **text**, italic *text*
-function renderInlineFormatted(text: string): React.ReactNode {
-  // Regex to match **bold** or *italic*
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+// Strip markdown syntax for short excerpts, search preview, table cells
+export function stripMarkdown(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/^#+\s+/gm, "")
+    .replace(/^[-*•]\s+/gm, "")
+    .replace(/^\[[ xX]\]\s+/gm, "")
+    .replace(/\*\*\*([^*]+?)\*\*\*/g, "$1")
+    .replace(/\*\*([^*]+?)\*\*/g, "$1")
+    .replace(/\*(?!\*)([^*]+?)\*/g, "$1")
+    .replace(/~~([^~]+?)~~/g, "$1")
+    .replace(/==([^=]+?)==/g, "$1")
+    .replace(/`([^`]+?)`/g, "$1")
+    .replace(/^---+$/gm, "")
+    .trim();
+}
+
+// Helper to render inline formatting: ***gras italique***, **gras**, *italique*, ~~barré~~, ==surligné==
+export function renderInlineFormatted(text: string): React.ReactNode {
+  if (!text) return null;
+  // Regex splitting by:
+  // 1. ***bold italic***
+  // 2. **bold**
+  // 3. *italic*
+  // 4. ~~strikethrough~~
+  // 5. ==highlight==
+  const regex = /(\*\*\*[^*]+?\*\*\*|\*\*[^*]+?\*\*|\*(?!\*)[^*]+?\*|~~[^~]+?~~|==[^=]+?==)/g;
+  const parts = text.split(regex);
+
   return parts.map((part, idx) => {
+    if (part.startsWith("***") && part.endsWith("***") && part.length >= 6) {
+      return (
+        <strong key={idx} className="font-extrabold italic text-slate-900 dark:text-zinc-50">
+          {part.slice(3, -3)}
+        </strong>
+      );
+    }
     if (part.startsWith("**") && part.endsWith("**") && part.length >= 4) {
       return (
         <strong key={idx} className="font-bold text-slate-900 dark:text-zinc-50">
@@ -164,6 +224,20 @@ function renderInlineFormatted(text: string): React.ReactNode {
         <em key={idx} className="italic text-slate-800 dark:text-zinc-200">
           {part.slice(1, -1)}
         </em>
+      );
+    }
+    if (part.startsWith("~~") && part.endsWith("~~") && part.length >= 4) {
+      return (
+        <del key={idx} className="line-through text-slate-400 dark:text-zinc-500">
+          {part.slice(2, -2)}
+        </del>
+      );
+    }
+    if (part.startsWith("==") && part.endsWith("==") && part.length >= 4) {
+      return (
+        <mark key={idx} className="bg-amber-200 dark:bg-amber-900/50 text-slate-900 dark:text-amber-100 px-1 py-0.5 rounded font-medium">
+          {part.slice(2, -2)}
+        </mark>
       );
     }
     return part;

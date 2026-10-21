@@ -9,6 +9,7 @@ import React, {
   useMemo,
   useRef,
 } from "react";
+import { stripMarkdown } from "@/components/NoteFormatter";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -517,7 +518,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         >
                           <div className="max-w-[85%]">
                             <p className="font-medium text-slate-200 line-clamp-1 group-hover:text-amber-400">
-                              {n.title || n.content.substring(0, 60)}
+                              {n.title || stripMarkdown(n.content).substring(0, 60)}
                             </p>
                             <p className="text-[10px] text-slate-400">
                               {n.client?.company ? `Client: ${n.client.company}` : "Note libre"}
@@ -550,7 +551,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                               {v.client.company} — {v.interlocutor}
                             </p>
                             <p className="text-[11px] text-slate-400 line-clamp-1">
-                              {v.summary}
+                              {stripMarkdown(v.summary)}
                             </p>
                           </div>
                           <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white opacity-0 group-hover:opacity-100 transition" />
