@@ -5536,12 +5536,12 @@ export function ClientFullPage({
             </div>
 
             {/* Barre de sélection de vue : Calendrier vs Liste */}
-            <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-3">
-              <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-1 rounded-xl border border-slate-200 dark:border-zinc-700">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-zinc-800 pb-3 flex-wrap gap-2">
+              <div className="flex items-center bg-slate-100 dark:bg-zinc-800 p-1 rounded-xl border border-slate-200 dark:border-zinc-700 flex-wrap gap-1">
                 <button
                   type="button"
                   onClick={() => setClientVisitSubTab("calendar")}
-                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     clientVisitSubTab === "calendar"
                       ? "bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 shadow-xs"
                       : "text-slate-500 hover:text-slate-800 dark:text-zinc-400"
@@ -5552,20 +5552,36 @@ export function ClientFullPage({
                 </button>
                 <button
                   type="button"
-                  onClick={() => setClientVisitSubTab("list")}
-                  className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                    clientVisitSubTab === "list"
+                  onClick={() => setClientVisitSubTab("table")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    clientVisitSubTab === "table"
                       ? "bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 shadow-xs"
                       : "text-slate-500 hover:text-slate-800 dark:text-zinc-400"
                   }`}
                 >
                   <Sliders className="w-3.5 h-3.5" />
-                  <span>Vue Liste & Filtres ({clientVisits.length})</span>
+                  <span>Vue Tableau Compact</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setClientVisitSubTab("list")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    clientVisitSubTab === "list"
+                      ? "bg-white dark:bg-zinc-900 text-slate-900 dark:text-zinc-100 shadow-xs"
+                      : "text-slate-500 hover:text-slate-800 dark:text-zinc-400"
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Vue Cartes Détaillées ({clientVisits.length})</span>
                 </button>
               </div>
 
               <span className="text-xs text-slate-400 hidden sm:inline">
-                {clientVisitSubTab === "calendar" ? "Calendrier mensuel interactif" : "Historique chronologique"}
+                {clientVisitSubTab === "calendar"
+                  ? "Calendrier mensuel interactif"
+                  : clientVisitSubTab === "table"
+                  ? "Tableau compact des visites & notes"
+                  : "Historique chronologique détaillé"}
               </span>
             </div>
 
@@ -5576,6 +5592,22 @@ export function ClientFullPage({
                 defaultClientId={client.id}
                 onAddVisit={() => setIsAddVisitModalOpen(true)}
                 onAddNote={() => openQuickNote({ clientId: client.id })}
+                onSelectVisit={(v) => {
+                  const linked = clientNotes.find((n) => n.visitId === v.id || n.content.includes(v.summary.slice(0, 30)));
+                  openQuickNote({ clientId: client.id, note: linked || null });
+                }}
+                onSelectNote={(n) => openQuickNote({ clientId: client.id, note: n })}
+              />
+            ) : clientVisitSubTab === "table" ? (
+              <VisitsNotesTableView
+                visits={clientVisits}
+                notes={clientNotes}
+                defaultClientId={client.id}
+                onSelectVisit={(v) => {
+                  const linked = clientNotes.find((n) => n.visitId === v.id || n.content.includes(v.summary.slice(0, 30)));
+                  openQuickNote({ clientId: client.id, note: linked || null });
+                }}
+                onSelectNote={(n) => openQuickNote({ clientId: client.id, note: n })}
               />
             ) : (
               <div className="space-y-6">
@@ -5722,6 +5754,21 @@ export function ClientFullPage({
                                     <strong className="font-semibold">{visit.interlocutor}</strong>
                                   </span>
                                 )}
+
+                                {/* Bouton direct : Ouvrir la note associée */}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const linked = clientNotes.find((n) => n.visitId === visit.id || n.content.includes(visit.summary.slice(0, 30)));
+                                    openQuickNote({ clientId: client.id, note: linked || null });
+                                  }}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 hover:bg-red-50 hover:text-[#d90416] text-xs font-semibold text-slate-700 dark:text-zinc-200 transition shadow-2xs cursor-pointer"
+                                  title="Ouvrir la note associée dans le volet / split-screen"
+                                >
+                                  <FileText className="w-3.5 h-3.5 text-[#d90416]" />
+                                  <span>Voir Note</span>
+                                </button>
+
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteVisit(visit.id)}

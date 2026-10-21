@@ -370,24 +370,54 @@ export default function VisitesPage() {
 
       {/* 3. NAVIGATION VIEW TABS */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-slate-200/80 dark:border-zinc-800 pb-1">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* Onglet 1 : Calendrier Global */}
           <button
             type="button"
-            onClick={() => setActiveTab("timeline")}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === "timeline"
+            onClick={() => setActiveTab("calendar")}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === "calendar"
                 ? "bg-[#d90416] text-white shadow-xs"
                 : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800"
             }`}
           >
             <Calendar className="w-4 h-4" />
-            <span>Historique & Planning ({allVisits.length})</span>
+            <span>Calendrier Global</span>
           </button>
 
+          {/* Onglet 2 : Vue Tableau Compacte */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("table")}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === "table"
+                ? "bg-[#d90416] text-white shadow-xs"
+                : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800"
+            }`}
+          >
+            <Sliders className="w-4 h-4" />
+            <span>Vue Tableau Compacte</span>
+          </button>
+
+          {/* Onglet 3 : Historique & Cartes Détaillées */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("timeline")}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === "timeline"
+                ? "bg-[#d90416] text-white shadow-xs"
+                : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800"
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            <span>Historique & Cartes ({allVisits.length})</span>
+          </button>
+
+          {/* Onglet 4 : Radar Re-visites */}
           <button
             type="button"
             onClick={() => setActiveTab("radar")}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               activeTab === "radar"
                 ? "bg-[#d90416] text-white shadow-xs"
                 : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800"
@@ -434,7 +464,20 @@ export default function VisitesPage() {
         />
       )}
 
-      {/* 5. TAB CONTENT: TIMELINE VIEW */}
+      {/* ONGLET 2: VUE TABLEAU COMPACTE */}
+      {activeTab === "table" && (
+        <VisitsNotesTableView
+          visits={allVisits}
+          notes={[]}
+          onSelectVisit={(v) => {
+            if (v.clientId) {
+              router.push(`/clients/${v.clientId}`);
+            }
+          }}
+        />
+      )}
+
+      {/* ONGLET 3: TIMELINE & CARTES */}
       {activeTab === "timeline" && (
         <div className="space-y-4">
           {/* Secondary filter bar */}
