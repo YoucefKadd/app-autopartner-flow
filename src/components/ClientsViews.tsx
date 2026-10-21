@@ -518,7 +518,7 @@ export function ClientsViews({
                           }
                         } catch {}
                       }
-                      logo = localStorage.getItem(`apflow_logo_${client.id}`) || "";
+                      logo = (client as any).logo || localStorage.getItem(`apflow_logo_${client.id}`) || "";
                     }
 
                     // Default AP code formatted as 7 digits like 3306131 if not customized
@@ -795,7 +795,7 @@ export function ClientsViews({
               client._count?.notes ?? client.notes?.length ?? 0;
             const gridLogo =
               typeof window !== "undefined"
-                ? localStorage.getItem(`apflow_logo_${client.id}`) || ""
+                ? (client as any).logo || localStorage.getItem(`apflow_logo_${client.id}`) || ""
                 : "";
 
             return (
@@ -959,7 +959,7 @@ export function ClientsViews({
                           client._count?.notes ?? client.notes?.length ?? 0;
                         const kanbanLogo =
                           typeof window !== "undefined"
-                            ? localStorage.getItem(`apflow_logo_${client.id}`) || ""
+                            ? (client as any).logo || localStorage.getItem(`apflow_logo_${client.id}`) || ""
                             : "";
                         return (
                           <div
