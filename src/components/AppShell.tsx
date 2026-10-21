@@ -98,6 +98,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Modals state
@@ -123,6 +124,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setMobileDrawerOpen(false);
     setSearchDropdownOpen(false);
   }, [pathname]);
+
+  // Close search dropdown on click outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setSearchDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Sync Dark Mode & Sidebar state
   useEffect(() => {
@@ -323,22 +335,88 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     setIsClientModalOpen(true);
   }
 
-  // Global search filtering across clients, notes, and visits
+  // Helper to get client AP code reliably
+  const getClientApNumber = useCallback((c: ClientItem) => {
+    if (c.apClientNumber && c.apClientNumber.trim()) return c.apClientNumber.trim();
+    if (typeof window !== "undefined") {
+      const local = localStorage.getItem(`apflow_apcode_${c.id}`);
+      if (local && local.trim()) return local.trim();
+      try {
+        const f = localStorage.getItem(`apflow_fiche_v4_${c.id}`);
+        if (f) {
+          const p = JSON.parse(f);
+          if (p.apClientNumber) return String(p.apClientNumber).trim();
+        }
+      } catch {}
+    }
+    return "";
+  }, []);
+
+  // Global search filtering across clients, notes, and visits with Code AP priority
   const searchResults = useMemo(() => {
     const q = globalSearch.trim().toLowerCase();
-    if (!q || q.length < 2) return null;
+    if (!q) return null;
+    const qClean = q.replace(/^#/, "").replace(/^ap[\s-_:]*/i, "").trim().toLowerCase();
 
     // Filter clients
-    const matchedClients = clients.filter(
-      (c) =>
-        c.company.toLowerCase().includes(q) ||
-        (c.apClientNumber && c.apClientNumber.toLowerCase().includes(q)) ||
-        c.city.toLowerCase().includes(q) ||
-        (c.postalCode && c.postalCode.toLowerCase().includes(q)) ||
-        c.contactName.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q) ||
-        c.phone.toLowerCase().includes(q)
-    );
+    const matchedClients = clients.filter((c) => {
+      const apCode = getClientApNumber(c).toLowerCase();
+      const postal = (c.postalCode || "").toLowerCase();
+      const addr = (c.address || "").toLowerCase();
+      const comp = c.company.toLowerCase();
+      const contact = (c.contactName || "").toLowerCase();
+      const email = (c.email || "").toLowerCase();
+      const phone = (c.phone || "").toLowerCase();
+      const city = (c.city || "").toLowerCase();
+
+      // Check direct q and cleaned q on Code AP
+      const matchAp =
+        Boolean(apCode && (apCode.includes(q) || (qClean && apCode.includes(qClean)))) ||
+        Boolean(c.apClientNumber && (c.apClientNumber.toLowerCase().includes(q) || (qClean && c.apClientNumber.toLowerCase().includes(qClean))));
+
+      return (
+        matchAp ||
+        comp.includes(q) ||
+        city.includes(q) ||
+        postal.includes(q) ||
+        addr.includes(q) ||
+        contact.includes(q) ||
+        email.includes(q) ||
+        phone.includes(q)
+      );
+    });
+
+    // Sort client results: boost Code AP matches to the absolute top!
+    matchedClients.sort((a, b) => {
+      const codeA = getClientApNumber(a).toLowerCase();
+      const codeB = getClientApNumber(b).toLowerCase();
+
+      // Exact match on Code AP
+      const exactA = Boolean(codeA && (codeA === q || (qClean && codeA === qClean)));
+      const exactB = Boolean(codeB && (codeB === q || (qClean && codeB === qClean)));
+      if (exactA && !exactB) return -1;
+      if (!exactA && exactB) return 1;
+
+      // StartsWith on Code AP
+      const startA = Boolean(codeA && (codeA.startsWith(q) || (qClean && codeA.startsWith(qClean))));
+      const startB = Boolean(codeB && (codeB.startsWith(q) || (qClean && codeB.startsWith(qClean))));
+      if (startA && !startB) return -1;
+      if (!startA && startB) return 1;
+
+      // Includes on Code AP
+      const incA = Boolean(codeA && (codeA.includes(q) || (qClean && codeA.includes(qClean))));
+      const incB = Boolean(codeB && (codeB.includes(q) || (qClean && codeB.includes(qClean))));
+      if (incA && !incB) return -1;
+      if (!incA && incB) return 1;
+
+      // Company startsWith / includes
+      const compA = a.company.toLowerCase();
+      const compB = b.company.toLowerCase();
+      if (compA.startsWith(q) && !compB.startsWith(q)) return -1;
+      if (!compA.startsWith(q) && compB.startsWith(q)) return 1;
+
+      return compA.localeCompare(compB, "fr");
+    });
 
     // Filter notes
     const matchedNotes = notes.filter(
@@ -361,12 +439,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
 
     return {
-      clients: matchedClients.slice(0, 5),
+      clients: matchedClients.slice(0, 8),
       notes: matchedNotes.slice(0, 5),
       visits: matchedVisits.slice(0, 5),
       totalCount: matchedClients.length + matchedNotes.length + matchedVisits.length,
     };
-  }, [globalSearch, clients, notes]);
+  }, [globalSearch, clients, notes, getClientApNumber]);
 
   const isDashboardRoute = pathname === "/" || pathname === "/dashboard";
   const isClientsRoute = pathname?.startsWith("/clients");
@@ -459,7 +537,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Center: Global Search Input + Red Circular Quick Note (+) Button */}
-          <div className="flex items-center gap-2 flex-1 max-w-[200px] xs:max-w-xs sm:max-w-md lg:max-w-lg mx-2 sm:mx-4 relative">
+          <div ref={searchContainerRef} className="flex items-center gap-2 flex-1 max-w-[220px] xs:max-w-xs sm:max-w-md lg:max-w-xl mx-2 sm:mx-4 relative">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -470,9 +548,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   setGlobalSearch(e.target.value);
                   setSearchDropdownOpen(true);
                 }}
-                onFocus={() => setSearchDropdownOpen(true)}
-                placeholder="Rechercher clients, code AP, notes, visites..."
-                className="w-full pl-8 sm:pl-9 pr-3 py-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-xs text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416] transition-colors"
+                onFocus={() => {
+                  if (globalSearch.trim()) setSearchDropdownOpen(true);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (searchResults?.clients?.length) {
+                      router.push(`/clients/${searchResults.clients[0].id}`);
+                      setSearchDropdownOpen(false);
+                      setGlobalSearch("");
+                    } else if (globalSearch.trim()) {
+                      router.push(`/clients`);
+                      setSearchDropdownOpen(false);
+                    }
+                  } else if (e.key === "Escape") {
+                    setSearchDropdownOpen(false);
+                  }
+                }}
+                placeholder="Rechercher par Code AP (ex: 3306131), client, ville..."
+                className="w-full pl-8 sm:pl-9 pr-8 py-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-xs text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416] transition-colors"
               />
               {globalSearch && (
                 <button
@@ -515,34 +610,84 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       Clients ({searchResults.clients.length})
                     </p>
                     <div className="space-y-1">
-                      {searchResults.clients.map((c) => (
-                        <Link
-                          key={c.id}
-                          href={`/clients/${c.id}`}
-                          onClick={() => setSearchDropdownOpen(false)}
-                          className="flex items-center justify-between p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 transition text-xs group"
-                        >
-                          <div>
-                            <div className="font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 flex items-center gap-1.5">
-                              <span>{c.company}</span>
-                              {c.apClientNumber && (
-                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-mono">
-                                  #{c.apClientNumber}
+                      {searchResults.clients.map((c) => {
+                        const apCode = getClientApNumber(c);
+                        const isApMatch =
+                          Boolean(globalSearch) &&
+                          Boolean(apCode) &&
+                          (apCode.toLowerCase().includes(globalSearch.trim().toLowerCase()) ||
+                            apCode.toLowerCase().includes(globalSearch.trim().replace(/^#/, "").replace(/^ap[\s-_:]*/i, "").toLowerCase()));
+
+                        return (
+                          <Link
+                            key={c.id}
+                            href={`/clients/${c.id}`}
+                            onClick={() => {
+                              setSearchDropdownOpen(false);
+                              setGlobalSearch("");
+                            }}
+                            className={`flex items-center justify-between p-2.5 rounded-xl transition text-xs group ${
+                              isApMatch
+                                ? "bg-blue-50/70 hover:bg-blue-100/80 dark:bg-blue-950/40 dark:hover:bg-blue-900/50 border border-blue-200/70 dark:border-blue-800/60"
+                                : "hover:bg-slate-100 dark:hover:bg-zinc-800"
+                            }`}
+                          >
+                            <div className="flex-1 min-w-0 pr-2">
+                              <div className="font-semibold text-slate-900 dark:text-white group-hover:text-blue-600 flex items-center gap-2 flex-wrap">
+                                <span className="truncate">{c.company}</span>
+                                {apCode && (
+                                  <span
+                                    className={`text-[10px] px-2 py-0.5 rounded-md font-mono font-bold tracking-wider ${
+                                      isApMatch
+                                        ? "bg-blue-600 text-white shadow-xs"
+                                        : "bg-blue-50 dark:bg-blue-950/70 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300"
+                                    }`}
+                                  >
+                                    Code AP : #{apCode}
+                                  </span>
+                                )}
+                                <span
+                                  className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${
+                                    c.status === "ACTIVE"
+                                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400"
+                                      : c.status === "INACTIVE"
+                                      ? "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400"
+                                      : "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-400"
+                                  }`}
+                                >
+                                  {c.status === "ACTIVE"
+                                    ? "Actif"
+                                    : c.status === "INACTIVE"
+                                    ? "Inactif"
+                                    : c.status}
                                 </span>
-                              )}
+                              </div>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-0.5 truncate">
+                                {c.contactName && <span>{c.contactName}</span>}
+                                {c.contactName && c.city && <span>&bull;</span>}
+                                {c.city && (
+                                  <span className="flex items-center gap-0.5">
+                                    <MapPin className="w-2.5 h-2.5" />
+                                    {c.postalCode ? `${c.postalCode} ${c.city}` : c.city}
+                                  </span>
+                                )}
+                                {c.phone && (
+                                  <>
+                                    <span>&bull;</span>
+                                    <span>{c.phone}</span>
+                                  </>
+                                )}
+                              </div>
                             </div>
-                            <div className="text-[11px] text-slate-400 flex items-center gap-2">
-                              <span>{c.contactName}</span>
-                              <span>&bull;</span>
-                              <span className="flex items-center gap-0.5">
-                                <MapPin className="w-2.5 h-2.5" />
-                                {c.city}
+                            <div className="flex items-center gap-1 shrink-0 text-slate-400 group-hover:text-blue-600">
+                              <span className="text-[10px] font-medium hidden sm:inline">
+                                Ouvrir
                               </span>
+                              <ArrowRight className="w-3.5 h-3.5" />
                             </div>
-                          </div>
-                          <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white opacity-0 group-hover:opacity-100 transition" />
-                        </Link>
-                      ))}
+                          </Link>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

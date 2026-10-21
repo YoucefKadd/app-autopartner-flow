@@ -497,36 +497,42 @@ export function ClientsViews({
                       CLIENT_STATUS_CONFIG.ACTIVE;
 
                     // Code AP (numeric format 7 digits like 3306131)
-                    let apCode = "";
-                    let postalCode = "";
-                    let logo = "";
+                    let apCode = client.apClientNumber || "";
+                    let postalCode = client.postalCode || "";
+                    let logo = (client as any).logo || "";
                     if (typeof window !== "undefined") {
-                      apCode = localStorage.getItem(`apflow_apcode_${client.id}`) || "";
                       if (!apCode) {
-                        try {
-                          const savedFiche = localStorage.getItem(`apflow_fiche_v4_${client.id}`);
-                          if (savedFiche) {
-                            const parsed = JSON.parse(savedFiche);
-                            if (parsed.apClientNumber) apCode = parsed.apClientNumber;
-                          }
-                        } catch {}
-                      }
-                      postalCode = localStorage.getItem(`apflow_cp_${client.id}`) || "";
-                      if (!postalCode) {
-                        try {
-                          const savedAddr = localStorage.getItem(`apflow_addresses_v4_${client.id}`);
-                          if (savedAddr) {
-                            const parsed = JSON.parse(savedAddr);
-                            const primary = parsed.find((a: any) => a.isPrimary) || parsed[0];
-                            if (primary?.postalCode) postalCode = primary.postalCode;
-                            else if (primary?.zipCity) {
-                              const match = primary.zipCity.match(/\b\d{5}\b/);
-                              if (match) postalCode = match[0];
+                        apCode = localStorage.getItem(`apflow_apcode_${client.id}`) || "";
+                        if (!apCode) {
+                          try {
+                            const savedFiche = localStorage.getItem(`apflow_fiche_v4_${client.id}`);
+                            if (savedFiche) {
+                              const parsed = JSON.parse(savedFiche);
+                              if (parsed.apClientNumber) apCode = parsed.apClientNumber;
                             }
-                          }
-                        } catch {}
+                          } catch {}
+                        }
                       }
-                      logo = (client as any).logo || localStorage.getItem(`apflow_logo_${client.id}`) || "";
+                      if (!postalCode) {
+                        postalCode = localStorage.getItem(`apflow_cp_${client.id}`) || "";
+                        if (!postalCode) {
+                          try {
+                            const savedAddr = localStorage.getItem(`apflow_addresses_v4_${client.id}`);
+                            if (savedAddr) {
+                              const parsed = JSON.parse(savedAddr);
+                              const primary = parsed.find((a: any) => a.isPrimary) || parsed[0];
+                              if (primary?.postalCode) postalCode = primary.postalCode;
+                              else if (primary?.zipCity) {
+                                const match = primary.zipCity.match(/\b\d{5}\b/);
+                                if (match) postalCode = match[0];
+                              }
+                            }
+                          } catch {}
+                        }
+                      }
+                      if (!logo) {
+                        logo = localStorage.getItem(`apflow_logo_${client.id}`) || "";
+                      }
                     }
 
                     // Default AP code formatted as 7 digits like 3306131 if not customized

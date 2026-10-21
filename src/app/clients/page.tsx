@@ -237,18 +237,20 @@ export default function ClientsRoutePage() {
       .trim()
       .toLowerCase();
     if (combinedQuery) {
-      let apCode = "";
-      let postalCode = "";
+      let apCode = c.apClientNumber || "";
+      let postalCode = c.postalCode || "";
       if (typeof window !== "undefined") {
-        apCode = localStorage.getItem(`apflow_apcode_${c.id}`) || "";
         if (!apCode) {
-          try {
-            const f = localStorage.getItem(`apflow_fiche_v4_${c.id}`);
-            if (f) {
-              const parsed = JSON.parse(f);
-              if (parsed.apClientNumber) apCode = parsed.apClientNumber;
-            }
-          } catch {}
+          apCode = localStorage.getItem(`apflow_apcode_${c.id}`) || "";
+          if (!apCode) {
+            try {
+              const f = localStorage.getItem(`apflow_fiche_v4_${c.id}`);
+              if (f) {
+                const parsed = JSON.parse(f);
+                if (parsed.apClientNumber) apCode = parsed.apClientNumber;
+              }
+            } catch {}
+          }
         }
         if (!apCode) {
           apCode = String(
@@ -260,20 +262,22 @@ export default function ClientsRoutePage() {
               )
           );
         }
-        postalCode = localStorage.getItem(`apflow_cp_${c.id}`) || "";
         if (!postalCode) {
-          try {
-            const a = localStorage.getItem(`apflow_addresses_v4_${c.id}`);
-            if (a) {
-              const parsed = JSON.parse(a);
-              const primary = parsed.find((item: any) => item.isPrimary) || parsed[0];
-              if (primary?.postalCode) postalCode = primary.postalCode;
-              else if (primary?.zipCity) {
-                const match = primary.zipCity.match(/\b\d{5}\b/);
-                if (match) postalCode = match[0];
+          postalCode = localStorage.getItem(`apflow_cp_${c.id}`) || "";
+          if (!postalCode) {
+            try {
+              const a = localStorage.getItem(`apflow_addresses_v4_${c.id}`);
+              if (a) {
+                const parsed = JSON.parse(a);
+                const primary = parsed.find((item: any) => item.isPrimary) || parsed[0];
+                if (primary?.postalCode) postalCode = primary.postalCode;
+                else if (primary?.zipCity) {
+                  const match = primary.zipCity.match(/\b\d{5}\b/);
+                  if (match) postalCode = match[0];
+                }
               }
-            }
-          } catch {}
+            } catch {}
+          }
         }
       }
 
