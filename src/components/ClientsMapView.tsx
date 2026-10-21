@@ -275,7 +275,7 @@ export function ClientsMapView({
       const map = L.map(mapContainerRef.current, {
         center: [46.603354, 1.888334],
         zoom: 6,
-        zoomControl: true,
+        zoomControl: false,
       });
 
       // 100% Free OpenStreetMap standard tiles (No API key needed)
@@ -285,6 +285,7 @@ export function ClientsMapView({
         maxZoom: 19,
       }).addTo(map);
 
+      L.control.zoom({ position: "bottomright" }).addTo(map);
       mapInstanceRef.current = map;
       updateMarkers(L, map);
     }
@@ -421,7 +422,7 @@ export function ClientsMapView({
         <div ref={mapContainerRef} className="w-full h-full z-0" />
 
         {/* Floating Quick Filters On Map */}
-        <div className="absolute top-3 left-3 z-[1000] flex flex-wrap items-center gap-2 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md p-2 rounded-2xl border border-slate-200/90 dark:border-zinc-800 shadow-md">
+        <div className="absolute top-3.5 left-3.5 right-3.5 sm:right-auto z-[1000] flex flex-wrap items-center gap-2 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md p-2 rounded-2xl border border-slate-200/90 dark:border-zinc-800 shadow-md">
           <div className="relative w-44 sm:w-56">
             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
             <input
