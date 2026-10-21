@@ -40,6 +40,7 @@ import { ClientItem, KamUser, NoteItem, ClientVisit, getInitials, hasPermission 
 import { QuickNoteModal } from "@/components/QuickNoteModal";
 import { NoteWorkspaceDrawer, NoteDockMode } from "@/components/NoteWorkspaceDrawer";
 import { ClientFormModal } from "@/components/ClientFormModal";
+import { DatabaseSyncHelper } from "@/components/DatabaseSyncHelper";
 import { getAllPortfolioVisits } from "@/lib/visits";
 
 interface WorkspaceContextValue {

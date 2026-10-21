@@ -154,6 +154,7 @@ export interface ClientItem {
   city: string;
   postalCode?: string;
   apClientNumber?: string;
+  logo?: string;
   logoUrl?: string;
   status: ClientStatus;
   healthScore: number;
