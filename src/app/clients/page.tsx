@@ -26,6 +26,8 @@ import {
 } from "@/types/kam";
 import { useWorkspace } from "@/components/AppShell";
 import { ClientsViews } from "@/components/ClientsViews";
+import { ClientsMapView } from "@/components/ClientsMapView";
+import { Map as MapIcon } from "lucide-react";
 import { DeleteClientModal } from "@/components/DeleteClientModal";
 import { AddVisitModal } from "@/components/AddVisitModal";
 import { CsvImportModal } from "@/components/CsvImportModal";
@@ -50,7 +52,7 @@ export default function ClientsRoutePage() {
     openClientModal,
   } = useWorkspace();
 
-  const [viewMode, setViewMode] = useState<"table" | "compact" | "grid" | "kanban">(
+  const [viewMode, setViewMode] = useState<"table" | "compact" | "grid" | "kanban" | "map">(
     "table"
   );
   const [tableSearch, setTableSearch] = useState("");
@@ -657,6 +659,19 @@ export default function ClientsRoutePage() {
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("map")}
+              title="Vue Carte Géographique"
+              className={`p-1.5 rounded-md transition-colors flex items-center gap-1 ${
+                viewMode === "map"
+                  ? "bg-[#d90416] text-white font-bold"
+                  : "text-slate-400 hover:text-slate-700"
+              }`}
+            >
+              <MapIcon className="w-4 h-4" />
+              <span className="text-[11px] font-bold hidden sm:inline pr-0.5">Carte</span>
+            </button>
           </div>
 
           {/* Export button */}
@@ -692,8 +707,17 @@ export default function ClientsRoutePage() {
         </div>
       </div>
 
-      {/* Clients 3-Views Component: Clicking a client navigates to /clients/[id] */}
-      <ClientsViews
+      {viewMode === "map" ? (
+        <ClientsMapView
+          clients={filteredClients}
+          onSelectClient={(client) => router.push(`/clients/${client.id}`)}
+          onAddVisitForClient={(clientId) => {
+            setAddVisitClientId(clientId);
+            setIsAddVisitModalOpen(true);
+          }}
+        />
+      ) : (
+        <ClientsViews
         viewMode={viewMode}
         clients={filteredClients}
         activeUser={activeUser}
@@ -717,6 +741,7 @@ export default function ClientsRoutePage() {
         }}
         onChangeStatus={handleChangeClientStatus}
       />
+      )}
 
       {/* Add Visit Modal */}
       <AddVisitModal
