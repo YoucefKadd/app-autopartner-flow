@@ -6,11 +6,14 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const yearParam = searchParams.get("year");
     const clientIdParam = searchParams.get("clientId");
+    const kamIdParam = searchParams.get("kamId");
     const year = yearParam ? parseInt(yearParam, 10) : new Date().getFullYear();
 
     const where: any = { year };
     if (clientIdParam) {
       where.clientId = clientIdParam;
+    } else if (kamIdParam && kamIdParam !== "ALL") {
+      where.client = { kamId: kamIdParam };
     }
 
     const turnovers = await prisma.turnover.findMany({
@@ -95,6 +98,29 @@ export async function POST(request: Request) {
     console.error("Save CA error:", error);
     return NextResponse.json(
       { error: "Erreur lors de l'enregistrement du CA" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const clientId = searchParams.get("clientId");
+    const year = searchParams.get("year");
+    const kamId = searchParams.get("kamId");
+
+    const where: any = {};
+    if (year) where.year = parseInt(year, 10);
+    if (clientId) where.clientId = clientId;
+    if (kamId && kamId !== "ALL") where.client = { kamId };
+
+    const deleted = await prisma.turnover.deleteMany({ where });
+    return NextResponse.json({ success: true, count: deleted.count });
+  } catch (error) {
+    console.error("Delete CA error:", error);
+    return NextResponse.json(
+      { error: "Erreur lors de la suppression des données de CA" },
       { status: 500 }
     );
   }

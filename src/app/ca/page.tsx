@@ -62,7 +62,14 @@ export default function CaGlobalDashboardPage() {
   const fetchTurnovers = useCallback(async () => {
     setLoadingTurnovers(true);
     try {
-      const res = await fetch(`/api/ca?year=${selectedYear}`);
+      const targetKamId =
+        loggedUser?.role === "KAM"
+          ? loggedUser.id
+          : activeUser?.id && activeUser.id !== "ALL"
+          ? activeUser.id
+          : "ALL";
+
+      const res = await fetch(`/api/ca?year=${selectedYear}&kamId=${targetKamId}`);
       if (res.ok) {
         const data = await res.json();
         setDbTurnovers(data.turnovers || []);
@@ -72,7 +79,7 @@ export default function CaGlobalDashboardPage() {
     } finally {
       setLoadingTurnovers(false);
     }
-  }, [selectedYear]);
+  }, [selectedYear, loggedUser?.id, loggedUser?.role, activeUser?.id]);
 
   useEffect(() => {
     fetchTurnovers();

@@ -66,11 +66,18 @@ export default function DashboardHomePage() {
 
   const currentYear = new Date().getFullYear();
 
-  // Load CA & AX data from real MySQL DB (STRICTLY NO FAKE NUMBERS)
+  // Load CA & AX data from real MySQL DB filtered by active KAM portfolio
   useEffect(() => {
     async function loadCa() {
       try {
-        const res = await fetch(`/api/ca?year=${currentYear}`);
+        const targetKamId =
+          loggedUser?.role === "KAM"
+            ? loggedUser.id
+            : activeUser?.id && activeUser.id !== "ALL"
+            ? activeUser.id
+            : "ALL";
+
+        const res = await fetch(`/api/ca?year=${currentYear}&kamId=${targetKamId}`);
         if (res.ok) {
           const data = await res.json();
           setCaData({
@@ -91,7 +98,7 @@ export default function DashboardHomePage() {
     }
     window.addEventListener("apflow_ca_changed", handleCaSync);
     return () => window.removeEventListener("apflow_ca_changed", handleCaSync);
-  }, [currentYear]);
+  }, [currentYear, loggedUser?.id, loggedUser?.role, activeUser?.id]);
 
   // Clients breakdown by status
   const clientStats = useMemo(() => {
