@@ -89,6 +89,14 @@ export function CalendarView({
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
+  function handleMonthChange(newMonth: number) {
+    setCurrentDate(new Date(year, newMonth, 1));
+  }
+
+  function handleYearChange(newYear: number) {
+    setCurrentDate(new Date(newYear, month, 1));
+  }
+
   function prevMonth() {
     setCurrentDate(new Date(year, month - 1, 1));
   }
@@ -271,11 +279,33 @@ export function CalendarView({
               <CalendarIcon className="w-5 h-5" />
             </span>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-2">
-                <span>
-                  {MONTH_NAMES_FR[month]} {year}
-                </span>
-              </h2>
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={month}
+                  onChange={(e) => handleMonthChange(Number(e.target.value))}
+                  className="bg-slate-50 dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 font-bold text-sm sm:text-base px-2.5 py-1 rounded-xl border border-slate-200 dark:border-zinc-700 hover:border-[#d90416] dark:hover:border-[#d90416] focus:outline-none focus:ring-2 focus:ring-[#d90416]/20 transition cursor-pointer"
+                  title="Sélectionner le mois"
+                >
+                  {MONTH_NAMES_FR.map((name, idx) => (
+                    <option key={name} value={idx}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={year}
+                  onChange={(e) => handleYearChange(Number(e.target.value))}
+                  className="bg-slate-50 dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 font-bold text-sm sm:text-base px-2.5 py-1 rounded-xl border border-slate-200 dark:border-zinc-700 hover:border-[#d90416] dark:hover:border-[#d90416] focus:outline-none focus:ring-2 focus:ring-[#d90416]/20 transition cursor-pointer"
+                  title="Sélectionner l'année"
+                >
+                  {Array.from({ length: 15 }, (_, i) => year - 7 + i).map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <p className="text-xs text-slate-400">
                 {defaultClientId
                   ? "Calendrier des visites et mémos de ce client"
