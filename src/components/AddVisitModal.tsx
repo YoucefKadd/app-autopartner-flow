@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   X,
   Calendar,
@@ -13,6 +13,8 @@ import {
   Sparkles,
   Sliders,
   AlertTriangle,
+  Search,
+  Check,
 } from "lucide-react";
 import {
   ClientItem,
@@ -47,6 +49,10 @@ export function AddVisitModal({
   onSaved,
 }: AddVisitModalProps) {
   const [clientId, setClientId] = useState<string>("");
+  const [clientSearch, setClientSearch] = useState<string>("");
+  const [isClientDropdownOpen, setIsClientDropdownOpen] = useState(false);
+  const clientDropdownRef = useRef<HTMLDivElement>(null);
+
   const [date, setDate] = useState<string>(
     new Date().toISOString().slice(0, 10)
   );
@@ -59,11 +65,25 @@ export function AddVisitModal({
   const [summary, setSummary] = useState<string>("");
   const [nextVisitDate, setNextVisitDate] = useState<string>("");
   const [revisitInterval, setRevisitInterval] = useState<number>(30);
-  const [createLinkedNote, setCreateLinkedNote] = useState<boolean>(true);
-  const [noteTitle, setNoteTitle] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Helper to get client AP Code from localStorage or client item
+  function getClientApCode(cId: string): string {
+    if (typeof window === "undefined") return "";
+    const directCode = localStorage.getItem(`apflow_apcode_${cId}`);
+    if (directCode) return directCode;
+    try {
+      const savedFiche = localStorage.getItem(`apflow_fiche_v4_${cId}`);
+      if (savedFiche) {
+        const parsed = JSON.parse(savedFiche);
+        if (parsed.apClientNumber) return parsed.apClientNumber;
+      }
+    } catch {}
+    const c = clients.find((x) => x.id === cId);
+    return c?.apClientNumber || "";
+  }
 
   useEffect(() => {
     if (isOpen) {
@@ -80,26 +100,62 @@ export function AddVisitModal({
       setStatus("EFFECTUEE");
       setSummary("");
       setNextVisitDate("");
-      setCreateLinkedNote(true);
-      setNoteTitle("");
+      setIsClientDropdownOpen(false);
 
       if (selectedId) {
         const found = clients.find((c) => c.id === selectedId);
+        const apCode = getClientApCode(selectedId);
+        setClientSearch(
+          found
+            ? `${found.company} ${apCode ? `(N° AP: ${apCode})` : ""} — ${found.city || ""}`
+            : ""
+        );
         setInterlocutor(found?.contactName || "");
         setRevisitInterval(getClientRevisitInterval(selectedId));
+      } else {
+        setClientSearch("");
       }
     }
   }, [isOpen, defaultClientId, clients]);
 
-  // When client changes, update default interlocutor and interval
-  function handleClientSelect(newClientId: string) {
-    setClientId(newClientId);
-    const found = clients.find((c) => c.id === newClientId);
-    if (found) {
-      setInterlocutor(found.contactName || "");
-      setRevisitInterval(getClientRevisitInterval(newClientId));
+  // Click outside to close client dropdown
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        clientDropdownRef.current &&
+        !clientDropdownRef.current.contains(e.target as Node)
+      ) {
+        setIsClientDropdownOpen(false);
+      }
     }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function handleClientSelect(c: ClientItem) {
+    setClientId(c.id);
+    const apCode = getClientApCode(c.id);
+    setClientSearch(
+      `${c.company} ${apCode ? `(N° AP: ${apCode})` : ""} — ${c.city || ""}`
+    );
+    setIsClientDropdownOpen(false);
+    setInterlocutor(c.contactName || "");
+    setRevisitInterval(getClientRevisitInterval(c.id));
   }
+
+  // Filter clients by company name OR AP code OR city
+  const filteredClients = useMemo(() => {
+    const q = clientSearch.trim().toLowerCase();
+    if (!q) return clients;
+    return clients.filter((c) => {
+      const apCode = getClientApCode(c.id).toLowerCase();
+      const matchComp = c.company.toLowerCase().includes(q);
+      const matchAp = apCode.includes(q);
+      const matchCity = c.city?.toLowerCase().includes(q) || false;
+      const matchContact = c.contactName?.toLowerCase().includes(q) || false;
+      return matchComp || matchAp || matchCity || matchContact;
+    });
+  }, [clients, clientSearch]);
 
   if (!isOpen) return null;
 
@@ -111,48 +167,56 @@ export function AddVisitModal({
 
     setSaving(true);
     try {
-      // 1. Sauvegarder la visite structurée
+      // 1. Sauvegarder la visite en base via l'API dédiée
+      // ET créer automatiquement la note associée (le compte-rendu devient la note unique)
+      let visitId: string | undefined = undefined;
+      try {
+        const res = await fetch("/api/visits", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            clientId,
+            kamId: activeKamId,
+            date,
+            time,
+            type,
+            status,
+            interlocutor:
+              interlocutor.trim() || selectedClient?.contactName || "Contact magasin",
+            summary: summary.trim(),
+            nextVisitDate: nextVisitDate || null,
+            createLinkedNote: true, // La note est créée directement avec le compte-rendu
+            noteTitle: `Visite terrain : ${CLIENT_VISIT_TYPES[type].label}`,
+            noteContent: `${summary.trim()}${
+              interlocutor ? `\n\n**Interlocuteur rencontré :** ${interlocutor}` : ""
+            }${
+              nextVisitDate ? `\n**Prochaine visite convenue :** ${nextVisitDate}` : ""
+            }`,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          visitId = data.visit?.id;
+        }
+      } catch (errApi) {
+        console.warn("API /api/visits error:", errApi);
+      }
+
+      // 2. Sauvegarder en local pour persistance immédiate
       saveClientVisit({
         clientId,
         date,
         time,
         type,
         status,
-        interlocutor: interlocutor.trim() || selectedClient?.contactName || "Contact magasin",
+        interlocutor:
+          interlocutor.trim() || selectedClient?.contactName || "Contact magasin",
         summary: summary.trim(),
         nextVisitDate: nextVisitDate || null,
       });
 
-      // 2. Mettre à jour l'intervalle de re-visite paramétré si modifié
+      // 3. Mettre à jour l'intervalle de re-visite paramétré si modifié
       setClientRevisitInterval(clientId, revisitInterval);
-
-      // 3. Créer une note synchronisée dans l'API sous la catégorie "VISITE"
-      await fetch("/api/notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: `Visite terrain : ${CLIENT_VISIT_TYPES[type].label}`,
-          content: `${summary.trim()}${
-            interlocutor ? `\n\n**Interlocuteur rencontré :** ${interlocutor}` : ""
-          }${
-            nextVisitDate ? `\n**Prochaine visite convenue :** ${nextVisitDate}` : ""
-          }`,
-          category: "VISITE",
-          clientId,
-          kamId: activeKamId,
-        }),
-      });
-
-      // 4. Mettre à jour lastContactAt du client dans l'API si la visite est effectuée
-      if (status === "EFFECTUEE") {
-        await fetch(`/api/clients/${clientId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            lastContactAt: new Date(date).toISOString(),
-          }),
-        });
-      }
 
       onSaved();
       onClose();
@@ -177,14 +241,14 @@ export function AddVisitModal({
                 Consigner une visite client terrain
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                Enregistrement daté, suivi et paramétrage du rythme de re-visite
+                Le compte-rendu alimentera directement les visites et les notes du client
               </p>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -192,24 +256,76 @@ export function AddVisitModal({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto">
-          {/* Sélection du Client */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
-              <Building2 className="w-3.5 h-3.5 text-[#d90416]" />
-              Client visité *
+          {/* Recherche Client par Nom ou Code AP */}
+          <div className="space-y-1 relative" ref={clientDropdownRef}>
+            <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5 text-[#d90416]" />
+                Client visité (Nom ou N° Client AP) *
+              </span>
+              {selectedClient && (
+                <span className="text-[10px] font-mono text-[#d90416] font-bold">
+                  N° AP : {getClientApCode(selectedClient.id) || "Non défini"}
+                </span>
+              )}
             </label>
-            <select
-              required
-              value={clientId}
-              onChange={(e) => handleClientSelect(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3.5 py-2.5 text-xs font-medium text-slate-900 dark:text-zinc-100 focus:outline-none focus:border-[#d90416]"
-            >
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.company} — {c.city || "Sans ville"} ({c.contactName})
-                </option>
-              ))}
-            </select>
+
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                required
+                value={clientSearch}
+                onChange={(e) => {
+                  setClientSearch(e.target.value);
+                  setIsClientDropdownOpen(true);
+                }}
+                onFocus={() => setIsClientDropdownOpen(true)}
+                placeholder="Tapez le nom de l'enseigne ou son code AP (ex: 3306131, CASZALOT)..."
+                className="w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 pl-9 pr-3.5 py-2.5 text-xs font-medium text-slate-900 dark:text-zinc-100 focus:outline-none focus:border-[#d90416]"
+              />
+            </div>
+
+            {/* Dropdown suggestions */}
+            {isClientDropdownOpen && (
+              <div className="absolute top-full left-0 right-0 mt-1 max-h-56 overflow-y-auto rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl z-50 divide-y divide-slate-100 dark:divide-zinc-800">
+                {filteredClients.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-slate-400">
+                    Aucun client trouvé avec ce nom ou ce N° AP.
+                  </div>
+                ) : (
+                  filteredClients.map((c) => {
+                    const apCode = getClientApCode(c.id);
+                    const isSelected = c.id === clientId;
+                    return (
+                      <div
+                        key={c.id}
+                        onClick={() => handleClientSelect(c)}
+                        className={`p-2.5 hover:bg-slate-50 dark:hover:bg-zinc-800/60 cursor-pointer flex items-center justify-between transition ${
+                          isSelected ? "bg-red-50/50 dark:bg-red-950/20" : ""
+                        }`}
+                      >
+                        <div>
+                          <div className="text-xs font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-2">
+                            <span>{c.company}</span>
+                            {apCode && (
+                              <span className="px-1.5 py-0.2 rounded font-mono text-[10px] bg-slate-900 text-white font-bold">
+                                AP: {apCode}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500 dark:text-zinc-400">
+                            {c.city} — {c.contactName || "Sans contact"}
+                          </div>
+                        </div>
+
+                        {isSelected && <Check className="w-4 h-4 text-[#d90416]" />}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
 
           {/* Date, Heure et Statut de la visite */}
@@ -253,12 +369,12 @@ export function AddVisitModal({
               >
                 <option value="EFFECTUEE">Visite effectuée</option>
                 <option value="PLANIFIEE">Visite planifiée (à venir)</option>
-                <option value="ANNULEE">Visite annulée / reportée</option>
+                <option value="ANNULEE">Visite annulée</option>
               </select>
             </div>
           </div>
 
-          {/* Type de visite & Interlocuteur rencontré */}
+          {/* Type de visite & Interlocuteur */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
@@ -287,20 +403,21 @@ export function AddVisitModal({
                 type="text"
                 value={interlocutor}
                 onChange={(e) => setInterlocutor(e.target.value)}
-                placeholder="Ex: M. Dupont (Gérant), Responsable atelier..."
-                className="w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-xs text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416]"
+                placeholder="Ex: Responsable magasin, Gérant, Comptable..."
+                className="w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-2 text-xs font-medium text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416]"
               />
             </div>
           </div>
 
-          {/* Compte-rendu de la visite avec Toolbar */}
-          <div className="space-y-1.5">
+          {/* Compte-rendu & Échanges terrain (Note unique) */}
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300">
+              <label className="text-xs font-semibold text-slate-700 dark:text-zinc-300 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-[#d90416]" />
                 Compte-rendu & Échanges terrain *
               </label>
-              <span className="text-[10px] text-slate-400 font-mono">
-                Mise en forme supportée
+              <span className="text-[11px] text-slate-400 font-normal">
+                Cette saisie sera la note créée sur le dossier
               </span>
             </div>
             <NoteFormattingToolbar
@@ -317,39 +434,6 @@ export function AddVisitModal({
               placeholder="Détails des points abordés : stock, livraisons, commandes en cours, conditions de remise, besoins pièces..."
               className="w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-zinc-50/70 dark:bg-zinc-950/60 p-3.5 text-xs text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416] resize-none leading-relaxed"
             />
-          </div>
-
-          {/* Option Lier une note */}
-          <div className="p-3.5 rounded-xl border border-slate-200/80 dark:border-zinc-800 bg-emerald-50/20 dark:bg-emerald-950/20 space-y-2.5">
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={createLinkedNote}
-                onChange={(e) => setCreateLinkedNote(e.target.checked)}
-                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300 dark:border-zinc-700"
-              />
-              <span className="text-xs font-bold text-slate-800 dark:text-zinc-100 flex items-center gap-1.5">
-                <span>Lier automatiquement un compte-rendu dans les Notes du client</span>
-                <span className="px-1.5 py-0.2 rounded text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-500/20">
-                  Recommandé
-                </span>
-              </span>
-            </label>
-            <p className="text-[11px] text-slate-500 dark:text-zinc-400 pl-6">
-              Permet de retrouver ce compte-rendu dans le flux global des notes, dans le volet rétractable et dans l'historique du dossier.
-            </p>
-
-            {createLinkedNote && (
-              <div className="pl-6 pt-1">
-                <input
-                  type="text"
-                  value={noteTitle}
-                  onChange={(e) => setNoteTitle(e.target.value)}
-                  placeholder={`Objet personnalisé de la note (ex: Point visite comptoir ${selectedClient?.company || ""})...`}
-                  className="w-full rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs text-slate-800 dark:text-zinc-200 placeholder:text-slate-400 focus:outline-none focus:border-emerald-600"
-                />
-              </div>
-            )}
           </div>
 
           {/* Paramétrage du rythme de Re-visite & Prochaine visite */}
@@ -411,7 +495,7 @@ export function AddVisitModal({
               className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#d90416] text-white hover:bg-[#b80312] disabled:opacity-50 transition-colors shadow-sm flex items-center gap-1.5"
             >
               <Calendar className="w-3.5 h-3.5" />
-              {saving ? "Enregistrement..." : "Enregistrer la visite"}
+              <span>{saving ? "Enregistrement..." : "Enregistrer la visite"}</span>
             </button>
           </div>
         </form>

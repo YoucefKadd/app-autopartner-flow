@@ -68,6 +68,7 @@ import { useWorkspace } from "@/components/AppShell";
 import { NoteFormattingToolbar, FormattedNoteText } from "@/components/NoteFormatter";
 import { AddVisitModal } from "@/components/AddVisitModal";
 import { CalendarView } from "@/components/CalendarView";
+import { VisitsNotesTableView } from "@/components/VisitsNotesTableView";
 import { ClientCaSection } from "@/components/ClientCaSection";
 import { AddressAutocomplete, AddressSuggestion } from "@/components/AddressAutocomplete";
 import {
@@ -486,7 +487,7 @@ export function ClientFullPage({
   const [clientRevisitInterval, setLocalRevisitInterval] = useState<number>(30);
   const [clientVisits, setClientVisits] = useState<ClientVisit[]>([]);
   const [clientVisitFilterStatus, setClientVisitFilterStatus] = useState<"ALL" | "EFFECTUEE" | "PLANIFIEE">("ALL");
-  const [clientVisitSubTab, setClientVisitSubTab] = useState<"calendar" | "list">("calendar");
+  const [clientVisitSubTab, setClientVisitSubTab] = useState<"calendar" | "table" | "list">("calendar");
   const [clientVisitFilterType, setClientVisitFilterType] = useState<string>("ALL");
 
   function handleDeleteVisit(visitId: string) {

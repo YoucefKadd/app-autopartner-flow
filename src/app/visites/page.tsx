@@ -27,6 +27,7 @@ import {
 import { useWorkspace } from "@/components/AppShell";
 import { AddVisitModal } from "@/components/AddVisitModal";
 import { CalendarView } from "@/components/CalendarView";
+import { VisitsNotesTableView } from "@/components/VisitsNotesTableView";
 import { FormattedNoteText } from "@/components/NoteFormatter";
 import {
   ClientItem,
@@ -45,7 +46,7 @@ import {
   DEFAULT_REVISIT_INTERVAL_DAYS,
 } from "@/lib/visits";
 
-type ViewTab = "calendar" | "timeline" | "radar";
+type ViewTab = "calendar" | "table" | "timeline" | "radar";
 
 export default function VisitesPage() {
   const router = useRouter();
