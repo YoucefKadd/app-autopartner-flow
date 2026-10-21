@@ -59,7 +59,7 @@ export default function ClientsRoutePage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [visitFilter, setVisitFilter] = useState<string>("ALL");
   const [cityFilter, setCityFilter] = useState<string>("ALL");
-  const [pageSize, setPageSize] = useState<number>(50);
+  const [pageSize, setPageSize] = useState<number>(100);
   const [selectedClientIds, setSelectedClientIds] = useState<string[]>([]);
 
   // CSV Import modal state

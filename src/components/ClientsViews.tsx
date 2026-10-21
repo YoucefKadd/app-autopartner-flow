@@ -21,6 +21,11 @@ import {
   Camera,
   Calendar,
   AlertTriangle,
+  SlidersHorizontal,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 
 import {
@@ -32,6 +37,27 @@ import {
   getInitials,
 } from "@/types/kam";
 import { getClientVisitStatus } from "@/lib/visits";
+
+export interface ColumnConfig {
+  id: string;
+  label: string;
+  defaultVisible: boolean;
+  required?: boolean;
+}
+
+export const AVAILABLE_COLUMNS: ColumnConfig[] = [
+  { id: "company", label: "Nom du Magasin", defaultVisible: true, required: true },
+  { id: "apCode", label: "Code Client AP", defaultVisible: true },
+  { id: "city", label: "Ville", defaultVisible: true },
+  { id: "postalCode", label: "Code Postal (CP)", defaultVisible: true },
+  { id: "email", label: "E-mail", defaultVisible: true },
+  { id: "phone", label: "Téléphone", defaultVisible: true },
+  { id: "status", label: "Statut Client", defaultVisible: true },
+  { id: "lastVisit", label: "Dernière Visite", defaultVisible: true },
+  { id: "address", label: "Adresse complète", defaultVisible: false },
+  { id: "contactName", label: "Contact / Interlocuteur", defaultVisible: false },
+  { id: "actions", label: "Actions rapides", defaultVisible: true },
+];
 
 interface ClientsViewsProps {
   viewMode: "table" | "compact" | "grid" | "kanban";
@@ -169,6 +195,67 @@ export function ClientsViews({
   const [targetClientForLogo, setTargetClientForLogo] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const quickLogoInputRef = useRef<HTMLInputElement>(null);
+
+  // Column visibility state (persisted in localStorage)
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("apflow_table_columns_v2");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return ["company", "apCode", "city", "postalCode", "email", "phone", "status", "lastVisit", "actions"];
+  });
+
+  const [columnMenuOpen, setColumnMenuOpen] = useState(false);
+  const columnMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (columnMenuRef.current && !columnMenuRef.current.contains(e.target as Node)) {
+        setColumnMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const isColumnVisible = (colId: string) => visibleColumns.includes(colId);
+
+  function toggleColumn(colId: string) {
+    setVisibleColumns((prev) => {
+      let next: string[];
+      if (prev.includes(colId)) {
+        if (colId === "company") return prev; // Cannot hide store name
+        next = prev.filter((id) => id !== colId);
+      } else {
+        next = [...prev, colId];
+      }
+      if (typeof window !== "undefined") {
+        localStorage.setItem("apflow_table_columns_v2", JSON.stringify(next));
+      }
+      return next;
+    });
+  }
+
+  function resetColumnsToDefault() {
+    const defs = ["company", "apCode", "city", "postalCode", "email", "phone", "status", "lastVisit", "actions"];
+    setVisibleColumns(defs);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("apflow_table_columns_v2", JSON.stringify(defs));
+    }
+  }
+
+  function showAllColumns() {
+    const all = AVAILABLE_COLUMNS.map((c) => c.id);
+    setVisibleColumns(all);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("apflow_table_columns_v2", JSON.stringify(all));
+    }
+  }
 
   // Sorting state for table
   const [sortField, setSortField] = useState<TableSortField | null>(null);
@@ -321,7 +408,20 @@ export function ClientsViews({
     });
   }, [clients, sortField, sortOrder, logoUpdateTrigger]);
 
-  const displayedClients = sortedClients.slice(0, pageSize);
+  // Pagination calculations (Minimum 100 default, 200, 500, Tout)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [tableSearch, clients.length, pageSize]);
+
+  const isAllShown = pageSize === -1;
+  const effectivePageSize = isAllShown ? Math.max(sortedClients.length, 1) : pageSize;
+  const totalPages = isAllShown ? 1 : Math.max(1, Math.ceil(sortedClients.length / effectivePageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const startIndex = isAllShown ? 0 : (safeCurrentPage - 1) * effectivePageSize;
+  const endIndex = isAllShown ? sortedClients.length : Math.min(startIndex + effectivePageSize, sortedClients.length);
+  const displayedClients = isAllShown ? sortedClients : sortedClients.slice(startIndex, endIndex);
+
   const allSelected =
     displayedClients.length > 0 &&
     displayedClients.every((c) => selectedIds.includes(c.id));
@@ -340,37 +440,99 @@ export function ClientsViews({
       {/* VIEW 1: TABLE (Standard & Compact) */}
       {(viewMode === "table" || viewMode === "compact") && (
         <div className="w-full rounded-xl border border-slate-200/80 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-[0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden">
-          {/* Card top bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-slate-100 dark:border-zinc-800/80">
-            <div className="relative w-full sm:w-80">
+          {/* Card top bar with Columns Picker & PageSize */}
+          <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3.5 border-b border-slate-100 dark:border-zinc-800/80">
+            <div className="relative w-full sm:w-72">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={tableSearch}
                 onChange={(e) => onTableSearchChange(e.target.value)}
                 placeholder="Filtrer dans le tableau..."
-                className="w-full pl-9 pr-3.5 py-2 rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-950 text-xs text-slate-800 dark:text-zinc-200 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416] transition-colors"
+                className="w-full pl-9 pr-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-950 text-xs text-slate-800 dark:text-zinc-200 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416] transition-colors"
               />
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-zinc-400">
-              <span>Affichage</span>
-              <select
-                value={pageSize}
-                onChange={(e) => onPageSizeChange(Number(e.target.value))}
-                className="rounded-md border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-2.5 py-1 text-xs font-semibold text-slate-800 dark:text-zinc-200 focus:outline-none cursor-pointer"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-              </select>
-              <span>
-                sur{" "}
-                <strong className="text-slate-800 dark:text-zinc-200">
-                  {clients.length}
-                </strong>{" "}
-                clients
-              </span>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              {/* Colonnes Selector Dropdown */}
+              <div className="relative" ref={columnMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setColumnMenuOpen((prev) => !prev)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 hover:bg-slate-50 dark:hover:bg-zinc-900 text-xs font-semibold text-slate-700 dark:text-zinc-200 transition-colors shadow-2xs cursor-pointer"
+                  title="Choisir les colonnes à afficher"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-[#d90416]" />
+                  <span>Colonnes</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 font-mono">
+                    {visibleColumns.length}
+                  </span>
+                </button>
+
+                {columnMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-64 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xl p-3 z-50 space-y-2">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-zinc-800 text-xs">
+                      <span className="font-bold text-slate-900 dark:text-white">Colonnes affichées</span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={showAllColumns}
+                          className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          Tout
+                        </button>
+                        <span>&bull;</span>
+                        <button
+                          type="button"
+                          onClick={resetColumnsToDefault}
+                          className="text-[10px] text-slate-500 hover:underline"
+                        >
+                          Défaut
+                        </button>
+                      </div>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto space-y-1 py-1">
+                      {AVAILABLE_COLUMNS.map((col) => {
+                        const isChecked = visibleColumns.includes(col.id);
+                        return (
+                          <label
+                            key={col.id}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer select-none transition-colors ${
+                              isChecked ? "bg-slate-50 dark:bg-zinc-800/60 font-semibold" : "hover:bg-slate-50/50 text-slate-600 dark:text-zinc-400"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              disabled={col.required}
+                              onChange={() => toggleColumn(col.id)}
+                              className="w-3.5 h-3.5 rounded text-[#d90416] focus:ring-[#d90416] cursor-pointer"
+                            />
+                            <span>
+                              {col.label} {col.required && <em className="text-[10px] text-slate-400 font-normal">(fixe)</em>}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Page size select (min 100, 200, 500, Tout) */}
+              <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400">
+                <span>Afficher :</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => onPageSizeChange(Number(e.target.value))}
+                  className="rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 px-2.5 py-1.5 text-xs font-bold text-slate-800 dark:text-zinc-100 focus:outline-none focus:border-[#d90416] cursor-pointer shadow-2xs"
+                >
+                  <option value={100}>100 clients</option>
+                  <option value={200}>200 clients</option>
+                  <option value={500}>500 clients</option>
+                  <option value={-1}>Tout afficher ({sortedClients.length})</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -414,79 +576,107 @@ export function ClientsViews({
                       </div>
                     </th>
                     {/* Colonne 2 : Code AP */}
-                    <th
-                      onClick={() => handleToggleSort("apCode")}
-                      className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} font-bold text-[#d90416] border-r border-slate-100 dark:border-zinc-800/60 min-w-[110px] cursor-pointer hover:underline transition-colors select-none`}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>CODE AP</span>
-                        <ArrowUpDown className={`w-3 h-3 ${sortField === "apCode" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
-                      </div>
-                    </th>
+                    {isColumnVisible("apCode") && (
+                      <th
+                        onClick={() => handleToggleSort("apCode")}
+                        className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} font-bold text-[#d90416] border-r border-slate-100 dark:border-zinc-800/60 min-w-[110px] cursor-pointer hover:underline transition-colors select-none`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>CODE AP</span>
+                          <ArrowUpDown className={`w-3 h-3 ${sortField === "apCode" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
+                        </div>
+                      </th>
+                    )}
                     {/* Colonne 3 : Ville */}
-                    <th
-                      onClick={() => handleToggleSort("city")}
-                      className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[120px] cursor-pointer hover:text-[#d90416] transition-colors select-none`}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>VILLE</span>
-                        <ArrowUpDown className={`w-3 h-3 ${sortField === "city" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
-                      </div>
-                    </th>
+                    {isColumnVisible("city") && (
+                      <th
+                        onClick={() => handleToggleSort("city")}
+                        className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[120px] cursor-pointer hover:text-[#d90416] transition-colors select-none`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>VILLE</span>
+                          <ArrowUpDown className={`w-3 h-3 ${sortField === "city" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
+                        </div>
+                      </th>
+                    )}
                     {/* Colonne 4 : CP */}
-                    <th
-                      onClick={() => handleToggleSort("postalCode")}
-                      className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[80px] cursor-pointer hover:text-[#d90416] transition-colors select-none`}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>CP</span>
-                        <ArrowUpDown className={`w-3 h-3 ${sortField === "postalCode" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
-                      </div>
-                    </th>
+                    {isColumnVisible("postalCode") && (
+                      <th
+                        onClick={() => handleToggleSort("postalCode")}
+                        className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[80px] cursor-pointer hover:text-[#d90416] transition-colors select-none`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>CP</span>
+                          <ArrowUpDown className={`w-3 h-3 ${sortField === "postalCode" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
+                        </div>
+                      </th>
+                    )}
+                    {/* Colonne Adresse (optionnelle) */}
+                    {isColumnVisible("address") && (
+                      <th className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[150px] select-none`}>
+                        <span>ADRESSE</span>
+                      </th>
+                    )}
+                    {/* Colonne Contact (optionnelle) */}
+                    {isColumnVisible("contactName") && (
+                      <th className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[130px] select-none`}>
+                        <span>CONTACT</span>
+                      </th>
+                    )}
                     {/* Colonne 5 : Mail */}
-                    <th
-                      onClick={() => handleToggleSort("email")}
-                      className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[160px] cursor-pointer hover:text-[#d90416] transition-colors select-none`}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>LE MAIL</span>
-                        <ArrowUpDown className={`w-3 h-3 ${sortField === "email" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
-                      </div>
-                    </th>
+                    {isColumnVisible("email") && (
+                      <th
+                        onClick={() => handleToggleSort("email")}
+                        className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[160px] cursor-pointer hover:text-[#d90416] transition-colors select-none`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>LE MAIL</span>
+                          <ArrowUpDown className={`w-3 h-3 ${sortField === "email" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
+                        </div>
+                      </th>
+                    )}
                     {/* Colonne 6 : Tel */}
-                    <th
-                      onClick={() => handleToggleSort("phone")}
-                      className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[120px] cursor-pointer hover:text-[#d90416] transition-colors select-none`}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>LE TEL</span>
-                        <ArrowUpDown className={`w-3 h-3 ${sortField === "phone" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
-                      </div>
-                    </th>
+                    {isColumnVisible("phone") && (
+                      <th
+                        onClick={() => handleToggleSort("phone")}
+                        className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[120px] cursor-pointer hover:text-[#d90416] transition-colors select-none`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>LE TEL</span>
+                          <ArrowUpDown className={`w-3 h-3 ${sortField === "phone" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
+                        </div>
+                      </th>
+                    )}
                     {/* Colonne 7 : Statut (sans santé) */}
-                    <th
-                      onClick={() => handleToggleSort("status")}
-                      className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[110px] cursor-pointer hover:text-[#d90416] transition-colors select-none`}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>LE STATUT</span>
-                        <ArrowUpDown className={`w-3 h-3 ${sortField === "status" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
-                      </div>
-                    </th>
+                    {isColumnVisible("status") && (
+                      <th
+                        onClick={() => handleToggleSort("status")}
+                        className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[110px] cursor-pointer hover:text-[#d90416] transition-colors select-none`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>LE STATUT</span>
+                          <ArrowUpDown className={`w-3 h-3 ${sortField === "status" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
+                        </div>
+                      </th>
+                    )}
                     {/* Colonne : Dernière Visite */}
-                    <th
-                      onClick={() => handleToggleSort("lastVisit")}
-                      className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[145px] cursor-pointer hover:text-[#d90416] transition-colors select-none`}
-                    >
-                      <div className="flex items-center gap-1.5">
-                        <span>DERNIÈRE VISITE</span>
-                        <ArrowUpDown className={`w-3 h-3 ${sortField === "lastVisit" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
-                      </div>
-                    </th>
+                    {isColumnVisible("lastVisit") && (
+                      <th
+                        onClick={() => handleToggleSort("lastVisit")}
+                        className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[145px] cursor-pointer hover:text-[#d90416] transition-colors select-none`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span>DERNIÈRE VISITE</span>
+                          <ArrowUpDown className={`w-3 h-3 ${sortField === "lastVisit" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
+                        </div>
+                      </th>
+                    )}
                     {/* Colonne 9 : Actions */}
-                    <th className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-5"} text-right min-w-[130px]`}>
-                      ACTIONS
-                    </th>
+                    {isColumnVisible("actions") && (
+                      <th className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-5"} text-right min-w-[130px]`}>
+                        ACTIONS
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/70 text-xs">
@@ -620,179 +810,309 @@ export function ClientsViews({
                           </div>
                         </td>
 
-                        {/* 2. CODE AP (Format numérique 3306131 + Bouton Copier) */}
-                        <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40`}>
-                          <div className="inline-flex items-center gap-1.5">
-                            <span className="font-mono font-bold text-xs text-slate-900 dark:text-zinc-100 bg-slate-100 dark:bg-zinc-800 px-2 py-0.5 rounded border border-slate-200 dark:border-zinc-700">
-                              {apCode}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={(e) => handleCopy(apCode, `ap_${client.id}`, e)}
-                              className="p-1 rounded text-slate-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
-                              title="Copier le code AP"
-                            >
-                              {copiedKey === `ap_${client.id}` ? (
-                                <Check className="w-3 h-3 text-emerald-500" />
-                              ) : (
-                                <Copy className="w-3 h-3" />
-                              )}
-                            </button>
-                          </div>
-                        </td>
+                        {/* 2. CODE AP */}
+                        {isColumnVisible("apCode") && (
+                          <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40`}>
+                            <div className="inline-flex items-center gap-1.5">
+                              <span className="font-mono font-bold text-xs text-slate-900 dark:text-zinc-100 bg-slate-100 dark:bg-zinc-800 px-2 py-0.5 rounded border border-slate-200 dark:border-zinc-700">
+                                {apCode}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleCopy(apCode, `ap_${client.id}`, e)}
+                                className="p-1 rounded text-slate-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                                title="Copier le code AP"
+                              >
+                                {copiedKey === `ap_${client.id}` ? (
+                                  <Check className="w-3 h-3 text-emerald-500" />
+                                ) : (
+                                  <Copy className="w-3 h-3" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                        )}
 
                         {/* 3. VILLE */}
-                        <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 font-medium text-slate-800 dark:text-zinc-200 truncate`}>
-                          {client.city || "—"}
-                        </td>
+                        {isColumnVisible("city") && (
+                          <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 font-medium text-slate-800 dark:text-zinc-200 truncate`}>
+                            {client.city || "—"}
+                          </td>
+                        )}
 
                         {/* 4. CP */}
-                        <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 font-mono text-slate-600 dark:text-zinc-400`}>
-                          {postalCode}
-                        </td>
+                        {isColumnVisible("postalCode") && (
+                          <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 font-mono text-slate-600 dark:text-zinc-400`}>
+                            {postalCode}
+                          </td>
+                        )}
 
-                        {/* 5. LE MAIL (+ Bouton Copier) */}
-                        <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40`}>
-                          {client.email ? (
-                            <div className="flex items-center justify-between gap-1 max-w-[200px]">
-                              <a
-                                href={`mailto:${client.email}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="text-slate-700 dark:text-zinc-300 hover:text-[#d90416] hover:underline truncate"
-                              >
-                                {client.email}
-                              </a>
-                              <button
-                                type="button"
-                                onClick={(e) => handleCopy(client.email, `mail_${client.id}`, e)}
-                                className="p-1 rounded text-slate-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors shrink-0"
-                                title="Copier le mail"
-                              >
-                                {copiedKey === `mail_${client.id}` ? (
-                                  <Check className="w-3 h-3 text-emerald-500" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
+                        {/* Adresse (optionnelle) */}
+                        {isColumnVisible("address") && (
+                          <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 text-slate-700 dark:text-zinc-300 max-w-[180px] truncate`}>
+                            {client.address || "—"}
+                          </td>
+                        )}
 
-                        {/* 6. LE TEL (+ Bouton Copier) */}
-                        <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 font-medium text-slate-700 dark:text-zinc-300 whitespace-nowrap`}>
-                          {client.phone ? (
-                            <div className="inline-flex items-center gap-1.5">
-                              <a
-                                href={`tel:${client.phone}`}
-                                onClick={(e) => e.stopPropagation()}
-                                className="hover:underline hover:text-[#d90416]"
-                              >
-                                {client.phone}
-                              </a>
-                              <button
-                                type="button"
-                                onClick={(e) => handleCopy(client.phone, `tel_${client.id}`, e)}
-                                className="p-1 rounded text-slate-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
-                                title="Copier le téléphone"
-                              >
-                                {copiedKey === `tel_${client.id}` ? (
-                                  <Check className="w-3 h-3 text-emerald-500" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                              </button>
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
+                        {/* Contact Name (optionnel) */}
+                        {isColumnVisible("contactName") && (
+                          <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 text-slate-700 dark:text-zinc-300 font-medium truncate`}>
+                            {client.contactName || "—"}
+                          </td>
+                        )}
 
-                        {/* 7. LE STATUT (sans la santé) */}
-                        <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40`}>
-                          <span
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusCfg.badgeClass}`}
-                          >
+                        {/* 5. LE MAIL */}
+                        {isColumnVisible("email") && (
+                          <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40`}>
+                            {client.email ? (
+                              <div className="flex items-center justify-between gap-1 max-w-[200px]">
+                                <a
+                                  href={`mailto:${client.email}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-slate-700 dark:text-zinc-300 hover:text-[#d90416] hover:underline truncate"
+                                >
+                                  {client.email}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleCopy(client.email, `mail_${client.id}`, e)}
+                                  className="p-1 rounded text-slate-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors shrink-0 cursor-pointer"
+                                  title="Copier le mail"
+                                >
+                                  {copiedKey === `mail_${client.id}` ? (
+                                    <Check className="w-3 h-3 text-emerald-500" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                        )}
+
+                        {/* 6. LE TEL */}
+                        {isColumnVisible("phone") && (
+                          <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 font-medium text-slate-700 dark:text-zinc-300 whitespace-nowrap`}>
+                            {client.phone ? (
+                              <div className="inline-flex items-center gap-1.5">
+                                <a
+                                  href={`tel:${client.phone}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="hover:underline hover:text-[#d90416]"
+                                >
+                                  {client.phone}
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleCopy(client.phone, `tel_${client.id}`, e)}
+                                  className="p-1 rounded text-slate-400 hover:text-slate-800 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                                  title="Copier le téléphone"
+                                >
+                                  {copiedKey === `tel_${client.id}` ? (
+                                    <Check className="w-3 h-3 text-emerald-500" />
+                                  ) : (
+                                    <Copy className="w-3 h-3" />
+                                  )}
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                        )}
+
+                        {/* 7. LE STATUT */}
+                        {isColumnVisible("status") && (
+                          <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40`}>
                             <span
-                              className={`w-1.5 h-1.5 rounded-full ${statusCfg.dotClass}`}
-                            />
-                            {statusCfg.label}
-                          </span>
-                        </td>
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusCfg.badgeClass}`}
+                            >
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${statusCfg.dotClass}`}
+                              />
+                              {statusCfg.label}
+                            </span>
+                          </td>
+                        )}
 
                         {/* DERNIÈRE VISITE */}
-                        <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 whitespace-nowrap`}>
-                          {(() => {
-                            const vs = getClientVisitStatus(client);
-                            if (!vs.lastVisitDate) {
-                              return <span className="text-slate-400 text-[11px] italic">Jamais visité</span>;
-                            }
-                            const d = new Date(vs.lastVisitDate);
-                            const formattedDate = d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
-                            return (
-                              <div className="flex flex-col gap-0.5">
-                                <span className="font-semibold text-slate-800 dark:text-zinc-100 text-xs flex items-center gap-1.5">
-                                  <Calendar className="w-3.5 h-3.5 text-[#d90416] shrink-0" />
-                                  {formattedDate}
-                                </span>
-                                {vs.daysSinceLastVisit !== null && (
-                                  <span className="text-[10px] text-slate-400 dark:text-zinc-500 pl-5">
-                                    {vs.daysSinceLastVisit === 0 ? "Aujourd'hui" : `Il y a ${vs.daysSinceLastVisit} j`}
+                        {isColumnVisible("lastVisit") && (
+                          <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 whitespace-nowrap`}>
+                            {(() => {
+                              const vs = getClientVisitStatus(client);
+                              if (!vs.lastVisitDate) {
+                                return <span className="text-slate-400 text-[11px] italic">Jamais visité</span>;
+                              }
+                              const d = new Date(vs.lastVisitDate);
+                              const formattedDate = d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+                              return (
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="font-semibold text-slate-800 dark:text-zinc-100 text-xs flex items-center gap-1.5">
+                                    <Calendar className="w-3.5 h-3.5 text-[#d90416] shrink-0" />
+                                    {formattedDate}
                                   </span>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </td>
+                                  {vs.daysSinceLastVisit !== null && (
+                                    <span className="text-[10px] text-slate-400 dark:text-zinc-500 pl-5">
+                                      {vs.daysSinceLastVisit === 0 ? "Aujourd'hui" : `Il y a ${vs.daysSinceLastVisit} j`}
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
+                        )}
 
                         {/* 9. ACTIONS */}
-                        <td
-                          className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-5"} text-right`}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <div className="inline-flex items-center gap-1">
-                            {onAddVisitForClient && (
+                        {isColumnVisible("actions") && (
+                          <td
+                            className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-5"} text-right`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="inline-flex items-center gap-1">
+                              {onAddVisitForClient && (
+                                <button
+                                  type="button"
+                                  onClick={() => onAddVisitForClient(client.id)}
+                                  title="Consigner une visite terrain datée"
+                                  className="p-1.5 rounded-lg text-slate-500 hover:text-[#d90416] hover:bg-red-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                                >
+                                  <Calendar className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                onClick={() => onAddVisitForClient(client.id)}
-                                title="Consigner une visite terrain datée"
-                                className="p-1.5 rounded-lg text-slate-500 hover:text-[#d90416] hover:bg-red-50 dark:hover:bg-zinc-800 transition-colors"
+                                onClick={() => onQuickNoteForClient(client.id)}
+                                title="Ajouter une note ou compte-rendu"
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-[#d90416] hover:bg-red-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                               >
-                                <Calendar className="w-3.5 h-3.5" />
+                                <Plus className="w-3.5 h-3.5" />
                               </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => onQuickNoteForClient(client.id)}
-                              title="Ajouter une note ou compte-rendu"
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-[#d90416] hover:bg-red-50 dark:hover:bg-zinc-800 transition-colors"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onEditClient(client)}
-                              title="Modifier"
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onDeleteClient(client.id)}
-                              title="Supprimer"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
+                              <button
+                                type="button"
+                                onClick={() => onEditClient(client)}
+                                title="Modifier"
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-zinc-100 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => onDeleteClient(client.id)}
+                                title="Supprimer"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Pagination Footer Control Bar */}
+          {sortedClients.length > 0 && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-6 py-3.5 border-t border-slate-100 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-950/30 text-xs text-slate-600 dark:text-zinc-400">
+              <div className="flex items-center gap-1.5 font-medium">
+                <span>Affichage de</span>
+                <strong className="text-slate-900 dark:text-zinc-100 font-bold">
+                  {startIndex + 1}
+                </strong>
+                <span>à</span>
+                <strong className="text-slate-900 dark:text-zinc-100 font-bold">
+                  {endIndex}
+                </strong>
+                <span>sur</span>
+                <strong className="text-slate-900 dark:text-zinc-100 font-bold">
+                  {sortedClients.length}
+                </strong>
+                <span>clients</span>
+              </div>
+
+              {/* Page buttons */}
+              {!isAllShown && totalPages > 1 && (
+                <div className="flex items-center gap-1 self-center">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={safeCurrentPage <= 1}
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+                    title="Première page"
+                  >
+                    <ChevronsLeft className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={safeCurrentPage <= 1}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+                    title="Page précédente"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Précédent</span>
+                  </button>
+
+                  {/* Number buttons */}
+                  <div className="flex items-center gap-1 px-1">
+                    {Array.from({ length: totalPages }).map((_, i) => {
+                      const pageNum = i + 1;
+                      if (
+                        totalPages > 7 &&
+                        pageNum !== 1 &&
+                        pageNum !== totalPages &&
+                        Math.abs(pageNum - safeCurrentPage) > 2
+                      ) {
+                        if (pageNum === 2 || pageNum === totalPages - 1) {
+                          return <span key={pageNum} className="px-1 text-slate-400">...</span>;
+                        }
+                        return null;
+                      }
+
+                      const isActive = pageNum === safeCurrentPage;
+                      return (
+                        <button
+                          key={pageNum}
+                          type="button"
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`w-7 h-7 rounded-lg text-xs font-bold transition flex items-center justify-center cursor-pointer ${
+                            isActive
+                              ? "bg-[#d90416] text-white shadow-xs"
+                              : "bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800"
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safeCurrentPage >= totalPages}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+                    title="Page suivante"
+                  >
+                    <span className="hidden sm:inline">Suivant</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={safeCurrentPage >= totalPages}
+                    className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer"
+                    title="Dernière page"
+                  >
+                    <ChevronsRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
