@@ -555,6 +555,12 @@ export function ClientFullPage({
               detail: { clientId: client.id, logo: compressed },
             })
           );
+          // Persist logo to MySQL BDD
+          fetch(`/api/clients/${client.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ logo: compressed }),
+          }).catch((e) => console.error("Error saving logo to DB:", e));
         }
       };
       img.src = event.target?.result as string;
@@ -572,6 +578,12 @@ export function ClientFullPage({
         detail: { clientId: client.id, logo: "" },
       })
     );
+    // Remove logo from MySQL BDD
+    fetch(`/api/clients/${client.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ logo: null }),
+    }).catch((e) => console.error("Error removing logo from DB:", e));
   }
 
   // Contacts list initialized ONLY with client's actual entered contact
@@ -700,20 +712,51 @@ export function ClientFullPage({
       );
     }
 
-    const savedPhotos = localStorage.getItem(`apflow_photos_v4_${client.id}`);
-    if (savedPhotos) {
-      try {
-        setDeliveryPhotos(JSON.parse(savedPhotos));
-      } catch {
-        setDeliveryPhotos(DEFAULT_DELIVERY_PHOTOS);
-      }
-    }
+    // Load photos from MySQL BDD first, fallback to localStorage
+    fetch(`/api/clients/${client.id}/photos`)
+      .then((res) => (res.ok ? res.json() : []))
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setDeliveryPhotos(data);
+          localStorage.setItem(`apflow_photos_v4_${client.id}`, JSON.stringify(data));
+        } else {
+          const savedPhotos = localStorage.getItem(`apflow_photos_v4_${client.id}`);
+          if (savedPhotos) {
+            try {
+              const parsed = JSON.parse(savedPhotos);
+              setDeliveryPhotos(parsed);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                parsed.forEach((ph) => {
+                  fetch(`/api/clients/${client.id}/photos`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(ph),
+                  }).catch(() => {});
+                });
+              }
+            } catch {
+              setDeliveryPhotos(DEFAULT_DELIVERY_PHOTOS);
+            }
+          }
+        }
+      })
+      .catch(() => {
+        const savedPhotos = localStorage.getItem(`apflow_photos_v4_${client.id}`);
+        if (savedPhotos) {
+          try {
+            setDeliveryPhotos(JSON.parse(savedPhotos));
+          } catch {
+            setDeliveryPhotos(DEFAULT_DELIVERY_PHOTOS);
+          }
+        }
+      });
 
     const savedFiche = localStorage.getItem(`apflow_fiche_v4_${client.id}`);
     const customApCode = localStorage.getItem(`apflow_apcode_${client.id}`);
-    const customLogo = localStorage.getItem(`apflow_logo_${client.id}`);
+    const customLogo = (client as any).logo || localStorage.getItem(`apflow_logo_${client.id}`);
     if (customLogo) {
       setClientLogoUrl(customLogo);
+      localStorage.setItem(`apflow_logo_${client.id}`, customLogo);
     }
 
     if (savedFiche) {
@@ -1370,6 +1413,14 @@ export function ClientFullPage({
           `apflow_photos_v4_${client.id}`,
           JSON.stringify(next)
         );
+        // Persist each new photo in MySQL BDD
+        for (const ph of newPhotos) {
+          fetch(`/api/clients/${client.id}/photos`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(ph),
+          }).catch((e) => console.error("Error saving photo to DB:", e));
+        }
         setNewPhotoLabel("");
         setNewPhotoNote("");
         setCompressionSuccessMsg(
@@ -1408,6 +1459,9 @@ export function ClientFullPage({
     const next = deliveryPhotos.filter((p) => p.id !== photoId);
     setDeliveryPhotos(next);
     localStorage.setItem(`apflow_photos_v4_${client.id}`, JSON.stringify(next));
+    fetch(`/api/clients/${client.id}/photos?photoId=${photoId}`, {
+      method: "DELETE",
+    }).catch((e) => console.error("Error deleting photo from DB:", e));
   }
 
   function copyToClipboard(text: string, label: string) {

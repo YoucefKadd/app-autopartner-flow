@@ -11,6 +11,7 @@ export async function GET(
       where: { id },
       include: {
         kam: { select: { id: true, name: true, email: true } },
+        photos: { orderBy: { createdAt: "desc" } },
         notes: {
           orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
         },
@@ -51,6 +52,7 @@ export async function PATCH(
     if (body.phone !== undefined) updateData.phone = body.phone;
     if (body.city !== undefined) updateData.city = body.city;
     if (body.status !== undefined) updateData.status = body.status;
+    if (body.logo !== undefined) updateData.logo = body.logo;
     if (body.healthScore !== undefined)
       updateData.healthScore = Number(body.healthScore);
     if (body.lastContactAt !== undefined)
@@ -61,6 +63,7 @@ export async function PATCH(
       data: updateData,
       include: {
         notes: { orderBy: { createdAt: "desc" } },
+        photos: { orderBy: { createdAt: "desc" } },
         _count: { select: { notes: true } },
       },
     });
