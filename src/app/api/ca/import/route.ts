@@ -4,6 +4,12 @@ import { prisma } from "@/lib/prisma";
 export interface ImportCaRow {
   apClientNumber?: string;
   company?: string;
+  address?: string;
+  postalCode?: string;
+  city?: string;
+  contactName?: string;
+  email?: string;
+  phone?: string;
   year: number;
   month: number;
   amount?: number;
@@ -26,12 +32,27 @@ export async function POST(request: Request) {
 
     // Load all clients from DB for matching
     const clients = await prisma.client.findMany({
-      select: { id: true, company: true, apClientNumber: true },
+      select: {
+        id: true,
+        company: true,
+        apClientNumber: true,
+        address: true,
+        postalCode: true,
+        city: true,
+        contactName: true,
+        email: true,
+        phone: true,
+      },
     });
 
     let matchedCount = 0;
     let unmatchedCount = 0;
     const unmatchedItems: string[] = [];
+
+    // Retrieve default KAM for auto-creation
+    const defaultKam =
+      (await prisma.user.findFirst({ where: { role: "KAM" } })) ||
+      (await prisma.user.findFirst());
 
     for (const row of rows) {
       const cleanAp = (row.apClientNumber || "").trim().toLowerCase();
@@ -56,10 +77,51 @@ export async function POST(request: Request) {
         );
       }
 
+      // 3. If client does not exist yet, auto-create it so no data is lost!
+      if (!matchedClient && (cleanAp || cleanCompany) && defaultKam) {
+        try {
+          const createdClient = await prisma.client.create({
+            data: {
+              company: (row.company || `Client AP ${row.apClientNumber}`).trim(),
+              apClientNumber: row.apClientNumber ? row.apClientNumber.trim() : null,
+              address: row.address ? row.address.trim() : null,
+              postalCode: row.postalCode ? row.postalCode.trim() : null,
+              city: row.city ? row.city.trim() : "France",
+              contactName: row.contactName ? row.contactName.trim() : "Contact Comptoir",
+              email: row.email ? row.email.trim().toLowerCase() : `contact.${cleanAp || Date.now()}@client.autopartner.fr`,
+              phone: row.phone ? row.phone.trim() : "Non renseigné",
+              position: "Gérant / Responsable",
+              status: "ACTIVE",
+              kamId: defaultKam.id,
+            },
+          });
+          matchedClient = createdClient;
+          clients.push(createdClient);
+        } catch {
+          // If creation fails (e.g. duplicate constraint), proceed
+        }
+      }
+
       if (!matchedClient) {
         unmatchedCount++;
         unmatchedItems.push(row.apClientNumber || row.company || "Ligne sans identifiant");
         continue;
+      }
+
+      // Update client address / contact info if new data is provided
+      const clientUpdate: any = {};
+      if (row.address && !matchedClient.address) clientUpdate.address = row.address.trim();
+      if (row.postalCode && !matchedClient.postalCode) clientUpdate.postalCode = row.postalCode.trim();
+      if (row.city && (!matchedClient.city || matchedClient.city === "France")) clientUpdate.city = row.city.trim();
+      if (row.contactName && (!matchedClient.contactName || matchedClient.contactName === "Contact Comptoir")) clientUpdate.contactName = row.contactName.trim();
+      if (row.email && (!matchedClient.email || matchedClient.email.includes("@client.autopartner.fr"))) clientUpdate.email = row.email.trim();
+      if (row.phone && (!matchedClient.phone || matchedClient.phone === "Non renseigné")) clientUpdate.phone = row.phone.trim();
+
+      if (Object.keys(clientUpdate).length > 0) {
+        await prisma.client.update({
+          where: { id: matchedClient.id },
+          data: clientUpdate,
+        }).catch(() => {});
       }
 
       const year = Number(row.year) || new Date().getFullYear();

@@ -19,6 +19,11 @@ import {
   Sparkles,
   Check,
   Trash2,
+  MapPin,
+  Mail,
+  Phone,
+  User,
+  Info,
 } from "lucide-react";
 import { useWorkspace } from "@/components/AppShell";
 
@@ -38,86 +43,143 @@ interface TargetFieldDef {
   defaultMatches: string[];
 }
 
-const CA_FIELDS: TargetFieldDef[] = [
-  {
-    id: "apClientNumber",
-    label: "Code Client AP",
-    required: true,
-    description: "Numéro de compte client Auto Partner (ex: ACCOUNTNUM, Code AP)",
-    defaultMatches: ["accountnum", "codeap", "codeclient", "numclient", "compte", "clientap", "no_client", "compteclient"],
-  },
+// Complete set of CRM, CA and AX fields in the requested table structure
+const CA_TABLE_FIELDS: TargetFieldDef[] = [
   {
     id: "company",
-    label: "Nom de l'Enseigne (Optionnel si Code AP)",
-    required: false,
-    description: "Raison sociale ou enseigne client (ex: NAMEALIAS)",
-    defaultMatches: ["namealias", "company", "nom", "enseigne", "client", "raisonsociale", "nomclient"],
+    label: "Nom de l'Enseigne / Client",
+    required: true,
+    description: "Raison sociale ou nom d'enseigne (ex: NAMEALIAS ou Textbox)",
+    defaultMatches: ["namealias", "company", "nom", "enseigne", "client", "raisonsociale", "nomclient", "raison_sociale"],
   },
   {
-    id: "year",
-    label: "Année / Exercice",
+    id: "apClientNumber",
+    label: "Code Client AP (Compte)",
+    required: true,
+    description: "Numéro de compte client Auto Partner (ex: ACCOUNTNUM1, Code AP)",
+    defaultMatches: ["accountnum1", "accountnum", "codeap", "code_ap", "numeroap", "codeclient", "numclient", "compte", "clientap", "no_client"],
+  },
+  {
+    id: "vatNumber",
+    label: "N° TVA Intracommunautaire",
     required: false,
-    description: "Année comptable (ex: 2025, 2026)",
-    defaultMatches: ["annee", "year", "exercice", "periode_annee"],
+    description: "Numéro de TVA de l'entreprise (ex: VATNUM1)",
+    defaultMatches: ["vatnum1", "vatnum", "tva", "numtva", "vat"],
+  },
+  {
+    id: "address",
+    label: "Adresse postale (Rue / Voie)",
+    required: false,
+    description: "Adresse du magasin (ex: ADDRESS, STREET, RUE)",
+    defaultMatches: ["address", "adresse", "street", "rue", "voie", "streetname", "address1", "deliveryaddress", "adressevoie", "adressedistr"],
+  },
+  {
+    id: "postalCode",
+    label: "Code Postal",
+    required: false,
+    description: "Code postal d'implantation (ex: ZIPCODE, CP, CODEPOSTAL)",
+    defaultMatches: ["zipcode", "zip", "cp", "codepostal", "postalcode", "code_postal", "postcode"],
+  },
+  {
+    id: "city",
+    label: "Ville du Magasin",
+    required: false,
+    description: "Ville d'implantation (ex: CITY, VILLE)",
+    defaultMatches: ["city", "ville", "commune", "localite"],
+  },
+  {
+    id: "contactName",
+    label: "Nom Contact Principal (Optionnel)",
+    required: false,
+    description: "Interlocuteur privilégié / responsable magasin",
+    defaultMatches: ["contact", "contactname", "interlocuteur", "responsable", "nom_contact"],
+  },
+  {
+    id: "email",
+    label: "Email Contact (Optionnel)",
+    required: false,
+    description: "Adresse email directe de contact (ex: EMAIL)",
+    defaultMatches: ["email", "courriel", "mail", "e_mail"],
+  },
+  {
+    id: "phone",
+    label: "Téléphone (Optionnel)",
+    required: false,
+    description: "Téléphone direct ou portable (ex: PHONE, TEL)",
+    defaultMatches: ["phone", "tel", "telephone", "portable", "mobile"],
+  },
+  {
+    id: "kamName",
+    label: "Commercial / KAM assigné",
+    required: false,
+    description: "Gestionnaire du compte (ex: PH, Commercial)",
+    defaultMatches: ["ph", "kam", "commercial", "gestionnaire", "responsable_kam"],
   },
   {
     id: "month",
-    label: "Mois ou Date Facture",
+    label: "Date / Période Facture (CA)",
     required: false,
-    description: "Numéro du mois (1-12) ou date (AAAA-MM, JJ/MM/AAAA)",
-    defaultMatches: ["mois", "month", "periode", "date", "invoicedate", "datefacture", "facturedate"],
+    description: "Format AAAA-MM, JJ/MM/AAAA ou Mois 1-12 (ex: INVOICEDATE)",
+    defaultMatches: ["invoicedate", "date", "periode", "mois", "month", "datefacture"],
+  },
+  {
+    id: "year",
+    label: "Année / Exercice (Optionnel)",
+    required: false,
+    description: "Année comptable (ex: 2025, 2026) si séparée de la date",
+    defaultMatches: ["annee", "year", "exercice", "periode_annee"],
   },
   {
     id: "amount",
     label: "Montant CA Facturé (€ HT)",
     required: true,
-    description: "Chiffre d'affaires facturé HT mensuel (ex: AMOUNT, CA_HT)",
-    defaultMatches: ["amount", "ca", "montant", "caht", "chiffreaffaires", "totalca", "ventes", "ca_ht", "facture"],
+    description: "Chiffre d'affaires facturé mensuel (ex: AMOUNT, CA_HT)",
+    defaultMatches: ["amount", "ca", "montant", "caht", "chiffreaffaires", "totalca", "ventes", "ca_ht"],
   },
   {
     id: "ordersCount",
     label: "Nombre de Commandes (Optionnel)",
     required: false,
-    description: "Volume ou nombre de factures / commandes du mois",
+    description: "Quantité ou volume de commandes du mois (ex: ORDERS)",
     defaultMatches: ["orders", "commandes", "qte", "nbcommandes", "volume", "nb_commandes"],
   },
   {
     id: "target",
     label: "Objectif Commercial (€ HT) (Optionnel)",
     required: false,
-    description: "Objectif annuel ou mensuel (Optionnel)",
+    description: "Objectif de chiffre d'affaires (Optionnel)",
     defaultMatches: ["target", "objectif", "obj", "cible"],
   },
 ];
 
-const AX_FIELDS: TargetFieldDef[] = [
-  {
-    id: "apClientNumber",
-    label: "Code Client AP",
-    required: true,
-    description: "Numéro de compte client Auto Partner (ex: ACCOUNTNUM, Code AP)",
-    defaultMatches: ["accountnum", "codeap", "codeclient", "numclient", "compte", "clientap", "no_client", "compteclient"],
-  },
+const AX_TABLE_FIELDS: TargetFieldDef[] = [
   {
     id: "company",
-    label: "Nom de l'Enseigne (Optionnel si Code AP)",
+    label: "Nom de l'Enseigne / Client",
     required: false,
-    description: "Raison sociale ou enseigne client (ex: NAMEALIAS)",
+    description: "Raison sociale ou nom d'enseigne (ex: NAMEALIAS ou Client)",
     defaultMatches: ["namealias", "company", "nom", "enseigne", "client", "raisonsociale", "nomclient"],
   },
   {
-    id: "year",
-    label: "Année / Exercice",
-    required: false,
-    description: "Année comptable (ex: 2025, 2026)",
-    defaultMatches: ["annee", "year", "exercice", "periode_annee"],
+    id: "apClientNumber",
+    label: "Code Client AP (Compte)",
+    required: true,
+    description: "Numéro de compte client Auto Partner (ex: ACCOUNTNUM1, Code AP)",
+    defaultMatches: ["accountnum1", "accountnum", "codeap", "code_ap", "numeroap", "codeclient", "numclient", "compte", "clientap", "no_client"],
   },
   {
     id: "month",
-    label: "Mois ou Date d'Achat",
+    label: "Date ou Période d'Achat AX",
     required: false,
-    description: "Numéro du mois (1-12) ou date (AAAA-MM, JJ/MM/AAAA)",
-    defaultMatches: ["mois", "month", "periode", "date", "invoicedate", "datefacture", "dateachat", "date_achat"],
+    description: "Format AAAA-MM, JJ/MM/AAAA ou Mois 1-12 (ex: DATE, MOIS)",
+    defaultMatches: ["date", "periode", "mois", "month", "invoicedate", "dateachat", "date_achat"],
+  },
+  {
+    id: "year",
+    label: "Année / Exercice (Optionnel)",
+    required: false,
+    description: "Année comptable si séparée (ex: 2025, 2026)",
+    defaultMatches: ["annee", "year", "exercice", "periode_annee"],
   },
   {
     id: "axPurchases",
@@ -125,6 +187,41 @@ const AX_FIELDS: TargetFieldDef[] = [
     required: true,
     description: "Montant des achats enregistrés dans AX (ex: ACHATS, AX, ACHATS_AX)",
     defaultMatches: ["ax", "achats", "achatsax", "montantax", "achat", "purchases", "achats_ax", "montant_ax", "total_ax"],
+  },
+  {
+    id: "address",
+    label: "Adresse postale (Optionnel si dans AX)",
+    required: false,
+    description: "Adresse du magasin",
+    defaultMatches: ["address", "adresse", "street", "rue", "voie"],
+  },
+  {
+    id: "postalCode",
+    label: "Code Postal (Optionnel)",
+    required: false,
+    description: "Code postal d'implantation",
+    defaultMatches: ["zipcode", "zip", "cp", "codepostal", "postalcode"],
+  },
+  {
+    id: "city",
+    label: "Ville du Magasin (Optionnel)",
+    required: false,
+    description: "Ville d'implantation",
+    defaultMatches: ["city", "ville", "commune"],
+  },
+  {
+    id: "email",
+    label: "Email Contact (Optionnel)",
+    required: false,
+    description: "Adresse email directe",
+    defaultMatches: ["email", "courriel", "mail"],
+  },
+  {
+    id: "phone",
+    label: "Téléphone (Optionnel)",
+    required: false,
+    description: "Téléphone direct",
+    defaultMatches: ["phone", "tel", "telephone"],
   },
 ];
 
@@ -247,7 +344,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
 
         // Smart auto-mapping for CA
         const autoMap: Record<string, string> = {};
-        CA_FIELDS.forEach((target) => {
+        CA_TABLE_FIELDS.forEach((target) => {
           const matched = headers.find((h) => {
             const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, "");
             return target.defaultMatches.some((m) => cleanH.includes(m.replace(/[^a-z0-9]/g, "")));
@@ -283,7 +380,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
 
         // Smart auto-mapping for AX
         const autoMap: Record<string, string> = {};
-        AX_FIELDS.forEach((target) => {
+        AX_TABLE_FIELDS.forEach((target) => {
           const matched = headers.find((h) => {
             const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, "");
             return target.defaultMatches.some((m) => cleanH.includes(m.replace(/[^a-z0-9]/g, "")));
@@ -316,6 +413,12 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
       key: string;
       apCode: string;
       company: string;
+      address?: string;
+      postalCode?: string;
+      city?: string;
+      contactName?: string;
+      email?: string;
+      phone?: string;
       matchedClient: string | null;
       year: number;
       month: number;
@@ -332,6 +435,12 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
     if (caFile) {
       const apIdx = caFile.mapping.apClientNumber ? caFile.headers.indexOf(caFile.mapping.apClientNumber) : -1;
       const compIdx = caFile.mapping.company ? caFile.headers.indexOf(caFile.mapping.company) : -1;
+      const addrIdx = caFile.mapping.address ? caFile.headers.indexOf(caFile.mapping.address) : -1;
+      const cpIdx = caFile.mapping.postalCode ? caFile.headers.indexOf(caFile.mapping.postalCode) : -1;
+      const cityIdx = caFile.mapping.city ? caFile.headers.indexOf(caFile.mapping.city) : -1;
+      const contactIdx = caFile.mapping.contactName ? caFile.headers.indexOf(caFile.mapping.contactName) : -1;
+      const emailIdx = caFile.mapping.email ? caFile.headers.indexOf(caFile.mapping.email) : -1;
+      const phoneIdx = caFile.mapping.phone ? caFile.headers.indexOf(caFile.mapping.phone) : -1;
       const yearIdx = caFile.mapping.year ? caFile.headers.indexOf(caFile.mapping.year) : -1;
       const monthIdx = caFile.mapping.month ? caFile.headers.indexOf(caFile.mapping.month) : -1;
       const amountIdx = caFile.mapping.amount ? caFile.headers.indexOf(caFile.mapping.amount) : -1;
@@ -357,6 +466,13 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
         const orders = ordersIdx >= 0 ? parseInt(row[ordersIdx], 10) || 0 : 0;
         const target = targetIdx >= 0 ? cleanNumber(row[targetIdx]) : 0;
 
+        const addr = addrIdx >= 0 ? row[addrIdx]?.trim() : undefined;
+        const cp = cpIdx >= 0 ? row[cpIdx]?.trim() : undefined;
+        const city = cityIdx >= 0 ? row[cityIdx]?.trim() : undefined;
+        const contact = contactIdx >= 0 ? row[contactIdx]?.trim() : undefined;
+        const email = emailIdx >= 0 ? row[emailIdx]?.trim() : undefined;
+        const phone = phoneIdx >= 0 ? row[phoneIdx]?.trim() : undefined;
+
         const lookupCode = apCode.toLowerCase();
         const matched = clients.find(
           (c) =>
@@ -371,6 +487,12 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
             key: groupKey,
             apCode,
             company: company || (matched ? matched.company : ""),
+            address: addr || (matched ? matched.address || undefined : undefined),
+            postalCode: cp || (matched ? matched.postalCode || undefined : undefined),
+            city: city || (matched ? matched.city : "France"),
+            contactName: contact || (matched ? matched.contactName : undefined),
+            email: email || (matched ? matched.email : undefined),
+            phone: phone || (matched ? matched.phone : undefined),
             matchedClient: matched ? matched.company : null,
             year,
             month,
@@ -383,6 +505,11 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
           const existing = rowMap.get(groupKey)!;
           existing.amount = (existing.amount || 0) + amount;
           if (orders) existing.ordersCount = (existing.ordersCount || 0) + orders;
+          if (addr && !existing.address) existing.address = addr;
+          if (cp && !existing.postalCode) existing.postalCode = cp;
+          if (city && !existing.city) existing.city = city;
+          if (email && !existing.email) existing.email = email;
+          if (phone && !existing.phone) existing.phone = phone;
         }
       });
     }
@@ -391,6 +518,11 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
     if (axFile) {
       const apIdx = axFile.mapping.apClientNumber ? axFile.headers.indexOf(axFile.mapping.apClientNumber) : -1;
       const compIdx = axFile.mapping.company ? axFile.headers.indexOf(axFile.mapping.company) : -1;
+      const addrIdx = axFile.mapping.address ? axFile.headers.indexOf(axFile.mapping.address) : -1;
+      const cpIdx = axFile.mapping.postalCode ? axFile.headers.indexOf(axFile.mapping.postalCode) : -1;
+      const cityIdx = axFile.mapping.city ? axFile.headers.indexOf(axFile.mapping.city) : -1;
+      const emailIdx = axFile.mapping.email ? axFile.headers.indexOf(axFile.mapping.email) : -1;
+      const phoneIdx = axFile.mapping.phone ? axFile.headers.indexOf(axFile.mapping.phone) : -1;
       const yearIdx = axFile.mapping.year ? axFile.headers.indexOf(axFile.mapping.year) : -1;
       const monthIdx = axFile.mapping.month ? axFile.headers.indexOf(axFile.mapping.month) : -1;
       const axIdx = axFile.mapping.axPurchases ? axFile.headers.indexOf(axFile.mapping.axPurchases) : -1;
@@ -411,6 +543,11 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
         }
 
         const axVal = axIdx >= 0 ? cleanNumber(row[axIdx]) : 0;
+        const addr = addrIdx >= 0 ? row[addrIdx]?.trim() : undefined;
+        const cp = cpIdx >= 0 ? row[cpIdx]?.trim() : undefined;
+        const city = cityIdx >= 0 ? row[cityIdx]?.trim() : undefined;
+        const email = emailIdx >= 0 ? row[emailIdx]?.trim() : undefined;
+        const phone = phoneIdx >= 0 ? row[phoneIdx]?.trim() : undefined;
 
         const lookupCode = apCode.toLowerCase();
         const matched = clients.find(
@@ -426,6 +563,11 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
             key: groupKey,
             apCode,
             company: company || (matched ? matched.company : ""),
+            address: addr || (matched ? matched.address || undefined : undefined),
+            postalCode: cp || (matched ? matched.postalCode || undefined : undefined),
+            city: city || (matched ? matched.city : "France"),
+            email: email || (matched ? matched.email : undefined),
+            phone: phone || (matched ? matched.phone : undefined),
             matchedClient: matched ? matched.company : null,
             year,
             month,
@@ -439,6 +581,11 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
           if (!existing.matchedClient && matched) {
             existing.matchedClient = matched.company;
           }
+          if (addr && !existing.address) existing.address = addr;
+          if (cp && !existing.postalCode) existing.postalCode = cp;
+          if (city && !existing.city) existing.city = city;
+          if (email && !existing.email) existing.email = email;
+          if (phone && !existing.phone) existing.phone = phone;
         }
       });
     }
@@ -453,6 +600,12 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
     const payloadRows = consolidatedRows.map((r) => ({
       apClientNumber: r.apCode || undefined,
       company: r.company || undefined,
+      address: r.address || undefined,
+      postalCode: r.postalCode || undefined,
+      city: r.city || undefined,
+      contactName: r.contactName || undefined,
+      email: r.email || undefined,
+      phone: r.phone || undefined,
       year: r.year,
       month: r.month,
       amount: r.amount !== undefined ? r.amount : undefined,
@@ -491,12 +644,14 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
   const totalCA = consolidatedRows.reduce((acc, r) => acc + (r.amount || 0), 0);
   const totalAX = consolidatedRows.reduce((acc, r) => acc + (r.axPurchases || 0), 0);
   const bothCount = consolidatedRows.filter((r) => r.source === "BOTH").length;
-  const caOnlyCount = consolidatedRows.filter((r) => r.source === "CA_ONLY").length;
-  const axOnlyCount = consolidatedRows.filter((r) => r.source === "AX_ONLY").length;
+
+  // Currently active file and fields for the Table Mapping view
+  const currentActiveFile = activeMappingTab === "CA" ? caFile : axFile;
+  const currentTableFields = activeMappingTab === "CA" ? CA_TABLE_FIELDS : AX_TABLE_FIELDS;
 
   const modalContent = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl shadow-2xl max-w-4xl w-full overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-3xl shadow-2xl max-w-5xl w-full overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-zinc-950/40">
           <div className="flex items-center gap-3">
@@ -507,11 +662,11 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
               <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-zinc-100 flex items-center gap-2">
                 <span>Importation Données CA &amp; Achats AX</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-500/20">
-                  Double Fichier CSV Supporté
+                  Double Fichier CSV &amp; Coordonnées
                 </span>
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                Importez le fichier de vente (CA), le fichier d&apos;achats AX, ou les deux simultanément avec rapprochement par Code AP
+                Alimentation automatique de la base clients, adresses, contacts, CA et achats AX par Code AP
               </p>
             </div>
           </div>
@@ -550,7 +705,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
               <span className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] bg-white dark:bg-zinc-900 border font-bold">
                 2
               </span>
-              <span>2. Validation du Mapping</span>
+              <span>2. Validation du Mapping (Tableau)</span>
             </span>
 
             <span className="text-slate-300">→</span>
@@ -626,7 +781,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                     </div>
 
                     <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                      Export CSV contenant les ventes : Code Client AP (ACCOUNTNUM), Date de facture, et Montant HT facturé (AMOUNT).
+                      Rapport CSV contenant les ventes : Code AP, Raison sociale, Adresse, CP, Ville, Mail, Téléphone, et Montant CA HT.
                     </p>
 
                     {caFile ? (
@@ -646,7 +801,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                       >
                         <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-1.5" />
                         <p className="text-xs font-semibold text-slate-700 dark:text-zinc-200">
-                          Cliquez pour sélectionner le fichier CSV CA
+                          Sélectionnez le fichier CSV CA (Ventes)
                         </p>
                         <p className="text-[10px] text-slate-400 mt-0.5">Format .csv (virgule ou point-virgule)</p>
                       </div>
@@ -713,7 +868,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                     </div>
 
                     <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-                      Export CSV contenant les achats AX : Code Client AP, Période/Mois, et Montant Achats (€ HT).
+                      Rapport CSV contenant les achats AX : Code Client AP, Période/Mois, et Montant Achats (€ HT).
                     </p>
 
                     {axFile ? (
@@ -733,7 +888,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                       >
                         <UploadCloud className="w-6 h-6 text-slate-400 mx-auto mb-1.5" />
                         <p className="text-xs font-semibold text-slate-700 dark:text-zinc-200">
-                          Cliquez pour sélectionner le fichier CSV Achats AX
+                          Sélectionnez le fichier CSV Achats AX
                         </p>
                         <p className="text-[10px] text-slate-400 mt-0.5">Format .csv (virgule ou point-virgule)</p>
                       </div>
@@ -778,7 +933,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                   {caFile && axFile ? (
                     <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1.5">
                       <Sparkles className="w-4 h-4" />
-                      Les 2 fichiers sont chargés. Le système va croiser automatiquement les données par Code AP.
+                      Les 2 fichiers CSV sont prêts. Vous allez pouvoir valider le mapping de chaque fichier sous forme de tableau.
                     </span>
                   ) : caFile ? (
                     <span>Fichier CA chargé. Vous pouvez également ajouter le fichier AX ou continuer directement.</span>
@@ -798,15 +953,15 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                   }}
                   className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[#d90416] hover:bg-[#b80312] text-white text-xs font-bold transition shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  <span>Passer au Mapping</span>
+                  <span>Passer au Mapping (Tableau)</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
 
-          {/* STEP 2: MAPPING TABS */}
-          {step === "mapping" && (
+          {/* STEP 2: EXACT REQUESTED TABLE MAPPING */}
+          {step === "mapping" && currentActiveFile && (
             <div className="space-y-4">
               {/* Tab Selector if both files present */}
               {caFile && axFile && (
@@ -821,7 +976,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                     }`}
                   >
                     <TrendingUp className="w-3.5 h-3.5 text-[#d90416]" />
-                    <span>Mapping Fichier 1 : Ventes CA ({caFile.fileName})</span>
+                    <span>Tableau Mapping Fichier CA ({caFile.fileName})</span>
                     {caFile.mapping.amount && (
                       <span className="w-2 h-2 rounded-full bg-emerald-500" title="Mappé" />
                     )}
@@ -837,7 +992,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                     }`}
                   >
                     <ShoppingCart className="w-3.5 h-3.5 text-purple-600" />
-                    <span>Mapping Fichier 2 : Achats AX ({axFile.fileName})</span>
+                    <span>Tableau Mapping Fichier AX ({axFile.fileName})</span>
                     {axFile.mapping.axPurchases && (
                       <span className="w-2 h-2 rounded-full bg-emerald-500" title="Mappé" />
                     )}
@@ -845,135 +1000,96 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                 </div>
               )}
 
-              {/* MAPPING TAB 1: CA FILE */}
-              {activeMappingTab === "CA" && caFile && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs bg-red-50/50 dark:bg-red-950/20 p-2.5 rounded-xl border border-red-200/50 dark:border-red-900/40">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-[#d90416]" />
-                      <span className="font-semibold text-slate-800 dark:text-zinc-200">
-                        Colonnes détectées dans {caFile.fileName}
-                      </span>
-                      <span className="text-slate-400">({caFile.rows.length} lignes)</span>
-                    </div>
-                    <span className="text-[11px] text-slate-500">Adaptez les correspondances ci-dessous</span>
-                  </div>
+              {/* Status Header */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 dark:bg-zinc-950/40 p-3 rounded-xl border border-slate-200 dark:border-zinc-800">
+                <div className="text-xs">
+                  <span className="font-semibold text-slate-800 dark:text-zinc-200">
+                    Fichier en cours de mapping :
+                  </span>{" "}
+                  <span className="font-mono text-[#d90416] font-bold">{currentActiveFile.fileName}</span> (
+                  {currentActiveFile.rows.length} lignes, {currentActiveFile.headers.length} colonnes)
+                </div>
+                <div className="text-[11px] text-slate-500">
+                  Vérifiez ou adaptez les correspondances ci-dessous avant d&apos;importer.
+                </div>
+              </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {CA_FIELDS.map((field) => {
-                      const selectedHeader = caFile.mapping[field.id] || "";
-                      const selectedIdx = caFile.headers.indexOf(selectedHeader);
-                      const sampleValue = selectedIdx >= 0 && caFile.rows[0] ? caFile.rows[0][selectedIdx] : "";
+              {/* THE EXACT REQUESTED MAPPING TABLE */}
+              <div className="rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-100 dark:bg-zinc-800/80 text-slate-700 dark:text-zinc-300 font-bold border-b border-slate-200 dark:border-zinc-800">
+                    <tr>
+                      <th className="py-2.5 px-4 w-1/3">Champ CRM Auto Partner</th>
+                      <th className="py-2.5 px-4 w-1/3">Colonne détectée dans votre CSV</th>
+                      <th className="py-2.5 px-4 w-1/3">Exemple de valeur (Ligne 1)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60 bg-white dark:bg-zinc-900">
+                    {currentTableFields.map((field) => {
+                      const selectedHeader = currentActiveFile.mapping[field.id] || "";
+                      const selectedIdx = currentActiveFile.headers.indexOf(selectedHeader);
+                      const sampleValue =
+                        selectedIdx >= 0 && currentActiveFile.rows[0] ? currentActiveFile.rows[0][selectedIdx] : "—";
 
                       return (
-                        <div
-                          key={field.id}
-                          className="p-3 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-1.5"
-                        >
-                          <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center justify-between">
-                            <span>
-                              {field.label} {field.required && <span className="text-[#d90416]">*</span>}
-                            </span>
-                            {selectedHeader && (
-                              <span className="text-[10px] text-emerald-600 font-bold">✓ Lié</span>
-                            )}
-                          </label>
-                          <select
-                            value={selectedHeader}
-                            onChange={(e) =>
-                              setCaFile({
-                                ...caFile,
-                                mapping: {
-                                  ...caFile.mapping,
-                                  [field.id]: e.target.value,
-                                },
-                              })
-                            }
-                            className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 bg-slate-50/50 dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 focus:outline-none focus:border-[#d90416]"
-                          >
-                            <option value="">-- Ignorer / Non mappé --</option>
-                            {caFile.headers.map((h) => (
-                              <option key={h} value={h}>
-                                {h}
-                              </option>
-                            ))}
-                          </select>
-                          {sampleValue && (
-                            <div className="text-[10px] text-slate-400 font-mono truncate">
-                              Ex. ligne 1 : <span className="text-slate-600 dark:text-zinc-300">{sampleValue}</span>
+                        <tr key={field.id} className="hover:bg-slate-50/60 dark:hover:bg-zinc-800/40">
+                          <td className="py-2.5 px-4">
+                            <div className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-zinc-200">
+                              <span>{field.label}</span>
+                              {field.required && (
+                                <span className="text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-1 rounded">
+                                  Requis
+                                </span>
+                              )}
                             </div>
-                          )}
-                        </div>
+                            <p className="text-[11px] text-slate-400">{field.description}</p>
+                          </td>
+
+                          <td className="py-2.5 px-4">
+                            <select
+                              value={selectedHeader}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (activeMappingTab === "CA" && caFile) {
+                                  setCaFile({
+                                    ...caFile,
+                                    mapping: { ...caFile.mapping, [field.id]: val },
+                                  });
+                                } else if (activeMappingTab === "AX" && axFile) {
+                                  setAxFile({
+                                    ...axFile,
+                                    mapping: { ...axFile.mapping, [field.id]: val },
+                                  });
+                                }
+                              }}
+                              className={`w-full py-1.5 px-2.5 rounded-lg border text-xs font-mono focus:outline-none focus:border-[#d90416] ${
+                                selectedHeader
+                                  ? "border-emerald-500/60 bg-emerald-50/30 dark:bg-emerald-950/20 text-slate-900 dark:text-zinc-100 font-bold"
+                                  : field.required
+                                  ? "border-red-300 bg-red-50/20 text-slate-500"
+                                  : "border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-500"
+                              }`}
+                            >
+                              <option value="">-- Ignorer / Non mappé --</option>
+                              {currentActiveFile.headers.map((h) => (
+                                <option key={h} value={h}>
+                                  {h}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+
+                          <td className="py-2.5 px-4">
+                            <span className="font-mono text-slate-600 dark:text-zinc-400 bg-slate-100 dark:bg-zinc-800 px-2 py-0.5 rounded text-[11px] max-w-[220px] truncate inline-block">
+                              {sampleValue || "(vide)"}
+                            </span>
+                          </td>
+                        </tr>
                       );
                     })}
-                  </div>
-                </div>
-              )}
-
-              {/* MAPPING TAB 2: AX FILE */}
-              {activeMappingTab === "AX" && axFile && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-xs bg-purple-50/50 dark:bg-purple-950/20 p-2.5 rounded-xl border border-purple-200/50 dark:border-purple-900/40">
-                    <div className="flex items-center gap-2">
-                      <ShoppingCart className="w-4 h-4 text-purple-600" />
-                      <span className="font-semibold text-slate-800 dark:text-zinc-200">
-                        Colonnes détectées dans {axFile.fileName}
-                      </span>
-                      <span className="text-slate-400">({axFile.rows.length} lignes)</span>
-                    </div>
-                    <span className="text-[11px] text-slate-500">Adaptez les correspondances ci-dessous</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {AX_FIELDS.map((field) => {
-                      const selectedHeader = axFile.mapping[field.id] || "";
-                      const selectedIdx = axFile.headers.indexOf(selectedHeader);
-                      const sampleValue = selectedIdx >= 0 && axFile.rows[0] ? axFile.rows[0][selectedIdx] : "";
-
-                      return (
-                        <div
-                          key={field.id}
-                          className="p-3 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 space-y-1.5"
-                        >
-                          <label className="text-xs font-semibold text-slate-800 dark:text-zinc-200 flex items-center justify-between">
-                            <span>
-                              {field.label} {field.required && <span className="text-purple-600">*</span>}
-                            </span>
-                            {selectedHeader && (
-                              <span className="text-[10px] text-emerald-600 font-bold">✓ Lié</span>
-                            )}
-                          </label>
-                          <select
-                            value={selectedHeader}
-                            onChange={(e) =>
-                              setAxFile({
-                                ...axFile,
-                                mapping: {
-                                  ...axFile.mapping,
-                                  [field.id]: e.target.value,
-                                },
-                              })
-                            }
-                            className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-zinc-700 bg-slate-50/50 dark:bg-zinc-900 text-slate-800 dark:text-zinc-100 focus:outline-none focus:border-purple-600"
-                          >
-                            <option value="">-- Ignorer / Non mappé --</option>
-                            {axFile.headers.map((h) => (
-                              <option key={h} value={h}>
-                                {h}
-                              </option>
-                            ))}
-                          </select>
-                          {sampleValue && (
-                            <div className="text-[10px] text-slate-400 font-mono truncate">
-                              Ex. ligne 1 : <span className="text-slate-600 dark:text-zinc-300">{sampleValue}</span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+                  </tbody>
+                </table>
+              </div>
 
               {/* Navigation Action */}
               <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-zinc-800">
@@ -982,7 +1098,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                   onClick={() => setStep("upload")}
                   className="px-4 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:bg-slate-50"
                 >
-                  Retour aux fichiers
+                  Changer les fichiers
                 </button>
 
                 <div className="flex items-center gap-2">
@@ -992,7 +1108,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                       onClick={() => setActiveMappingTab("AX")}
                       className="px-4 py-2 rounded-xl border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-xs font-semibold hover:bg-purple-50"
                     >
-                      Vérifier le fichier AX →
+                      Tableau Fichier AX →
                     </button>
                   )}
 
@@ -1001,7 +1117,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                     onClick={() => setStep("preview")}
                     className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#d90416] hover:bg-[#b80312] text-white text-xs font-bold transition shadow-xs cursor-pointer"
                   >
-                    <span>Prévisualiser &amp; Rapprocher ({consolidatedRows.length} lignes)</span>
+                    <span>Prévisualiser les clients ({consolidatedRows.length})</span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -1009,7 +1125,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
             </div>
           )}
 
-          {/* STEP 3: PREVIEW & RECONCILIATION */}
+          {/* STEP 3: CONSOLIDATED PREVIEW TABLE */}
           {step === "preview" && (
             <div className="space-y-4">
               {/* Summary KPIs */}
@@ -1045,13 +1161,15 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                 </div>
               </div>
 
-              {/* Table */}
+              {/* Detailed Consolidated Table */}
               <div className="border border-slate-200 dark:border-zinc-800 rounded-2xl overflow-hidden max-h-72 overflow-y-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-100 dark:bg-zinc-800/80 text-slate-600 dark:text-zinc-400 font-semibold sticky top-0 border-b border-slate-200 dark:border-zinc-800">
                     <tr>
                       <th className="p-2.5">Code AP</th>
-                      <th className="p-2.5">Client Trouvé dans BDD</th>
+                      <th className="p-2.5">Enseigne / Client</th>
+                      <th className="p-2.5">Adresse &amp; CP</th>
+                      <th className="p-2.5">Ville</th>
                       <th className="p-2.5">Période</th>
                       <th className="p-2.5 text-right">CA Facturé</th>
                       <th className="p-2.5 text-right">Achats AX</th>
@@ -1064,17 +1182,24 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                         <td className="p-2.5 font-mono text-[11px] font-bold text-slate-800 dark:text-zinc-200">
                           {r.apCode || "—"}
                         </td>
-                        <td className="p-2.5 font-medium text-slate-900 dark:text-white">
-                          {r.matchedClient ? (
-                            <span className="text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                              <Check className="w-3.5 h-3.5" />
-                              <span className="truncate">{r.matchedClient}</span>
-                            </span>
+                        <td className="p-2.5 font-semibold text-slate-900 dark:text-white">
+                          <div className="truncate max-w-[180px]">{r.company || r.matchedClient || "Client Inconnu"}</div>
+                          {r.contactName && <div className="text-[10px] text-slate-400 font-normal">{r.contactName}</div>}
+                        </td>
+                        <td className="p-2.5 text-slate-600 dark:text-zinc-300 text-[11px]">
+                          {r.address ? (
+                            <div>
+                              <div className="truncate max-w-[160px]">{r.address}</div>
+                              {r.postalCode && <span className="font-mono text-slate-400 text-[10px]">{r.postalCode}</span>}
+                            </div>
+                          ) : r.postalCode ? (
+                            <span className="font-mono text-[11px]">{r.postalCode}</span>
                           ) : (
-                            <span className="text-amber-600 dark:text-amber-400 text-[11px]">
-                              {r.company ? `Non trouvé (${r.company})` : "Client inconnu"}
-                            </span>
+                            <span className="text-slate-400 italic">—</span>
                           )}
+                        </td>
+                        <td className="p-2.5 text-slate-600 dark:text-zinc-300">
+                          {r.city || "—"}
                         </td>
                         <td className="p-2.5 text-slate-500 font-mono">
                           {r.month > 0 ? `${r.month.toString().padStart(2, "0")}/` : "Annuel "}{r.year}
@@ -1128,7 +1253,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                   className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#d90416] hover:bg-[#b80312] text-white text-xs font-bold transition shadow-md active:scale-95 cursor-pointer"
                 >
                   <UploadCloud className="w-4 h-4" />
-                  <span>Confirmer l&apos;importation ({consolidatedRows.length} lignes)</span>
+                  <span>Confirmer l&apos;importation ({consolidatedRows.length} enregistrements)</span>
                 </button>
               </div>
             </div>
@@ -1145,7 +1270,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                   Synchronisation MySQL en cours...
                 </h4>
                 <p className="text-xs text-slate-400 mt-1">
-                  Mise à jour des historiques de CA et des achats AX par Code AP
+                  Enregistrement des adresses, coordonnées, montants CA et achats AX par Code AP
                 </p>
               </div>
             </div>
@@ -1169,7 +1294,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
               {importResult && importResult.unmatchedCount > 0 && (
                 <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-left text-xs text-amber-800 dark:text-amber-300 space-y-1">
                   <p className="font-semibold">
-                    {importResult.unmatchedCount} ligne(s) non rattachée(s) (Code AP ou enseigne introuvable) :
+                    {importResult.unmatchedCount} ligne(s) non rattachée(s) :
                   </p>
                   <p className="text-[11px] font-mono text-amber-600 dark:text-amber-400">
                     {importResult.unmatchedItems.join(", ")}
