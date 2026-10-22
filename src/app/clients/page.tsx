@@ -47,11 +47,13 @@ export default function ClientsRoutePage() {
     activeUser,
     loggedUser,
     clients,
+    tasks,
     loading,
     globalSearch,
     refreshWorkspace,
     switchKam,
     openQuickNote,
+    openQuickTask,
     openClientModal,
   } = useWorkspace();
 
@@ -754,6 +756,8 @@ export default function ClientsRoutePage() {
         onEditClient={(client) => openClientModal(client)}
         onDeleteClient={promptDeleteClient}
         onQuickNoteForClient={(clientId) => openQuickNote({ clientId })}
+        onQuickTaskForClient={(clientId, task) => openQuickTask({ clientId, task })}
+        tasks={tasks}
         onAddVisitForClient={(clientId) => {
           setAddVisitClientId(clientId);
           setIsAddVisitModalOpen(true);

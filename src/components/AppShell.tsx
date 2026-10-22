@@ -37,10 +37,13 @@ import {
   Hash,
   Camera,
   LayoutDashboard,
+  CheckSquare,
+  Kanban,
 } from "lucide-react";
-import { ClientItem, KamUser, NoteItem, ClientVisit, getInitials, hasPermission, getAssignedManagerIds } from "@/types/kam";
+import { ClientItem, KamUser, NoteItem, TaskItem, TaskStatus, ClientVisit, getInitials, hasPermission, getAssignedManagerIds } from "@/types/kam";
 import { QuickNoteModal } from "@/components/QuickNoteModal";
 import { NoteWorkspaceDrawer, NoteDockMode } from "@/components/NoteWorkspaceDrawer";
+import { TaskWorkspaceDrawer, TaskDockMode } from "@/components/TaskWorkspaceDrawer";
 import { ClientFormModal } from "@/components/ClientFormModal";
 import { DatabaseSyncHelper } from "@/components/DatabaseSyncHelper";
 import { getAllPortfolioVisits } from "@/lib/visits";
@@ -51,6 +54,7 @@ interface WorkspaceContextValue {
   loggedUser: KamUser | null;
   clients: ClientItem[];
   notes: NoteItem[];
+  tasks: TaskItem[];
   visits: ClientVisit[];
   loading: boolean;
   globalSearch: string;
@@ -61,6 +65,11 @@ interface WorkspaceContextValue {
   openQuickNote: (options?: {
     clientId?: string | null;
     note?: NoteItem | null;
+  }) => void;
+  openQuickTask: (options?: {
+    clientId?: string | null;
+    task?: TaskItem | null;
+    defaultStatus?: TaskStatus;
   }) => void;
   openClientModal: (client?: ClientItem | null) => void;
 }
@@ -92,6 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [loggedUser, setLoggedUser] = useState<KamUser | null>(null);
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [notes, setNotes] = useState<NoteItem[]>([]);
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [visits, setVisits] = useState<ClientVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalSearch, setGlobalSearch] = useState("");
@@ -106,6 +116,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [noteModalClientId, setNoteModalClientId] = useState<string | null>(null);
   const [editingNote, setEditingNote] = useState<NoteItem | null>(null);
   const [noteDockMode, setNoteDockMode] = useState<NoteDockMode>("dock");
+  const [isQuickTaskOpen, setIsQuickTaskOpen] = useState(false);
+  const [taskModalClientId, setTaskModalClientId] = useState<string | null>(null);
+  const [taskModalDefaultStatus, setTaskModalDefaultStatus] = useState<TaskStatus>("TODO");
+  const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
+  const [taskDockMode, setTaskDockMode] = useState<TaskDockMode>("dock");
 
   // Sync dock mode from localStorage on mount
   useEffect(() => {
@@ -220,6 +235,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       setLoggedUser(data.loggedUser || storedUser);
       setClients(data.clients || []);
       setNotes(data.notes || []);
+      setTasks(data.tasks || []);
       setVisits(data.visits || []);
 
       if (targetKamId !== "ALL" && data.activeUser?.id) {
@@ -323,11 +339,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     clientId?: string | null;
     note?: NoteItem | null;
   }) {
+    setIsQuickTaskOpen(false);
     setEditingNote(options?.note || null);
     setNoteModalClientId(
       options?.clientId !== undefined ? options.clientId : currentRouteClientId
     );
     setIsQuickNoteOpen(true);
+  }
+
+  function openQuickTask(options?: {
+    clientId?: string | null;
+    task?: TaskItem | null;
+    defaultStatus?: TaskStatus;
+  }) {
+    setIsQuickNoteOpen(false);
+    setEditingTask(options?.task || null);
+    setTaskModalDefaultStatus(options?.defaultStatus || "TODO");
+    setTaskModalClientId(
+      options?.clientId !== undefined ? options.clientId : currentRouteClientId
+    );
+    setIsQuickTaskOpen(true);
   }
 
   function openClientModal(client?: ClientItem | null) {
@@ -451,6 +482,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isVisitesRoute = pathname?.startsWith("/visites");
   const isCaRoute = pathname?.startsWith("/ca");
   const isNotesRoute = pathname?.startsWith("/notes");
+  const isTasksRoute = pathname?.startsWith("/taches");
   const isAdminRoute = pathname?.startsWith("/admin");
 
   // Render standalone layout without navbar if on login page
@@ -466,6 +498,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         loggedUser,
         clients,
         notes,
+        tasks,
         visits,
         loading,
         globalSearch,
@@ -474,6 +507,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         switchKam,
         logout,
         openQuickNote,
+        openQuickTask,
         openClientModal,
       }}
     >
@@ -588,6 +622,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
             </button>
+
+              {/* QUICK TASK BUTTON */}
+              <button
+                type="button"
+                onClick={() => openQuickTask()}
+                title="Ajouter / Ouvrir une tâche sur le côté"
+                className={`w-full flex items-center ${
+                  sidebarExpanded
+                    ? "justify-between px-3.5 py-2"
+                    : "justify-center p-2"
+                } rounded-xl bg-slate-900 dark:bg-zinc-800 hover:bg-[#d90416] text-white font-semibold text-xs shadow-2xs transition-all cursor-pointer`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <CheckSquare className="w-4 h-4 shrink-0" />
+                  {sidebarExpanded && <span>Nouvelle Tâche</span>}
+                </div>
+                {sidebarExpanded && (
+                  <span className="px-1.5 py-0.5 text-[10px] rounded bg-white/15 text-white font-bold">
+                    +
+                  </span>
+                )}
+              </button>
 
             {/* Global Search Results Dropdown Overlay */}
             {searchDropdownOpen && searchResults && (
@@ -1079,6 +1135,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </span>
                 </Link>
 
+                <Link
+                  href="/taches"
+                  onClick={() => setMobileDrawerOpen(false)}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-colors ${
+                    isTasksRoute
+                      ? "bg-red-50/80 dark:bg-red-950/30 text-[#d90416] font-semibold"
+                      : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100/80 dark:hover:bg-zinc-800/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <CheckSquare className="w-4 h-4 shrink-0" />
+                    <span>Tâches &amp; Kanban</span>
+                  </div>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/40 text-[#d90416] font-bold">
+                    {tasks.filter((t) => t.status !== "DONE").length}
+                  </span>
+                </Link>
+
                 {loggedUser?.role === "SUPER_ADMIN" && (
                   <Link
                     href="/admin"
@@ -1273,6 +1347,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   )}
                 </Link>
 
+                {/* ITEM: ROUTE /taches (Trello Kanban & Tasks) */}
+                <Link
+                  href="/taches"
+                  title="Tâches & Kanban Trello (/taches)"
+                  className={`relative w-full flex items-center ${
+                    sidebarExpanded
+                      ? "justify-between px-3 py-2.5"
+                      : "justify-center py-2.5"
+                  } rounded-xl text-xs font-medium transition-colors ${
+                    isTasksRoute
+                      ? "bg-red-50/80 dark:bg-red-950/30 text-[#d90416] font-semibold"
+                      : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100/80 dark:hover:bg-zinc-800/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <CheckSquare className="w-4 h-4 shrink-0" />
+                    {sidebarExpanded && <span>Tâches &amp; Kanban</span>}
+                  </div>
+                  {sidebarExpanded && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 dark:bg-red-950/40 text-[#d90416] font-bold">
+                      {tasks.filter((t) => t.status !== "DONE").length}
+                    </span>
+                  )}
+                </Link>
+
                 {/* 6TH ITEM: ROUTE /admin (Super Admin only) */}
                 {loggedUser?.role === "SUPER_ADMIN" && (
                   <Link
@@ -1340,10 +1439,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {/* 3. MAIN WORKSPACE AREA */}
           <main
             className={`flex flex-col min-w-0 overflow-y-auto transition-all duration-200 ${
-              isQuickNoteOpen && noteDockMode === "split"
+              (isQuickNoteOpen && noteDockMode === "split") || (isQuickTaskOpen && taskDockMode === "split")
                 ? "flex-1 md:w-1/2 lg:w-[52%] max-w-[52%] shrink-0"
-                : isQuickNoteOpen && noteDockMode === "dock"
-                ? "flex-1 md:pr-[480px] lg:pr-[500px]"
+                : (isQuickNoteOpen && noteDockMode === "dock") || (isQuickTaskOpen && taskDockMode === "dock")
+                ? "flex-1 md:pr-[480px] lg:pr-[520px]"
                 : "flex-1"
             }`}
           >
@@ -1371,6 +1470,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               activeKamId={activeUser.id}
               defaultClientId={noteModalClientId}
               selectedNote={editingNote}
+              onRefresh={() => refreshWorkspace(activeUser.id)}
+            />
+
+            <TaskWorkspaceDrawer
+              isOpen={isQuickTaskOpen}
+              dockMode={taskDockMode}
+              onDockModeChange={(mode: TaskDockMode) => {
+                setTaskDockMode(mode);
+                localStorage.setItem("apflow_tasks_dock_mode", mode);
+              }}
+              onClose={() => {
+                setIsQuickTaskOpen(false);
+                setEditingTask(null);
+                setTaskModalClientId(null);
+              }}
+              clients={clients}
+              tasks={tasks}
+              activeKamId={activeUser.id}
+              defaultClientId={taskModalClientId}
+              defaultStatus={taskModalDefaultStatus}
+              selectedTask={editingTask}
               onRefresh={() => refreshWorkspace(activeUser.id)}
             />
 

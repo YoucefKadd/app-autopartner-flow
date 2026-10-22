@@ -50,6 +50,9 @@ import {
   Clock,
   Sliders,
   AlertTriangle,
+  CheckSquare,
+  Flame,
+  Columns3,
 } from "lucide-react";
 import {
   ClientItem,
@@ -58,6 +61,11 @@ import {
   NOTE_CATEGORIES,
   NoteCategory,
   NoteItem,
+  TaskItem,
+  TaskStatus,
+  TASK_STATUS_CONFIG,
+  TASK_CATEGORIES,
+  parseTaskChecklist,
   formatRelativeDate,
   formatFullTimestamp,
   getInitials,
@@ -65,6 +73,7 @@ import {
   hasPermission,
 } from "@/types/kam";
 import { useWorkspace } from "@/components/AppShell";
+import { TasksTab } from "@/components/TasksTab";
 import { NoteFormattingToolbar, FormattedNoteText } from "@/components/NoteFormatter";
 import { AddVisitModal } from "@/components/AddVisitModal";
 import { CalendarView } from "@/components/CalendarView";
@@ -95,7 +104,7 @@ interface ClientFullPageProps {
   onRefresh: () => void;
 }
 
-type MainTab = "overview" | "fiche" | "visites" | "ca" | "onboarding" | "notes";
+type MainTab = "overview" | "fiche" | "visites" | "ca" | "onboarding" | "tasks" | "notes";
 type FicheSubTab = "general" | "contacts" | "admin" | "compte_ap" | "logistique";
 
 export interface ContactPerson {
@@ -400,7 +409,24 @@ export function ClientFullPage({
   onTogglePinNote,
   onRefresh,
 }: ClientFullPageProps) {
-  const { loggedUser, openQuickNote } = useWorkspace();
+  const { loggedUser, tasks, openQuickNote, openQuickTask, refreshWorkspace } = useWorkspace();
+  const clientTasks = React.useMemo(() => {
+    if (tasks && tasks.length > 0) {
+      return tasks.filter((t) => t.clientId === client.id);
+    }
+    return client.tasks || [];
+  }, [tasks, client.id, client.tasks]);
+
+  async function handleQuickTaskStatusChange(taskId: string, status: TaskStatus) {
+    await fetch(`/api/tasks/${taskId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    refreshWorkspace();
+    onRefresh();
+  }
+
   const [noteViewMode, setNoteViewMode] = useState<"grid" | "list">("grid");
   const canViewCa = loggedUser ? hasPermission(loggedUser, "view_ca") : true;
   const canViewVisits = loggedUser ? hasPermission(loggedUser, "add_visits") : true;
@@ -2014,6 +2040,17 @@ export function ClientFullPage({
                 + Visite
               </button>
 
+              {/* Bouton Nouvelle tâche pour ce client */}
+              <button
+                type="button"
+                onClick={() => openQuickTask({ clientId: client.id, task: null })}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-xs font-semibold hover:bg-slate-800 dark:hover:bg-zinc-200 transition-colors shadow-sm cursor-pointer"
+                title="Créer ou afficher les tâches liées à ce client sur le côté"
+              >
+                <CheckSquare className="w-3.5 h-3.5 text-[#d90416]" />
+                + Tâche
+              </button>
+
               <button
                 type="button"
                 onClick={() => {
@@ -2118,7 +2155,24 @@ export function ClientFullPage({
             </span>
           </button>
 
-          {/* 4ème onglet : NOTES ET SUIVI KAM */}
+          {/* 6ème onglet : TÂCHES & KANBAN */}
+          <button
+            type="button"
+            onClick={() => setActiveTab("tasks")}
+            className={`py-3.5 border-b-2 transition-colors flex items-center gap-2 shrink-0 whitespace-nowrap ${
+              activeTab === "tasks"
+                ? "border-[#d90416] text-[#d90416] font-semibold"
+                : "border-transparent text-slate-500 hover:text-slate-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+            }`}
+          >
+            <CheckSquare className="w-3.5 h-3.5" />
+            <span>Tâches &amp; Kanban</span>
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-red-50 dark:bg-zinc-800 text-[#d90416] font-semibold">
+              {clientTasks.length}
+            </span>
+          </button>
+
+          {/* 7ème onglet : NOTES ET SUIVI KAM */}
           <button
             type="button"
             onClick={() => setActiveTab("notes")}
@@ -2270,6 +2324,169 @@ export function ClientFullPage({
             </div>
 
             <div className="lg:col-span-2 space-y-6">
+              {/* Bloc Tâches associées à ce client & leur état */}
+              <div className="rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-zinc-800/80">
+                  <div className="flex items-center gap-2.5">
+                    <span className="p-1.5 rounded-lg bg-red-50 dark:bg-red-950/40 text-[#d90416]">
+                      <CheckSquare className="w-4 h-4" />
+                    </span>
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-zinc-200 flex items-center gap-2">
+                        <span>Tâches associées ({clientTasks.length})</span>
+                        {clientTasks.length > 0 && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 dark:bg-zinc-800 dark:text-zinc-300">
+                              {clientTasks.filter((t) => t.status === "TODO").length} À faire
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                              {clientTasks.filter((t) => t.status === "IN_PROGRESS").length} En cours
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                              {clientTasks.filter((t) => t.status === "DONE").length} Terminé
+                            </span>
+                          </div>
+                        )}
+                      </h3>
+                      <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                        Suivi des actions, checklists et échéances pour {client.company}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openQuickTask({ clientId: client.id, task: null })}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#d90416] hover:bg-[#b80312] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                      title="Créer une tâche et l'afficher sur le côté / split-screen"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      + Nouvelle tâche (Panneau latéral)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("tasks")}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-200 hover:border-[#d90416] hover:text-[#d90416] transition-colors cursor-pointer"
+                    >
+                      <Columns3 className="w-3.5 h-3.5" />
+                      Vue Kanban complète →
+                    </button>
+                  </div>
+                </div>
+
+                {clientTasks.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-200 dark:border-zinc-800 bg-slate-50/40 dark:bg-zinc-950/40 p-5 text-center space-y-2">
+                    <p className="text-xs text-slate-500 dark:text-zinc-400">
+                      Aucune tâche associée à {client.company} pour le moment.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => openQuickTask({ clientId: client.id, task: null })}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-50 dark:bg-red-950/40 text-[#d90416] text-xs font-bold hover:bg-[#d90416] hover:text-white transition-colors cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Créer une première tâche pour ce client
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {clientTasks.slice(0, 5).map((task) => {
+                      const statusCfg = TASK_STATUS_CONFIG[task.status] || TASK_STATUS_CONFIG.TODO;
+                      const catCfg = TASK_CATEGORIES.find((c) => c.value === task.category) || TASK_CATEGORIES[0];
+                      const checklist = parseTaskChecklist(task.checklist);
+                      const clDone = checklist.filter((i) => i.completed).length;
+                      return (
+                        <div
+                          key={task.id}
+                          onClick={() => openQuickTask({ clientId: client.id, task })}
+                          className={`group flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl border cursor-pointer transition-all hover:border-[#d90416] ${
+                            task.priority && task.status !== "DONE"
+                              ? "border-rose-300 dark:border-rose-900/60 bg-rose-50/20 dark:bg-rose-950/10"
+                              : "border-slate-200/80 dark:border-zinc-800 bg-slate-50/40 dark:bg-zinc-950/40"
+                          }`}
+                        >
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {task.priority && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-rose-600 text-white text-[9px] font-extrabold uppercase">
+                                  <Flame className="w-2.5 h-2.5 fill-current" />
+                                  Prioritaire
+                                </span>
+                              )}
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${catCfg.badgeClass}`}>
+                                {catCfg.label}
+                              </span>
+                              <span
+                                className={`text-xs font-bold truncate ${
+                                  task.status === "DONE"
+                                    ? "line-through text-slate-400"
+                                    : "text-slate-900 dark:text-zinc-100"
+                                }`}
+                              >
+                                {task.title}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-zinc-400 flex-wrap">
+                              {task.dueDate && (
+                                <span className="inline-flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
+                                  <Calendar className="w-3 h-3" />
+                                  Échéance : {new Date(task.dueDate).toLocaleDateString("fr-FR")}
+                                  {task.dueTime ? ` à ${task.dueTime}` : ""}
+                                </span>
+                              )}
+                              {checklist.length > 0 && (
+                                <span className="inline-flex items-center gap-1 font-semibold">
+                                  <CheckSquare className="w-3 h-3 text-[#d90416]" />
+                                  Checklist {clDone}/{checklist.length}
+                                </span>
+                              )}
+                              <span className="font-mono text-[10px] text-slate-400">
+                                Horodaté : {formatFullTimestamp(task.createdAt)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div
+                            className="flex items-center gap-2 shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <select
+                              value={task.status}
+                              onChange={(e) =>
+                                handleQuickTaskStatusChange(task.id, e.target.value as TaskStatus)
+                              }
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border cursor-pointer focus:outline-none ${statusCfg.badgeClass}`}
+                            >
+                              <option value="TODO">À faire</option>
+                              <option value="IN_PROGRESS">En cours</option>
+                              <option value="DONE">Terminé</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => openQuickTask({ clientId: client.id, task })}
+                              className="p-1.5 rounded-lg border border-slate-200 dark:border-zinc-700 text-slate-500 hover:text-[#d90416] hover:bg-red-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                              title="Ouvrir sur le côté / split-screen"
+                            >
+                              <PanelRightClose className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {clientTasks.length > 5 && (
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab("tasks")}
+                        className="w-full py-1.5 text-center text-xs font-bold text-[#d90416] hover:underline"
+                      >
+                        Voir les {clientTasks.length} tâches en Kanban / Liste / Tableau →
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Carte Prise de note rapide avec raccourci Split-screen / Drawer */}
               <form
                 onSubmit={handleAddNote}
@@ -6302,6 +6519,30 @@ export function ClientFullPage({
               </div>
             )}
           </div>
+        )}
+
+        {/* =========================================================
+            ONGLET: TÂCHES & KANBAN DE CE CLIENT
+           ========================================================= */}
+        {activeTab === "tasks" && (
+          <TasksTab
+            tasks={clientTasks}
+            clients={[client]}
+            activeKamId={activeKamId}
+            defaultClientId={client.id}
+            compactClientMode
+            onRefresh={() => {
+              refreshWorkspace();
+              onRefresh();
+            }}
+            onOpenTaskDrawer={(opts) =>
+              openQuickTask({
+                clientId: client.id,
+                task: opts?.task,
+                defaultStatus: opts?.defaultStatus,
+              })
+            }
+          />
         )}
       </div>
 

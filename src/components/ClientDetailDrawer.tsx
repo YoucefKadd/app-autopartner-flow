@@ -13,15 +13,19 @@ import {
   Trash2,
   Pin,
   FileText,
+  CheckSquare,
+  Flame,
 } from "lucide-react";
 import {
   ClientItem,
   CLIENT_STATUS_CONFIG,
   NOTE_CATEGORIES,
   NoteItem,
+  TASK_STATUS_CONFIG,
   formatRelativeDate,
   getInitials,
 } from "@/types/kam";
+import { useWorkspace } from "@/components/AppShell";
 
 interface ClientDetailDrawerProps {
   client: ClientItem | null;
@@ -42,11 +46,16 @@ export function ClientDetailDrawer({
   onEditNote,
   onDeleteNote,
 }: ClientDetailDrawerProps) {
+  const { tasks, openQuickTask } = useWorkspace();
   if (!client) return null;
 
   const statusConfig =
     CLIENT_STATUS_CONFIG[client.status] || CLIENT_STATUS_CONFIG.ACTIVE;
   const clientNotes = client.notes || [];
+  const clientTasks =
+    tasks && tasks.length > 0
+      ? tasks.filter((t) => t.clientId === client.id)
+      : client.tasks || [];
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-black/20 backdrop-blur-[1px] animate-in fade-in duration-150">
@@ -172,6 +181,72 @@ export function ClientDetailDrawer({
                 {formatRelativeDate(client.lastContactAt)}
               </span>
             </div>
+          </div>
+
+          {/* Tasks linked to this client */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-400">
+                Tâches liées ({clientTasks.length})
+              </h3>
+              <button
+                onClick={() => openQuickTask({ clientId: client.id, task: null })}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-[#d90416] text-white hover:bg-[#b80312] transition-colors cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Ajouter une tâche
+              </button>
+            </div>
+
+            {clientTasks.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800 p-4 text-center">
+                <CheckSquare className="w-5 h-5 text-zinc-400 mx-auto mb-1" />
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Aucune tâche pour ce client.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {clientTasks.map((task) => {
+                  const stCfg =
+                    TASK_STATUS_CONFIG[task.status] || TASK_STATUS_CONFIG.TODO;
+                  return (
+                    <div
+                      key={task.id}
+                      onClick={() => openQuickTask({ clientId: client.id, task })}
+                      className="cursor-pointer rounded-xl border border-zinc-200/80 dark:border-zinc-800 p-3 bg-zinc-50/40 dark:bg-zinc-950/40 hover:border-[#d90416] transition-colors flex items-center justify-between gap-2"
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-1.5">
+                          {task.priority && (
+                            <Flame className="w-3 h-3 text-rose-600 fill-current shrink-0" />
+                          )}
+                          <p
+                            className={`text-xs font-bold truncate ${
+                              task.status === "DONE"
+                                ? "line-through text-zinc-400"
+                                : "text-zinc-900 dark:text-zinc-100"
+                            }`}
+                          >
+                            {task.title}
+                          </p>
+                        </div>
+                        {task.dueDate && (
+                          <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                            Échéance : {new Date(task.dueDate).toLocaleDateString("fr-FR")}
+                          </p>
+                        )}
+                      </div>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ${stCfg.badgeClass}`}
+                      >
+                        {stCfg.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Notes linked to this client */}

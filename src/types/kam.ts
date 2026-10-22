@@ -46,6 +46,7 @@ export interface ClientVisit {
     city?: string;
   };
   notes?: NoteItem[];
+  tasks?: TaskItem[];
 }
 
 export const CLIENT_VISIT_TYPES: Record<
@@ -170,6 +171,7 @@ export interface ClientItem {
     email: string;
   };
   notes?: NoteItem[];
+  tasks?: TaskItem[];
   _count?: {
     notes: number;
   };
@@ -375,3 +377,149 @@ export function encodeAssignedManagerIds(
   return cleanBase.join(",");
 }
 
+
+export type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
+
+export type TaskCategory =
+  | "RELANCE"
+  | "COMMERCIAL"
+  | "LOGISTIQUE"
+  | "LITIGE"
+  | "ADMIN"
+  | "ONBOARDING"
+  | "AUTRE";
+
+export interface TaskChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
+}
+
+export interface TaskItem {
+  id: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  category: TaskCategory | string;
+  priority: boolean;
+  dueDate: string | null; // YYYY-MM-DD
+  dueTime?: string | null; // HH:mm
+  checklist: string | null; // JSON string of TaskChecklistItem[]
+  clientId: string | null;
+  client?: {
+    id: string;
+    company: string;
+    contactName?: string;
+    status?: string;
+    city?: string;
+    apClientNumber?: string | null;
+  } | null;
+  kamId: string;
+  kam?: {
+    id: string;
+    name: string;
+  };
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const TASK_STATUS_CONFIG: Record<
+  TaskStatus,
+  {
+    label: string;
+    shortLabel: string;
+    badgeClass: string;
+    dotClass: string;
+    headerClass: string;
+    columnBgClass: string;
+  }
+> = {
+  TODO: {
+    label: "À faire",
+    shortLabel: "À faire",
+    badgeClass:
+      "bg-slate-500/12 text-slate-700 border-slate-400/25 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700",
+    dotClass: "bg-slate-500",
+    headerClass: "border-slate-300 dark:border-zinc-700",
+    columnBgClass: "bg-slate-100/70 dark:bg-zinc-900/60",
+  },
+  IN_PROGRESS: {
+    label: "En cours",
+    shortLabel: "En cours",
+    badgeClass:
+      "bg-amber-500/12 text-amber-800 border-amber-500/25 dark:bg-amber-400/15 dark:text-amber-300 dark:border-amber-400/25",
+    dotClass: "bg-amber-500",
+    headerClass: "border-amber-400 dark:border-amber-600",
+    columnBgClass: "bg-amber-50/40 dark:bg-amber-950/15",
+  },
+  DONE: {
+    label: "Terminé",
+    shortLabel: "Terminé",
+    badgeClass:
+      "bg-emerald-500/12 text-emerald-800 border-emerald-500/25 dark:bg-emerald-400/15 dark:text-emerald-300 dark:border-emerald-400/25",
+    dotClass: "bg-emerald-500",
+    headerClass: "border-emerald-400 dark:border-emerald-600",
+    columnBgClass: "bg-emerald-50/40 dark:bg-emerald-950/15",
+  },
+};
+
+export const TASK_CATEGORIES: {
+  value: TaskCategory;
+  label: string;
+  badgeClass: string;
+}[] = [
+  {
+    value: "COMMERCIAL",
+    label: "Action Commerciale",
+    badgeClass:
+      "bg-blue-500/10 text-blue-700 border-blue-500/20 dark:bg-blue-400/15 dark:text-blue-300 dark:border-blue-400/20",
+  },
+  {
+    value: "RELANCE",
+    label: "Relance Client",
+    badgeClass:
+      "bg-amber-500/10 text-amber-800 border-amber-500/20 dark:bg-amber-400/15 dark:text-amber-300 dark:border-amber-400/20",
+  },
+  {
+    value: "LOGISTIQUE",
+    label: "Logistique & SAS",
+    badgeClass:
+      "bg-sky-500/10 text-sky-800 border-sky-500/20 dark:bg-sky-400/15 dark:text-sky-300 dark:border-sky-400/20",
+  },
+  {
+    value: "LITIGE",
+    label: "Litige / SAV",
+    badgeClass:
+      "bg-rose-500/10 text-rose-800 border-rose-500/20 dark:bg-rose-400/15 dark:text-rose-300 dark:border-rose-400/20",
+  },
+  {
+    value: "ONBOARDING",
+    label: "Onboarding & Ouverture",
+    badgeClass:
+      "bg-purple-500/10 text-purple-700 border-purple-500/20 dark:bg-purple-400/15 dark:text-purple-300 dark:border-purple-400/20",
+  },
+  {
+    value: "ADMIN",
+    label: "Administratif / Contrat",
+    badgeClass:
+      "bg-emerald-500/10 text-emerald-800 border-emerald-500/20 dark:bg-emerald-400/15 dark:text-emerald-300 dark:border-emerald-400/20",
+  },
+  {
+    value: "AUTRE",
+    label: "Autre tâche",
+    badgeClass:
+      "bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700",
+  },
+];
+
+export function parseTaskChecklist(raw?: string | null): TaskChecklistItem[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((i) => i && typeof i.text === "string");
+    }
+  } catch {}
+  return [];
+}

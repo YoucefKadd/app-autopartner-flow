@@ -16,7 +16,10 @@ export async function GET(
         notes: {
           orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
         },
-        _count: { select: { notes: true } },
+        tasks: {
+          orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
+        },
+        _count: { select: { notes: true, tasks: true } },
       },
     });
 
@@ -68,9 +71,10 @@ export async function PATCH(
       data: updateData,
       include: {
         notes: { orderBy: { createdAt: "desc" } },
+        tasks: { orderBy: [{ priority: "desc" }, { createdAt: "desc" }] },
         photos: { orderBy: { createdAt: "desc" } },
         turnovers: { orderBy: [{ year: "desc" }, { month: "asc" }] },
-        _count: { select: { notes: true } },
+        _count: { select: { notes: true, tasks: true } },
       },
     });
 

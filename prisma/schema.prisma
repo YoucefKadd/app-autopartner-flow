@@ -23,6 +23,7 @@ model User {
   clients     Client[]
   notes       Note[]
   visits      Visit[]
+  tasks       Task[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -46,6 +47,7 @@ model Client {
   kam            User          @relation(fields: [kamId], references: [id], onDelete: Cascade)
   notes          Note[]
   visits         Visit[]
+  tasks          Task[]
   photos         ClientPhoto[]
   turnovers      Turnover[]
   directionId    String?       // Route transport / Direction ID AX
@@ -117,4 +119,23 @@ model Visit {
   notes         Note[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+model Task {
+  id          String    @id @default(cuid())
+  title       String
+  description String?   @db.LongText
+  status      String    @default("TODO") // "TODO" | "IN_PROGRESS" | "DONE"
+  category    String    @default("COMMERCIAL") // "RELANCE" | "COMMERCIAL" | "LOGISTIQUE" | "LITIGE" | "ADMIN" | "ONBOARDING" | "AUTRE"
+  priority    Boolean   @default(false) // true = Prioritaire / Urgent
+  dueDate     String?   // YYYY-MM-DD
+  dueTime     String?   // HH:mm
+  checklist   String?   @db.LongText // JSON array of { id: string, text: string, completed: boolean }
+  clientId    String?
+  client      Client?   @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  kamId       String
+  kam         User      @relation(fields: [kamId], references: [id], onDelete: Cascade)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 }

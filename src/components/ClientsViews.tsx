@@ -26,6 +26,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  CheckSquare,
+  Flame,
 } from "lucide-react";
 
 import {
@@ -33,6 +35,8 @@ import {
   ClientStatus,
   CLIENT_STATUS_CONFIG,
   KamUser,
+  TaskItem,
+  TASK_STATUS_CONFIG,
   formatRelativeDate,
   getInitials,
 } from "@/types/kam";
@@ -53,6 +57,7 @@ export const AVAILABLE_COLUMNS: ColumnConfig[] = [
   { id: "email", label: "E-mail", defaultVisible: true },
   { id: "phone", label: "Téléphone", defaultVisible: true },
   { id: "status", label: "Statut Client", defaultVisible: true },
+  { id: "tasks", label: "Tâches & État", defaultVisible: true },
   { id: "lastVisit", label: "Dernière Visite", defaultVisible: true },
   { id: "address", label: "Adresse complète", defaultVisible: false },
   { id: "directionId", label: "Direction ID / Route Transport", defaultVisible: false },
@@ -63,6 +68,7 @@ export const AVAILABLE_COLUMNS: ColumnConfig[] = [
 interface ClientsViewsProps {
   viewMode: "table" | "compact" | "grid" | "kanban";
   clients: ClientItem[];
+  tasks?: TaskItem[];
   activeUser: KamUser | null;
   tableSearch: string;
   onTableSearchChange: (val: string) => void;
@@ -78,6 +84,7 @@ interface ClientsViewsProps {
   onEditClient: (client: ClientItem) => void;
   onDeleteClient: (clientId: string) => void;
   onQuickNoteForClient: (clientId: string) => void;
+  onQuickTaskForClient?: (clientId: string, task?: TaskItem | null) => void;
   onAddVisitForClient?: (clientId: string) => void;
   onChangeStatus: (clientId: string, status: ClientStatus) => void;
 }
@@ -173,6 +180,7 @@ export type TableSortField =
 export function ClientsViews({
   viewMode,
   clients,
+  tasks = [],
   activeUser,
   tableSearch,
   onTableSearchChange,
@@ -188,6 +196,7 @@ export function ClientsViews({
   onEditClient,
   onDeleteClient,
   onQuickNoteForClient,
+  onQuickTaskForClient,
   onAddVisitForClient,
   onChangeStatus,
 }: ClientsViewsProps) {
@@ -197,18 +206,25 @@ export function ClientsViews({
   const [currentPage, setCurrentPage] = useState(1);
   const quickLogoInputRef = useRef<HTMLInputElement>(null);
 
+  function getClientTasksList(client: ClientItem): TaskItem[] {
+    if (tasks && tasks.length > 0) {
+      return tasks.filter((t) => t.clientId === client.id);
+    }
+    return client.tasks || [];
+  }
+
   // Column visibility state (persisted in localStorage)
   const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
     if (typeof window !== "undefined") {
       try {
-        const saved = localStorage.getItem("apflow_table_columns_v2");
+        const saved = localStorage.getItem("apflow_table_columns_v3");
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
         }
       } catch {}
     }
-    return ["company", "apCode", "city", "postalCode", "email", "phone", "status", "lastVisit", "actions"];
+    return ["company", "apCode", "city", "postalCode", "email", "phone", "status", "tasks", "lastVisit", "actions"];
   });
 
   const [columnMenuOpen, setColumnMenuOpen] = useState(false);
@@ -236,17 +252,17 @@ export function ClientsViews({
         next = [...prev, colId];
       }
       if (typeof window !== "undefined") {
-        localStorage.setItem("apflow_table_columns_v2", JSON.stringify(next));
+        localStorage.setItem("apflow_table_columns_v3", JSON.stringify(next));
       }
       return next;
     });
   }
 
   function resetColumnsToDefault() {
-    const defs = ["company", "apCode", "city", "postalCode", "email", "phone", "status", "lastVisit", "actions"];
+    const defs = ["company", "apCode", "city", "postalCode", "email", "phone", "status", "tasks", "lastVisit", "actions"];
     setVisibleColumns(defs);
     if (typeof window !== "undefined") {
-      localStorage.setItem("apflow_table_columns_v2", JSON.stringify(defs));
+      localStorage.setItem("apflow_table_columns_v3", JSON.stringify(defs));
     }
   }
 
@@ -254,7 +270,7 @@ export function ClientsViews({
     const all = AVAILABLE_COLUMNS.map((c) => c.id);
     setVisibleColumns(all);
     if (typeof window !== "undefined") {
-      localStorage.setItem("apflow_table_columns_v2", JSON.stringify(all));
+      localStorage.setItem("apflow_table_columns_v3", JSON.stringify(all));
     }
   }
 
@@ -666,6 +682,17 @@ export function ClientsViews({
                         </div>
                       </th>
                     )}
+                    {/* Colonne 8 : Tâches & État */}
+                    {isColumnVisible("tasks") && (
+                      <th
+                        className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[180px] select-none`}
+                      >
+                        <div className="flex items-center gap-1.5 text-slate-700 dark:text-zinc-200">
+                          <CheckSquare className="w-3.5 h-3.5 text-[#d90416]" />
+                          <span>TÂCHES &amp; ÉTAT</span>
+                        </div>
+                      </th>
+                    )}
                     {/* Colonne : Dernière Visite */}
                     {isColumnVisible("lastVisit") && (
                       <th
@@ -957,6 +984,109 @@ export function ClientsViews({
                           </td>
                         )}
 
+                        {/* 8. TÂCHES & ÉTAT */}
+                        {isColumnVisible("tasks") && (
+                          <td
+                            className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {(() => {
+                              const clientTasks = getClientTasksList(client);
+                              if (clientTasks.length === 0) {
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={() => onQuickTaskForClient?.(client.id, null)}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-dashed border-slate-200 dark:border-zinc-800 text-[11px] font-medium text-slate-400 hover:text-[#d90416] hover:border-red-300 dark:hover:border-red-900/50 transition-colors cursor-pointer"
+                                    title="Ajouter une tâche pour ce client"
+                                  >
+                                    <Plus className="w-2.5 h-2.5" />
+                                    <span>+ Tâche</span>
+                                  </button>
+                                );
+                              }
+                              const todoCount = clientTasks.filter((t) => t.status === "TODO").length;
+                              const inProgCount = clientTasks.filter((t) => t.status === "IN_PROGRESS").length;
+                              const doneCount = clientTasks.filter((t) => t.status === "DONE").length;
+                              const hasPriority = clientTasks.some((t) => t.priority && t.status !== "DONE");
+                              const topTask =
+                                clientTasks.find((t) => t.status === "IN_PROGRESS") ||
+                                clientTasks.find((t) => t.status === "TODO") ||
+                                clientTasks[0];
+
+                              return (
+                                <div className="flex flex-col gap-1 max-w-[220px]">
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    {hasPriority && (
+                                      <span
+                                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-rose-600 text-white text-[9px] font-extrabold uppercase"
+                                        title="Tâche prioritaire en cours"
+                                      >
+                                        <Flame className="w-2.5 h-2.5 fill-current" />
+                                      </span>
+                                    )}
+                                    {todoCount > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onQuickTaskForClient?.(client.id, clientTasks.find((t) => t.status === "TODO") || topTask)}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200 hover:border-slate-400 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700 cursor-pointer"
+                                        title="À faire — cliquer pour ouvrir"
+                                      >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-500" />
+                                        {todoCount} À faire
+                                      </button>
+                                    )}
+                                    {inProgCount > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onQuickTaskForClient?.(client.id, clientTasks.find((t) => t.status === "IN_PROGRESS") || topTask)}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-700 border border-amber-500/30 hover:border-amber-500 dark:text-amber-300 cursor-pointer"
+                                        title="En cours — cliquer pour ouvrir"
+                                      >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                        {inProgCount} En cours
+                                      </button>
+                                    )}
+                                    {doneCount > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onQuickTaskForClient?.(client.id, clientTasks.find((t) => t.status === "DONE") || topTask)}
+                                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-700 border border-emerald-500/30 hover:border-emerald-500 dark:text-emerald-300 cursor-pointer"
+                                        title="Terminé — cliquer pour ouvrir"
+                                      >
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                        {doneCount} Terminé{doneCount > 1 ? "s" : ""}
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => onQuickTaskForClient?.(client.id, null)}
+                                      className="p-0.5 rounded text-slate-400 hover:text-[#d90416] hover:bg-red-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                                      title="Nouvelle tâche pour ce client"
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                    </button>
+                                  </div>
+                                  {topTask && viewMode !== "compact" && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onQuickTaskForClient?.(client.id, topTask)}
+                                      className={`text-left text-[11px] font-medium truncate hover:text-[#d90416] cursor-pointer ${
+                                        topTask.status === "DONE"
+                                          ? "line-through text-slate-400"
+                                          : "text-slate-700 dark:text-zinc-300"
+                                      }`}
+                                      title={`Ouvrir la tâche : ${topTask.title}`}
+                                    >
+                                      • {topTask.title}
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </td>
+                        )}
+
                         {/* DERNIÈRE VISITE */}
                         {isColumnVisible("lastVisit") && (
                           <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 whitespace-nowrap`}>
@@ -999,6 +1129,16 @@ export function ClientsViews({
                                   className="p-1.5 rounded-lg text-slate-500 hover:text-[#d90416] hover:bg-red-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                                 >
                                   <Calendar className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {onQuickTaskForClient && (
+                                <button
+                                  type="button"
+                                  onClick={() => onQuickTaskForClient(client.id, null)}
+                                  title="Ajouter / Voir une tâche pour ce client"
+                                  className="p-1.5 rounded-lg text-slate-500 hover:text-[#d90416] hover:bg-red-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                                >
+                                  <CheckSquare className="w-3.5 h-3.5" />
                                 </button>
                               )}
                               <button
@@ -1224,6 +1364,46 @@ export function ClientsViews({
                         Contact {formatRelativeDate(client.lastContactAt)}
                       </span>
                     </div>
+
+                    {/* Tâches liées dans la vue Grille */}
+                    {(() => {
+                      const clientTasks = getClientTasksList(client);
+                      if (clientTasks.length === 0) return null;
+                      const todoCount = clientTasks.filter((t) => t.status === "TODO").length;
+                      const inProgCount = clientTasks.filter((t) => t.status === "IN_PROGRESS").length;
+                      const doneCount = clientTasks.filter((t) => t.status === "DONE").length;
+                      return (
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onQuickTaskForClient?.(client.id, clientTasks[0]);
+                          }}
+                          className="flex items-center justify-between gap-1.5 pt-1.5 mt-1 border-t border-slate-100 dark:border-zinc-800/60 text-[10px]"
+                        >
+                          <span className="inline-flex items-center gap-1 font-bold text-slate-700 dark:text-zinc-300">
+                            <CheckSquare className="w-3 h-3 text-[#d90416]" />
+                            {clientTasks.length} tâche{clientTasks.length > 1 ? "s" : ""}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {todoCount > 0 && (
+                              <span className="px-1.5 py-0.2 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-bold">
+                                {todoCount} À faire
+                              </span>
+                            )}
+                            {inProgCount > 0 && (
+                              <span className="px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold">
+                                {inProgCount} En cours
+                              </span>
+                            )}
+                            {doneCount > 0 && (
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold">
+                                {doneCount} OK
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -1245,6 +1425,16 @@ export function ClientsViews({
                     className="flex items-center gap-1"
                     onClick={(e) => e.stopPropagation()}
                   >
+                    {onQuickTaskForClient && (
+                      <button
+                        type="button"
+                        onClick={() => onQuickTaskForClient(client.id, null)}
+                        className="px-2 py-1 rounded-md bg-slate-100 dark:bg-zinc-800 text-[11px] font-semibold text-slate-700 dark:text-zinc-200 hover:bg-[#d90416] hover:text-white transition-colors"
+                        title="Ajouter une tâche pour ce client"
+                      >
+                        + Tâche
+                      </button>
+                    )}
                     {onAddVisitForClient && (
                       <button
                         type="button"
@@ -1361,9 +1551,28 @@ export function ClientsViews({
                               </span>
                             </div>
 
-                            {/* Visit badge in Kanban */}
-                            <div className="pt-0.5">
+                            {/* Visit badge & Tasks badge in Kanban */}
+                            <div className="pt-0.5 flex flex-wrap items-center gap-1.5">
                               {renderVisitStatusBadge(client)}
+                              {(() => {
+                                const clientTasks = getClientTasksList(client);
+                                if (clientTasks.length === 0) return null;
+                                const activeCount = clientTasks.filter((t) => t.status !== "DONE").length;
+                                return (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      onQuickTaskForClient?.(client.id, clientTasks[0]);
+                                    }}
+                                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-[#d90416] border border-red-200 dark:bg-red-950/40 dark:border-red-900/50 cursor-pointer"
+                                    title="Voir les tâches associées à ce client"
+                                  >
+                                    <CheckSquare className="w-2.5 h-2.5" />
+                                    {activeCount > 0 ? `${activeCount} active${activeCount > 1 ? "s" : ""}` : `${clientTasks.length} terminée${clientTasks.length > 1 ? "s" : ""}`}
+                                  </button>
+                                );
+                              })()}
                             </div>
 
                             <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1">
@@ -1405,11 +1614,16 @@ export function ClientsViews({
                               </select>
 
                               <div className="flex items-center gap-1.5">
-                                {notesCount > 0 && (
-                                  <span className="text-[10px] text-slate-400 flex items-center gap-0.5">
-                                    <FileText className="w-2.5 h-2.5" />
-                                    {notesCount}
-                                  </span>
+                                {onQuickTaskForClient && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      onQuickTaskForClient(client.id, null)
+                                    }
+                                    className="text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-[#d90416] hover:text-white transition-colors"
+                                  >
+                                    + Tâche
+                                  </button>
                                 )}
                                 <button
                                   type="button"

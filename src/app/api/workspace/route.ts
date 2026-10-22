@@ -80,13 +80,13 @@ export async function GET(request: Request) {
     // Each user (whether KAM, Manager, or Director) strictly views only their own created notes.
     const notesWhere = { kamId: loggedUser.id };
 
-    const [clients, notes] = await Promise.all([
+    const [clients, notes, tasks] = await Promise.all([
       prisma.client.findMany({
         where: whereClause,
         include: {
           kam: { select: { id: true, name: true, email: true } },
           _count: {
-            select: { notes: true },
+            select: { notes: true, tasks: true },
           },
         },
         orderBy: [{ updatedAt: "desc" }],
@@ -100,6 +100,23 @@ export async function GET(request: Request) {
           kam: { select: { id: true, name: true } },
         },
         orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
+      }),
+      prisma.task.findMany({
+        where: whereClause,
+        include: {
+          client: {
+            select: {
+              id: true,
+              company: true,
+              contactName: true,
+              status: true,
+              city: true,
+              apClientNumber: true,
+            },
+          },
+          kam: { select: { id: true, name: true } },
+        },
+        orderBy: [{ priority: "desc" }, { updatedAt: "desc" }],
       }),
     ]);
 
@@ -146,6 +163,7 @@ export async function GET(request: Request) {
       },
       clients,
       notes,
+      tasks,
     });
   } catch (error) {
     console.error("Workspace GET error:", error);
