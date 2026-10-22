@@ -49,22 +49,67 @@ const UNIFIED_TABLE_FIELDS: TargetFieldDef[] = [
     id: "apClientNumber",
     label: "Code Client AP (Compte)",
     required: true,
-    description: "Numéro de compte client Auto Partner (ex: ACCOUNTNUM1, Code AP)",
-    defaultMatches: ["accountnum1", "accountnum", "codeap", "code_ap", "numeroap", "codeclient", "numclient", "compte", "clientap", "no_client"],
+    description: "Numéro de compte client Auto Partner (ex: ACCOUNTNUM1, Code AP, CustAccount)",
+    defaultMatches: [
+      "accountnum1",
+      "accountnum",
+      "custaccount",
+      "account",
+      "codeap",
+      "code_ap",
+      "numeroap",
+      "codeclient",
+      "code_client",
+      "numclient",
+      "no_client",
+      "nclient",
+      "compte",
+      "clientap",
+      "no_compte",
+      "numcompte",
+      "codetiers",
+      "tiers",
+      "idclient"
+    ],
   },
   {
     id: "company",
     label: "Nom de l'Enseigne / Client",
-    required: true,
+    required: false,
     description: "Raison sociale ou nom d'enseigne (ex: NAMEALIAS ou Textbox)",
-    defaultMatches: ["namealias", "company", "nom", "enseigne", "client", "raisonsociale", "nomclient", "raison_sociale"],
+    defaultMatches: [
+      "namealias",
+      "company",
+      "nom",
+      "enseigne",
+      "client",
+      "raisonsociale",
+      "nomclient",
+      "raison_sociale",
+      "name",
+      "customername",
+      "designation",
+      "libelle",
+      "societe"
+    ],
   },
   {
     id: "address",
     label: "Adresse postale (Rue / Voie)",
     required: false,
     description: "Adresse du magasin (ex: ADDRESS, STREET, RUE, DELIVERYADDRESS)",
-    defaultMatches: ["address", "adresse", "street", "rue", "voie", "streetname", "address1", "deliveryaddress", "adressevoie", "adressedistr"],
+    defaultMatches: [
+      "address",
+      "adresse",
+      "street",
+      "rue",
+      "voie",
+      "streetname",
+      "address1",
+      "deliveryaddress",
+      "adressevoie",
+      "adressedistr"
+    ],
   },
   {
     id: "postalCode",
@@ -105,8 +150,19 @@ const UNIFIED_TABLE_FIELDS: TargetFieldDef[] = [
     id: "month",
     label: "Date / Période (Mois)",
     required: false,
-    description: "Format AAAA-MM, JJ/MM/AAAA ou Mois 1-12 (ex: INVOICEDATE, DATE)",
-    defaultMatches: ["invoicedate", "date", "periode", "mois", "month", "datefacture", "dateachat", "date_achat"],
+    description: "Format AAAA-MM, JJ/MM/AAAA ou Mois 1-12 (ex: INVOICEDATE, DATE, TRANSDATE)",
+    defaultMatches: [
+      "invoicedate",
+      "transdate",
+      "date",
+      "periode",
+      "mois",
+      "month",
+      "datefacture",
+      "dateachat",
+      "date_achat",
+      "echeance"
+    ],
   },
   {
     id: "year",
@@ -126,8 +182,25 @@ const UNIFIED_TABLE_FIELDS: TargetFieldDef[] = [
     id: "axPurchases",
     label: "Montant Achats AX (€ HT)",
     required: false,
-    description: "Montant des achats enregistrés dans AX (ex: ACHATS, AX, ACHATS_AX)",
-    defaultMatches: ["ax", "achats", "achatsax", "montantax", "achat", "purchases", "achats_ax", "montant_ax", "total_ax"],
+    description: "Montant des achats enregistrés dans AX (ex: ACHATS, AX, LINEAMOUNT, AMOUNTMST)",
+    defaultMatches: [
+      "ax",
+      "achats",
+      "achatsax",
+      "montantax",
+      "achat",
+      "purchases",
+      "achats_ax",
+      "montant_ax",
+      "total_ax",
+      "lineamount",
+      "amountmst",
+      "amount",
+      "montant",
+      "total",
+      "debit",
+      "valeur"
+    ],
   },
   {
     id: "kamName",
@@ -168,7 +241,7 @@ function cleanNumber(val: string | undefined): number {
 
 function parsePeriod(rawDate: string | undefined, defaultYear: number): { year: number; month: number } {
   if (!rawDate) return { year: defaultYear, month: 0 };
-  const s = rawDate.trim();
+  const s = rawDate.trim().replace(/\./g, "-");
   if (!s) return { year: defaultYear, month: 0 };
 
   // Match YYYY-MM or YYYY/MM or YYYY-MM-DD
@@ -211,8 +284,9 @@ interface ParsedCsvFile {
   mapping: Record<string, string>;
 }
 
-export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps) {
-  const { clients, refreshWorkspace } = useWorkspace();
+export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName }: CaImportModalProps) {
+  const { clients, activeUser, loggedUser, refreshWorkspace } = useWorkspace();
+  const effectiveKamId = targetKamId || (loggedUser?.role === "KAM" ? loggedUser.id : activeUser?.id);
   const caFileInputRef = useRef<HTMLInputElement>(null);
   const axFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -252,13 +326,27 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
     }
 
     const firstLine = lines[0].replace(/^\uFEFF/, "");
-    const delimiter = (firstLine.match(/;/g) || []).length > (firstLine.match(/,/g) || []).length ? ";" : ",";
+    const semicolons = (firstLine.match(/;/g) || []).length;
+    const commas = (firstLine.match(/,/g) || []).length;
+    const tabs = (firstLine.match(/\t/g) || []).length;
+    const pipes = (firstLine.match(/\|/g) || []).length;
+
+    let delimiter = ";";
+    if (tabs > semicolons && tabs > commas && tabs > pipes) {
+      delimiter = "\t";
+    } else if (commas > semicolons && commas > tabs && commas > pipes) {
+      delimiter = ",";
+    } else if (pipes > semicolons && pipes > commas && pipes > tabs) {
+      delimiter = "|";
+    }
 
     const headers = firstLine.split(delimiter).map((h) => h.trim().replace(/^["']|["']$/g, ""));
     const rows: string[][] = [];
     for (let i = 1; i < lines.length; i++) {
       const cells = lines[i].split(delimiter).map((c) => c.trim().replace(/^["']|["']$/g, ""));
-      rows.push(cells);
+      if (cells.some((c) => c.length > 0)) {
+        rows.push(cells);
+      }
     }
     return { headers, rows };
   }
@@ -336,6 +424,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
   }
 
   // Pre-aggregated preview merging both CA and AX files by Client and Period
+  // ALL CLIENTS from CA AND ALL CLIENTS from AX are preserved and imported!
   const consolidatedRows = useMemo(() => {
     if (!caFile && !axFile) return [];
 
@@ -352,10 +441,10 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
       matchedClient: string | null;
       year: number;
       month: number;
-      amount?: number;
-      axPurchases?: number;
-      ordersCount?: number;
-      target?: number;
+      amount: number;
+      axPurchases: number;
+      ordersCount: number;
+      target: number;
       source: "BOTH" | "CA_ONLY" | "AX_ONLY";
     }
 
@@ -403,20 +492,30 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
         const email = emailIdx >= 0 ? row[emailIdx]?.trim() : undefined;
         const phone = phoneIdx >= 0 ? row[phoneIdx]?.trim() : undefined;
 
-        const lookupCode = apCode.toLowerCase();
-        const matched = clients.find(
-          (c) =>
-            (lookupCode && c.apClientNumber && c.apClientNumber.trim().toLowerCase() === lookupCode) ||
-            (company && c.company.toLowerCase().includes(company.toLowerCase()))
-        );
+        const cleanAp = apCode.toLowerCase();
+        const numericAp = cleanAp.replace(/^0+/, "");
+        const matched = clients.find((c) => {
+          if (cleanAp && c.apClientNumber) {
+            const cClean = c.apClientNumber.trim().toLowerCase();
+            if (cClean === cleanAp) return true;
+            if (numericAp && cClean.replace(/^0+/, "") === numericAp) return true;
+          }
+          if (company && c.company) {
+            const cComp = c.company.toLowerCase();
+            const qComp = company.toLowerCase();
+            if (cComp.includes(qComp) || qComp.includes(cComp)) return true;
+          }
+          return false;
+        });
 
-        const groupKey = `${(apCode || company).toLowerCase()}_${year}_${month}`;
+        const clientName = company || (matched ? matched.company : apCode ? `Client AP ${apCode}` : "Client CA");
+        const groupKey = `${(apCode || clientName).toLowerCase()}_${year}_${month}`;
 
         if (!rowMap.has(groupKey)) {
           rowMap.set(groupKey, {
             key: groupKey,
             apCode,
-            company: company || (matched ? matched.company : ""),
+            company: clientName,
             address: addr || (matched ? matched.address || undefined : undefined),
             postalCode: cp || (matched ? matched.postalCode || undefined : undefined),
             city: city || (matched ? matched.city : "France"),
@@ -427,6 +526,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
             year,
             month,
             amount,
+            axPurchases: 0,
             ordersCount: orders,
             target,
             source: "CA_ONLY",
@@ -445,6 +545,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
     }
 
     // 2. Process AX file if present
+    // GUARANTEE: Even if a client has ZERO CA, they are completely kept and imported!
     if (axFile) {
       const apIdx = axFile.mapping.apClientNumber ? axFile.headers.indexOf(axFile.mapping.apClientNumber) : -1;
       const compIdx = axFile.mapping.company ? axFile.headers.indexOf(axFile.mapping.company) : -1;
@@ -479,20 +580,53 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
         const email = emailIdx >= 0 ? row[emailIdx]?.trim() : undefined;
         const phone = phoneIdx >= 0 ? row[phoneIdx]?.trim() : undefined;
 
-        const lookupCode = apCode.toLowerCase();
-        const matched = clients.find(
-          (c) =>
-            (lookupCode && c.apClientNumber && c.apClientNumber.trim().toLowerCase() === lookupCode) ||
-            (company && c.company.toLowerCase().includes(company.toLowerCase()))
-        );
+        const cleanAp = apCode.toLowerCase();
+        const numericAp = cleanAp.replace(/^0+/, "");
+        const matched = clients.find((c) => {
+          if (cleanAp && c.apClientNumber) {
+            const cClean = c.apClientNumber.trim().toLowerCase();
+            if (cClean === cleanAp) return true;
+            if (numericAp && cClean.replace(/^0+/, "") === numericAp) return true;
+          }
+          if (company && c.company) {
+            const cComp = c.company.toLowerCase();
+            const qComp = company.toLowerCase();
+            if (cComp.includes(qComp) || qComp.includes(cComp)) return true;
+          }
+          return false;
+        });
 
-        const groupKey = `${(apCode || company).toLowerCase()}_${year}_${month}`;
+        // Exact period match key
+        const exactKey = `${(apCode || company).toLowerCase()}_${year}_${month}`;
 
-        if (!rowMap.has(groupKey)) {
-          rowMap.set(groupKey, {
-            key: groupKey,
+        // Look for existing row in rowMap
+        let existingKey: string | null = rowMap.has(exactKey) ? exactKey : null;
+
+        if (!existingKey) {
+          // If no exact match (e.g. AX has month 0 or no date, but CA had months), find existing client entry in rowMap
+          for (const [k, r] of rowMap.entries()) {
+            const rAp = (r.apCode || "").toLowerCase();
+            const rComp = (r.company || "").toLowerCase();
+            const isSameCode = (cleanAp && rAp === cleanAp) || (numericAp && rAp.replace(/^0+/, "") === numericAp);
+            const isSameComp = company && rComp && (rComp.includes(company.toLowerCase()) || company.toLowerCase().includes(rComp));
+
+            if ((isSameCode || isSameComp) && r.year === year) {
+              if (r.month === month || month === 0) {
+                existingKey = k;
+                break;
+              }
+            }
+          }
+        }
+
+        if (!existingKey) {
+          // Client only in AX (NOT in CA file) - MUST BE FULLY IMPORTED WITH CA = 0 €!
+          const clientName = company || (matched ? matched.company : apCode ? `Client AP ${apCode}` : "Client AX");
+
+          rowMap.set(exactKey, {
+            key: exactKey,
             apCode,
-            company: company || (matched ? matched.company : ""),
+            company: clientName,
             address: addr || (matched ? matched.address || undefined : undefined),
             postalCode: cp || (matched ? matched.postalCode || undefined : undefined),
             city: city || (matched ? matched.city : "France"),
@@ -501,13 +635,19 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
             matchedClient: matched ? matched.company : null,
             year,
             month,
+            amount: 0, // STRICTLY 0 € for clients without CA data!
             axPurchases: axVal,
+            ordersCount: 0,
+            target: 0,
             source: "AX_ONLY",
           });
         } else {
-          const existing = rowMap.get(groupKey)!;
+          const existing = rowMap.get(existingKey)!;
           existing.axPurchases = (existing.axPurchases || 0) + axVal;
-          existing.source = "BOTH";
+          existing.source = existing.source === "CA_ONLY" ? "BOTH" : existing.source;
+          if ((!existing.company || existing.company.startsWith("Client AP")) && company) {
+            existing.company = company;
+          }
           if (!existing.matchedClient && matched) {
             existing.matchedClient = matched.company;
           }
@@ -529,7 +669,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
 
     const payloadRows = consolidatedRows.map((r) => ({
       apClientNumber: r.apCode || undefined,
-      company: r.company || undefined,
+      company: r.company || (r.apCode ? `Client AP ${r.apCode}` : "Client Importé"),
       address: r.address || undefined,
       postalCode: r.postalCode || undefined,
       city: r.city || undefined,
@@ -538,17 +678,20 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
       phone: r.phone || undefined,
       year: r.year,
       month: r.month,
-      amount: r.amount !== undefined ? r.amount : undefined,
-      axPurchases: r.axPurchases !== undefined ? r.axPurchases : undefined,
-      ordersCount: r.ordersCount !== undefined ? r.ordersCount : undefined,
-      target: r.target !== undefined ? r.target : undefined,
+      amount: r.amount !== undefined ? r.amount : 0,
+      axPurchases: r.axPurchases !== undefined ? r.axPurchases : 0,
+      ordersCount: r.ordersCount !== undefined ? r.ordersCount : 0,
+      target: r.target !== undefined ? r.target : 0,
     }));
 
     try {
       const res = await fetch("/api/ca/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: payloadRows }),
+        body: JSON.stringify({
+          rows: payloadRows,
+          targetKamId: effectiveKamId || undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -574,6 +717,8 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
   const totalCA = consolidatedRows.reduce((acc, r) => acc + (r.amount || 0), 0);
   const totalAX = consolidatedRows.reduce((acc, r) => acc + (r.axPurchases || 0), 0);
   const bothCount = consolidatedRows.filter((r) => r.source === "BOTH").length;
+  const caOnlyCount = consolidatedRows.filter((r) => r.source === "CA_ONLY").length;
+  const axOnlyCount = consolidatedRows.filter((r) => r.source === "AX_ONLY").length;
 
   const modalContent = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -1133,7 +1278,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
           {step === "preview" && (
             <div className="space-y-4">
               {/* Summary KPIs */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200/80 dark:border-zinc-800">
                   <div className="text-[10px] uppercase font-bold text-slate-400">Total Enregistrements</div>
                   <div className="text-base font-bold text-slate-900 dark:text-white mt-0.5">
@@ -1147,6 +1292,15 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                   </div>
                   <div className="text-base font-bold text-emerald-700 dark:text-emerald-300 mt-0.5">
                     {bothCount}
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-200/60 dark:border-purple-900/40">
+                  <div className="text-[10px] uppercase font-bold text-purple-700 dark:text-purple-400">
+                    AX Seul (CA à 0 €)
+                  </div>
+                  <div className="text-base font-bold text-purple-700 dark:text-purple-300 mt-0.5">
+                    {axOnlyCount}
                   </div>
                 </div>
 
@@ -1209,10 +1363,10 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                           {r.month > 0 ? `${r.month.toString().padStart(2, "0")}/` : "Annuel "}{r.year}
                         </td>
                         <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white">
-                          {r.amount !== undefined ? `${r.amount.toLocaleString("fr-FR")} €` : "—"}
+                          {r.amount !== undefined && r.amount > 0 ? `${r.amount.toLocaleString("fr-FR")} €` : "0 €"}
                         </td>
                         <td className="p-2.5 text-right font-semibold text-purple-700 dark:text-purple-300">
-                          {r.axPurchases !== undefined ? `${r.axPurchases.toLocaleString("fr-FR")} €` : "—"}
+                          {r.axPurchases !== undefined && r.axPurchases > 0 ? `${r.axPurchases.toLocaleString("fr-FR")} €` : "0 €"}
                         </td>
                         <td className="p-2.5 text-center">
                           {r.source === "BOTH" ? (
@@ -1225,7 +1379,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                             </span>
                           ) : (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300">
-                              AX seul
+                              AX seul (CA à 0 €)
                             </span>
                           )}
                         </td>

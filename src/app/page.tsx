@@ -660,6 +660,8 @@ export default function DashboardHomePage() {
       <CaImportModal
         isOpen={isCaModalOpen}
         onClose={() => setIsCaModalOpen(false)}
+        targetKamId={activeUser?.id}
+        kamName={activeUser?.name}
         onSuccess={() => {
           setIsCaModalOpen(false);
           refreshWorkspace();

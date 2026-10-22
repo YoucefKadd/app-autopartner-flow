@@ -21,7 +21,7 @@ export interface ImportCaRow {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { rows } = body as { rows: ImportCaRow[] };
+    const { rows, targetKamId } = body as { rows: ImportCaRow[]; targetKamId?: string };
 
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json(
@@ -49,22 +49,24 @@ export async function POST(request: Request) {
     let unmatchedCount = 0;
     const unmatchedItems: string[] = [];
 
-    // Retrieve default KAM for auto-creation
-    const defaultKam =
+    // Retrieve designated KAM for auto-creation (prefer user's targetKamId)
+    const assignedKam =
+      (targetKamId ? await prisma.user.findUnique({ where: { id: targetKamId } }) : null) ||
       (await prisma.user.findFirst({ where: { role: "KAM" } })) ||
       (await prisma.user.findFirst());
 
     for (const row of rows) {
       const cleanAp = (row.apClientNumber || "").trim().toLowerCase();
+      const numericAp = cleanAp.replace(/^0+/, "");
       const cleanCompany = (row.company || "").trim().toLowerCase();
 
-      // 1. Match by Code AP first!
+      // 1. Match by Code AP (exact or without leading zeros)
       let matchedClient = cleanAp
-        ? clients.find(
-            (c) =>
-              c.apClientNumber &&
-              c.apClientNumber.trim().toLowerCase() === cleanAp
-          )
+        ? clients.find((c) => {
+            if (!c.apClientNumber) return false;
+            const cClean = c.apClientNumber.trim().toLowerCase();
+            return cClean === cleanAp || (numericAp && cClean.replace(/^0+/, "") === numericAp);
+          })
         : null;
 
       // 2. Fallback to matching by Company name
@@ -77,28 +79,38 @@ export async function POST(request: Request) {
         );
       }
 
-      // 3. If client does not exist yet, auto-create it so no data is lost!
-      if (!matchedClient && (cleanAp || cleanCompany) && defaultKam) {
+      // 3. If client does not exist yet in DB, auto-create it so NO client from CA or AX is lost!
+      if (!matchedClient && (cleanAp || cleanCompany) && assignedKam) {
         try {
+          const clientCompany = (
+            row.company && !row.company.startsWith("Client AP")
+              ? row.company
+              : row.apClientNumber
+              ? `Client AP ${row.apClientNumber}`
+              : "Nouveau Client Importé"
+          ).trim();
+
           const createdClient = await prisma.client.create({
             data: {
-              company: (row.company || `Client AP ${row.apClientNumber}`).trim(),
+              company: clientCompany,
               apClientNumber: row.apClientNumber ? row.apClientNumber.trim() : null,
               address: row.address ? row.address.trim() : null,
               postalCode: row.postalCode ? row.postalCode.trim() : null,
-              city: row.city ? row.city.trim() : "France",
+              city: row.city && row.city.trim() ? row.city.trim() : "France",
               contactName: row.contactName ? row.contactName.trim() : "Contact Comptoir",
-              email: row.email ? row.email.trim().toLowerCase() : `contact.${cleanAp || Date.now()}@client.autopartner.fr`,
+              email: row.email
+                ? row.email.trim().toLowerCase()
+                : `contact.${cleanAp || Date.now() + Math.random().toString(36).substring(7)}@client.autopartner.fr`,
               phone: row.phone ? row.phone.trim() : "Non renseigné",
               position: "Gérant / Responsable",
               status: "ACTIVE",
-              kamId: defaultKam.id,
+              kamId: assignedKam.id,
             },
           });
           matchedClient = createdClient;
           clients.push(createdClient);
-        } catch {
-          // If creation fails (e.g. duplicate constraint), proceed
+        } catch (createErr) {
+          console.error("Failed to auto-create client:", createErr);
         }
       }
 
