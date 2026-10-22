@@ -39,6 +39,7 @@ import {
   LayoutDashboard,
   CheckSquare,
   Kanban,
+  UserPlus,
 } from "lucide-react";
 import { ClientItem, KamUser, NoteItem, TaskItem, TaskStatus, ClientVisit, getInitials, hasPermission, getAssignedManagerIds } from "@/types/kam";
 import { QuickNoteModal } from "@/components/QuickNoteModal";
@@ -623,28 +624,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Plus className="w-4 h-4 stroke-[2.5]" />
             </button>
 
-              {/* QUICK TASK BUTTON */}
-              <button
-                type="button"
-                onClick={() => openQuickTask()}
-                title="Ajouter / Ouvrir une tâche sur le côté"
-                className={`w-full flex items-center ${
-                  sidebarExpanded
-                    ? "justify-between px-3.5 py-2"
-                    : "justify-center p-2"
-                } rounded-xl bg-slate-900 dark:bg-zinc-800 hover:bg-[#d90416] text-white font-semibold text-xs shadow-2xs transition-all cursor-pointer`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <CheckSquare className="w-4 h-4 shrink-0" />
-                  {sidebarExpanded && <span>Nouvelle Tâche</span>}
-                </div>
-                {sidebarExpanded && (
-                  <span className="px-1.5 py-0.5 text-[10px] rounded bg-white/15 text-white font-bold">
-                    +
-                  </span>
-                )}
-              </button>
-
             {/* Global Search Results Dropdown Overlay */}
             {searchDropdownOpen && searchResults && (
               <div className="absolute top-full left-0 right-0 mt-2 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl p-3 z-50 text-slate-800 dark:text-zinc-200 max-h-[80vh] overflow-y-auto space-y-3">
@@ -1025,20 +1004,56 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </button>
               </div>
 
-              {/* Quick Note Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileDrawerOpen(false);
-                  openQuickNote();
-                }}
-                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#d90416] hover:bg-[#b80312] text-white font-semibold text-xs shadow-sm transition-all"
-              >
-                <div className="flex items-center gap-2.5">
-                  <Plus className="w-4 h-4 stroke-[2.5]" />
-                  <span>Ajouter une note</span>
-                </div>
-              </button>
+              {/* Quick Action Buttons (Mobile) */}
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileDrawerOpen(false);
+                    openQuickNote();
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#d90416] hover:bg-[#b80312] text-white font-semibold text-xs shadow-sm transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Plus className="w-4 h-4 stroke-[2.5]" />
+                    <span>Ajouter une note</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileDrawerOpen(false);
+                    openQuickTask();
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl bg-slate-900 dark:bg-zinc-800 hover:bg-[#d90416] text-white font-semibold text-xs shadow-2xs transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <CheckSquare className="w-4 h-4" />
+                    <span>Ajouter une tâche</span>
+                  </div>
+                  <span className="px-1.5 py-0.5 text-[10px] rounded bg-white/15 text-white font-bold">
+                    +
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileDrawerOpen(false);
+                    openClientModal(null);
+                  }}
+                  className="w-full flex items-center justify-between px-3.5 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/80 hover:border-[#d90416] hover:text-[#d90416] text-slate-800 dark:text-zinc-100 font-semibold text-xs transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <UserPlus className="w-4 h-4 text-[#d90416]" />
+                    <span>Ajouter un client</span>
+                  </div>
+                  <span className="px-1.5 py-0.5 text-[10px] rounded bg-red-500/10 text-[#d90416] font-bold">
+                    +
+                  </span>
+                </button>
+              </div>
 
               {/* Nav links */}
               <div className="pt-2 space-y-1">
@@ -1203,7 +1218,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   sidebarExpanded
                     ? "justify-between px-3.5 py-2.5"
                     : "justify-center p-2.5"
-                } rounded-xl bg-[#d90416] hover:bg-[#b80312] text-white font-semibold text-xs shadow-sm transition-all`}
+                } rounded-xl bg-[#d90416] hover:bg-[#b80312] text-white font-semibold text-xs shadow-sm transition-all cursor-pointer`}
               >
                 <div className="flex items-center gap-2.5">
                   <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
@@ -1213,6 +1228,50 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <kbd className="px-1.5 py-0.5 text-[10px] rounded bg-white/20 text-white font-mono">
                     N
                   </kbd>
+                )}
+              </button>
+
+              {/* 2ND QUICK BTN: AJOUTER UNE TÂCHE */}
+              <button
+                type="button"
+                onClick={() => openQuickTask()}
+                title="Ajouter une tâche (Panneau latéral / Kanban)"
+                className={`w-full flex items-center ${
+                  sidebarExpanded
+                    ? "justify-between px-3.5 py-2"
+                    : "justify-center p-2.5"
+                } rounded-xl bg-slate-900 dark:bg-zinc-800 hover:bg-[#d90416] text-white font-semibold text-xs shadow-2xs transition-all cursor-pointer`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <CheckSquare className="w-4 h-4 shrink-0" />
+                  {sidebarExpanded && <span>Ajouter une tâche</span>}
+                </div>
+                {sidebarExpanded && (
+                  <span className="px-1.5 py-0.5 text-[10px] rounded bg-white/15 text-white font-bold">
+                    +
+                  </span>
+                )}
+              </button>
+
+              {/* 3RD QUICK BTN: AJOUTER UN CLIENT */}
+              <button
+                type="button"
+                onClick={() => openClientModal(null)}
+                title="Ajouter un nouveau client"
+                className={`w-full flex items-center ${
+                  sidebarExpanded
+                    ? "justify-between px-3.5 py-2"
+                    : "justify-center p-2.5"
+                } rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-800/70 hover:border-[#d90416] hover:text-[#d90416] text-slate-800 dark:text-zinc-100 font-semibold text-xs transition-all cursor-pointer`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <UserPlus className="w-4 h-4 text-[#d90416] shrink-0" />
+                  {sidebarExpanded && <span>Ajouter un client</span>}
+                </div>
+                {sidebarExpanded && (
+                  <span className="px-1.5 py-0.5 text-[10px] rounded bg-red-500/10 text-[#d90416] font-bold">
+                    +
+                  </span>
                 )}
               </button>
 
