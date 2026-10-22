@@ -134,14 +134,14 @@ const UNIFIED_TABLE_FIELDS: TargetFieldDef[] = [
     id: "address",
     label: "Adresse postale (Rue / Voie)",
     required: false,
-    description: "Adresse du magasin (ex: ADDRESS, STREET, RUE, DELIVERYADDRESS)",
+    description: "Adresse du magasin (ex: Street name, ADDRESS, STREET, RUE, DELIVERYADDRESS)",
     defaultMatches: [
+      "streetname",
+      "street",
       "address",
       "adresse",
-      "street",
       "rue",
       "voie",
-      "streetname",
       "address1",
       "deliveryaddress",
       "adressevoie",
@@ -152,8 +152,17 @@ const UNIFIED_TABLE_FIELDS: TargetFieldDef[] = [
     id: "postalCode",
     label: "Code Postal",
     required: false,
-    description: "Code postal d'implantation (ex: ZIPCODE, CP, CODEPOSTAL)",
-    defaultMatches: ["zipcode", "zip", "cp", "codepostal", "postalcode", "code_postal", "postcode"],
+    description: "Code postal d'implantation (ex: ZIP/postal Code, ZIPCODE, CP, CODEPOSTAL)",
+    defaultMatches: [
+      "zippostalcode",
+      "zipcode",
+      "postalcode",
+      "codepostal",
+      "code_postal",
+      "postcode",
+      "zip",
+      "cp"
+    ],
   },
   {
     id: "city",
@@ -167,21 +176,48 @@ const UNIFIED_TABLE_FIELDS: TargetFieldDef[] = [
     label: "Nom Contact Principal",
     required: false,
     description: "Interlocuteur direct / responsable magasin (ex: CONTACT, RESPONSABLE)",
-    defaultMatches: ["contact", "contactname", "interlocuteur", "responsable", "nom_contact"],
+    defaultMatches: [
+      "contactname",
+      "contactperson",
+      "contactpersonid",
+      "primarycontact",
+      "contact",
+      "interlocuteur",
+      "responsable",
+      "nom_contact"
+    ],
   },
   {
     id: "email",
     label: "Email Contact",
     required: false,
-    description: "Adresse email directe de contact (ex: EMAIL)",
-    defaultMatches: ["email", "courriel", "mail", "e_mail"],
+    description: "Adresse email directe de contact (ex: EMAIL, E-mail, Mail)",
+    defaultMatches: [
+      "email",
+      "e_mail",
+      "emailaddress",
+      "electronicaddress",
+      "primaryemail",
+      "courriel",
+      "mail"
+    ],
   },
   {
     id: "phone",
     label: "Téléphone",
     required: false,
-    description: "Téléphone direct ou portable (ex: PHONE, TEL)",
-    defaultMatches: ["phone", "tel", "telephone", "portable", "mobile"],
+    description: "Téléphone direct ou portable (ex: PHONE, Telephone, TEL)",
+    defaultMatches: [
+      "telephone",
+      "phone",
+      "cellularphone",
+      "mobilephone",
+      "phonelocal",
+      "numerotelephone",
+      "tel",
+      "portable",
+      "mobile"
+    ],
   },
   {
     id: "month",
@@ -622,6 +658,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
       const addrIdx = axFile.mapping.address ? axFile.headers.indexOf(axFile.mapping.address) : -1;
       const cpIdx = axFile.mapping.postalCode ? axFile.headers.indexOf(axFile.mapping.postalCode) : -1;
       const cityIdx = axFile.mapping.city ? axFile.headers.indexOf(axFile.mapping.city) : -1;
+      const contactIdx = axFile.mapping.contactName ? axFile.headers.indexOf(axFile.mapping.contactName) : -1;
       const emailIdx = axFile.mapping.email ? axFile.headers.indexOf(axFile.mapping.email) : -1;
       const phoneIdx = axFile.mapping.phone ? axFile.headers.indexOf(axFile.mapping.phone) : -1;
       const statusIdx = axFile.mapping.status ? axFile.headers.indexOf(axFile.mapping.status) : -1;
@@ -649,6 +686,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
         const addr = addrIdx >= 0 ? row[addrIdx]?.trim() : undefined;
         const cp = cpIdx >= 0 ? row[cpIdx]?.trim() : undefined;
         const city = cityIdx >= 0 ? row[cityIdx]?.trim() : undefined;
+        const contact = contactIdx >= 0 ? row[contactIdx]?.trim() : undefined;
         const email = emailIdx >= 0 ? row[emailIdx]?.trim() : undefined;
         const phone = phoneIdx >= 0 ? row[phoneIdx]?.trim() : undefined;
         const statusVal = statusIdx >= 0 ? row[statusIdx]?.trim() : undefined;
@@ -704,7 +742,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
             address: addr || (matched ? matched.address || undefined : undefined),
             postalCode: cp || (matched ? matched.postalCode || undefined : undefined),
             city: city || (matched ? matched.city : "France"),
-            contactName: (matched ? matched.contactName : undefined),
+            contactName: contact || (matched ? matched.contactName : undefined),
             email: email || (matched ? matched.email : undefined),
             phone: phone || (matched ? matched.phone : undefined),
             status: statusVal || (matched ? matched.status : undefined),
@@ -728,11 +766,12 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
               if (axVal > 0) r.axPurchases = (r.axPurchases || 0) + axVal;
               r.source = r.source === "CA_ONLY" ? "BOTH" : r.source;
               if (company && (!r.company || r.company.startsWith("Client AP"))) r.company = company;
-              if (addr && !r.address) r.address = addr;
-              if (cp && !r.postalCode) r.postalCode = cp;
-              if (city && (!r.city || r.city === "France")) r.city = city;
-              if (email && !r.email) r.email = email;
-              if (phone && !r.phone) r.phone = phone;
+              if (addr) r.address = addr;
+              if (cp) r.postalCode = cp;
+              if (city) r.city = city;
+              if (contact) r.contactName = contact;
+              if (email) r.email = email;
+              if (phone) r.phone = phone;
               if (statusVal) r.status = statusVal;
               if (dirVal) r.directionId = dirVal;
             }

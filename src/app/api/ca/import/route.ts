@@ -138,10 +138,10 @@ export async function POST(request: Request) {
       if (row.company && matchedClient.company && matchedClient.company.startsWith("Client AP") && !row.company.startsWith("Client AP")) {
         clientUpdate.company = row.company.trim();
       }
-      if (row.address && !matchedClient.address) clientUpdate.address = row.address.trim();
-      if (row.postalCode && !matchedClient.postalCode) clientUpdate.postalCode = row.postalCode.trim();
-      if (row.city && (!matchedClient.city || matchedClient.city === "France")) clientUpdate.city = row.city.trim();
-      if (row.contactName && (!matchedClient.contactName || matchedClient.contactName === "Contact Comptoir")) clientUpdate.contactName = row.contactName.trim();
+      if (row.address && row.address.trim()) clientUpdate.address = row.address.trim();
+      if (row.postalCode && row.postalCode.trim()) clientUpdate.postalCode = row.postalCode.trim();
+      if (row.city && row.city.trim() && row.city.trim() !== "France") clientUpdate.city = row.city.trim();
+      if (row.contactName && row.contactName.trim() && row.contactName.trim() !== "Contact Comptoir") clientUpdate.contactName = row.contactName.trim();
             if (row.email && row.email.trim()) {
         clientUpdate.email = row.email.trim().toLowerCase();
       } else if (matchedClient.email && matchedClient.email.includes("@client.autopartner.fr")) {
@@ -164,6 +164,7 @@ export async function POST(request: Request) {
           where: { id: matchedClient.id },
           data: clientUpdate,
         }).catch(() => {});
+        Object.assign(matchedClient, clientUpdate);
       }
 
       const year = Number(row.year) || new Date().getFullYear();

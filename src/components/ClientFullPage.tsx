@@ -429,12 +429,12 @@ export function ClientFullPage({
   const [contactForm, setContactForm] = useState({
     name: client.contactName,
     role: client.position,
-    email: client.email,
-    phone: client.phone,
+    email: client.email && !client.email.includes("@client.autopartner.fr") ? client.email : "",
+    phone: client.phone && client.phone !== "Non renseigné" && client.phone !== "Non renseigne" ? client.phone : "",
   });
   const [addressForm, setAddressForm] = useState({
-    street: "",
-    postalCode: "",
+    street: (client as any).address || "",
+    postalCode: (client as any).postalCode || "",
     city: client.city,
     complement: "",
     coordinates: undefined as [number, number] | undefined,
@@ -599,16 +599,18 @@ export function ClientFullPage({
     }).then(() => onRefresh?.()).catch((e) => console.error("Error removing logo from DB:", e));
   }
 
-  // Contacts list initialized ONLY with client's actual entered contact
+    // Contacts list initialized with client's actual entered contact, email, and phone
   const [contactsList, setContactsList] = useState<ContactPerson[]>(() => {
-    if (client.contactName && client.contactName !== "—") {
+    const cleanEmail = client.email && !client.email.includes("@client.autopartner.fr") ? client.email.trim() : "";
+    const cleanPhone = client.phone && client.phone !== "Non renseigné" && client.phone !== "Non renseigne" ? client.phone.trim() : "";
+    if ((client.contactName && client.contactName !== "—") || cleanEmail || cleanPhone) {
       return [
         {
           id: "c1",
-          role: client.position || "Responsable / Contact Principal",
-          name: client.contactName,
-          email: client.email || "",
-          phone: client.phone || "",
+          role: client.position || "Gérant / Responsable",
+          name: client.contactName && client.contactName !== "—" ? client.contactName : "Contact Comptoir",
+          email: cleanEmail,
+          phone: cleanPhone,
           isPrimary: true,
         },
       ];
@@ -619,18 +621,21 @@ export function ClientFullPage({
   const primaryContact =
     contactsList.find((c) => c.isPrimary) || contactsList[0];
 
-  // Addresses initialized ONLY with client's actual entered address
+  // Addresses initialized with client's actual entered street (address), postalCode, and city
   const [addresses, setAddresses] = useState<CustomAddress[]>(() => {
-    if (client.city) {
+    const dbStreet = ((client as any).address || "").trim();
+    const dbCp = ((client as any).postalCode || "").trim();
+    const dbCity = (client.city || "").trim();
+    if (dbStreet || dbCp || dbCity) {
       return [
         {
           id: "a1",
           type: "SIEGE",
           label: "Adresse Principale / Siège",
-          street: "",
-          postalCode: "",
-          city: client.city,
-          zipCity: client.city,
+          street: dbStreet,
+          postalCode: dbCp,
+          city: dbCity,
+          zipCity: `${dbCp} ${dbCity}`.trim(),
           complement: "",
           isPrimary: true,
         },
@@ -772,6 +777,17 @@ export function ClientFullPage({
       }
     }
 
+        const cleanClientEmail =
+      client.email && !client.email.includes("@client.autopartner.fr")
+        ? client.email.trim()
+        : "";
+    const cleanClientPhone =
+      client.phone &&
+      client.phone !== "Non renseigné" &&
+      client.phone !== "Non renseigne"
+        ? client.phone.trim()
+        : "";
+
     const savedContacts = localStorage.getItem(`apflow_contacts_v4_${client.id}`);
     if (savedContacts) {
       try {
@@ -780,29 +796,60 @@ export function ClientFullPage({
           if (!parsed.some((c) => c.isPrimary)) {
             parsed[0].isPrimary = true;
           }
-          setContactsList(parsed);
+          const syncedContacts = parsed.map((c) => {
+            const cEmail = c.email && !c.email.includes("@client.autopartner.fr") ? c.email.trim() : "";
+            const cPhone = c.phone && c.phone !== "Non renseigné" && c.phone !== "Non renseigne" ? c.phone.trim() : "";
+            if (c.isPrimary) {
+              return {
+                ...c,
+                name:
+                  client.contactName &&
+                  client.contactName !== "—" &&
+                  client.contactName !== "Contact Comptoir" &&
+                  (!c.name || c.name === "Contact Comptoir")
+                    ? client.contactName
+                    : c.name || client.contactName || "Contact Comptoir",
+                email: cleanClientEmail || cEmail,
+                phone: cleanClientPhone || cPhone,
+              };
+            }
+            return { ...c, email: cEmail, phone: cPhone };
+          });
+          setContactsList(syncedContacts);
+          localStorage.setItem(`apflow_contacts_v4_${client.id}`, JSON.stringify(syncedContacts));
         }
       } catch {
         // ignore
       }
     } else {
-      const initialContacts: ContactPerson[] = client.contactName && client.contactName !== "—"
-        ? [
-            {
-              id: `c_prim_${client.id}`,
-              role: client.position || "Responsable / Contact Principal",
-              name: client.contactName,
-              email: client.email || "",
-              phone: client.phone || "",
-              isPrimary: true,
-            },
-          ]
-        : [];
+      const initialContacts: ContactPerson[] =
+        (client.contactName && client.contactName !== "—") || cleanClientEmail || cleanClientPhone
+          ? [
+              {
+                id: `c_prim_${client.id}`,
+                role: client.position || "Gérant / Responsable",
+                name: client.contactName && client.contactName !== "—" ? client.contactName : "Contact Comptoir",
+                email: cleanClientEmail,
+                phone: cleanClientPhone,
+                isPrimary: true,
+              },
+            ]
+          : [];
       setContactsList(initialContacts);
       if (initialContacts.length > 0) {
         localStorage.setItem(`apflow_contacts_v4_${client.id}`, JSON.stringify(initialContacts));
       }
     }
+
+    const dbStreet = ((client as any).address || "").trim();
+    const dbCp = ((client as any).postalCode || "").trim();
+    const dbCity = (client.city || "").trim();
+
+    if (dbStreet) localStorage.setItem(`apflow_street_${client.id}`, dbStreet);
+    if (dbCp) localStorage.setItem(`apflow_cp_${client.id}`, dbCp);
+
+    const effectiveStreet = dbStreet || localStorage.getItem(`apflow_street_${client.id}`) || "";
+    const effectiveCp = dbCp || localStorage.getItem(`apflow_cp_${client.id}`) || "";
 
     const savedAddresses = localStorage.getItem(`apflow_addresses_v4_${client.id}`);
     if (savedAddresses) {
@@ -812,26 +859,45 @@ export function ClientFullPage({
           if (!parsed.some((a) => a.isPrimary)) {
             parsed[0].isPrimary = true;
           }
-          const savedCp = localStorage.getItem(`apflow_cp_${client.id}`) || "";
-          parsed.forEach((a) => {
-            if (!a.postalCode && savedCp) a.postalCode = savedCp;
-            if (!a.city && client.city) a.city = client.city;
-            if (!a.postalCode && a.zipCity) {
-              const m = a.zipCity.match(/\b\d{5}\b/);
+          const syncedAddresses = parsed.map((a) => {
+            const nextA = { ...a };
+            if (nextA.isPrimary || parsed.length === 1) {
+              if (dbStreet) {
+                nextA.street = dbStreet;
+              } else if (effectiveStreet && (!nextA.street || nextA.street === "—")) {
+                nextA.street = effectiveStreet;
+              }
+              if (dbCp) {
+                nextA.postalCode = dbCp;
+              } else if (effectiveCp && (!nextA.postalCode || nextA.postalCode === "—")) {
+                nextA.postalCode = effectiveCp;
+              }
+              if (dbCity && dbCity !== "France") {
+                nextA.city = dbCity;
+              } else if (dbCity && !nextA.city) {
+                nextA.city = dbCity;
+              }
+            } else {
+              if (!nextA.postalCode && effectiveCp) nextA.postalCode = effectiveCp;
+              if (!nextA.city && dbCity) nextA.city = dbCity;
+            }
+            if (!nextA.postalCode && nextA.zipCity) {
+              const m = nextA.zipCity.match(/\b\d{5}\b/);
               if (m) {
-                a.postalCode = m[0];
-                if (!a.city) a.city = a.zipCity.replace(m[0], "").trim();
+                nextA.postalCode = m[0];
+                if (!nextA.city) nextA.city = nextA.zipCity.replace(m[0], "").trim();
               }
             }
+            nextA.zipCity = `${nextA.postalCode || ""} ${nextA.city || ""}`.trim();
+            return nextA;
           });
-          setAddresses(parsed);
+          setAddresses(syncedAddresses);
+          localStorage.setItem(`apflow_addresses_v4_${client.id}`, JSON.stringify(syncedAddresses));
         }
       } catch {
         // ignore
       }
     } else {
-      const savedCp = localStorage.getItem(`apflow_cp_${client.id}`) || "";
-      const savedStreet = localStorage.getItem(`apflow_street_${client.id}`) || "";
       const savedCoordsStr = localStorage.getItem(`apflow_coords_${client.id}`);
       let savedCoords: [number, number] | undefined = undefined;
       if (savedCoordsStr) {
@@ -841,16 +907,16 @@ export function ClientFullPage({
       }
 
       const initialAddresses: CustomAddress[] =
-        savedStreet || client.city || savedCp
+        effectiveStreet || dbCity || effectiveCp
           ? [
               {
                 id: `a_siege_${client.id}`,
                 type: "SIEGE",
                 label: "Adresse Principale / Siège",
-                street: savedStreet || "",
-                postalCode: savedCp || "",
-                city: client.city || "",
-                zipCity: `${savedCp || ""} ${client.city || ""}`.trim(),
+                street: effectiveStreet,
+                postalCode: effectiveCp,
+                city: dbCity,
+                zipCity: `${effectiveCp} ${dbCity}`.trim(),
                 complement: "",
                 coordinates: savedCoords,
                 isPrimary: true,
@@ -871,7 +937,7 @@ export function ClientFullPage({
         // ignore
       }
     }
-  }, [client.id, client.status]);
+  }, [client.id, client.status, (client as any).address, (client as any).postalCode, client.city, client.email, client.phone, client.contactName]);
 
   // Sync general form data when client prop updates
   useEffect(() => {
@@ -1305,16 +1371,18 @@ export function ClientFullPage({
       if (addr.coordinates) {
         localStorage.setItem(`apflow_coords_${client.id}`, JSON.stringify(addr.coordinates));
       }
-      if (addr.city && addr.city !== client.city) {
-        try {
-          await fetch(`/api/clients/${client.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ city: addr.city }),
-          });
-          onRefresh();
-        } catch {}
-      }
+      try {
+        await fetch(`/api/clients/${client.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            address: addr.street || null,
+            postalCode: addr.postalCode || null,
+            city: addr.city || client.city,
+          }),
+        });
+        onRefresh();
+      } catch {}
     }
   }
 
