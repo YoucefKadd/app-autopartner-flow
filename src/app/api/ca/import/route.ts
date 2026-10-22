@@ -85,13 +85,10 @@ export async function POST(request: Request) {
           })
         : null;
 
-      // 2. Fallback to matching by Company name
+      // 2. Fallback to matching by Company name (strictly exact match, no dangerous substring matching)
       if (!matchedClient && cleanCompany) {
         matchedClient = clients.find(
-          (c) =>
-            c.company.trim().toLowerCase() === cleanCompany ||
-            c.company.trim().toLowerCase().includes(cleanCompany) ||
-            cleanCompany.includes(c.company.trim().toLowerCase())
+          (c) => c.company.trim().toLowerCase() === cleanCompany
         );
       }
 
@@ -140,6 +137,9 @@ export async function POST(request: Request) {
 
       // Update client address / contact info if new data is provided
       const clientUpdate: any = {};
+      if (row.company && matchedClient.company && matchedClient.company.startsWith("Client AP") && !row.company.startsWith("Client AP")) {
+        clientUpdate.company = row.company.trim();
+      }
       if (row.address && !matchedClient.address) clientUpdate.address = row.address.trim();
       if (row.postalCode && !matchedClient.postalCode) clientUpdate.postalCode = row.postalCode.trim();
       if (row.city && (!matchedClient.city || matchedClient.city === "France")) clientUpdate.city = row.city.trim();

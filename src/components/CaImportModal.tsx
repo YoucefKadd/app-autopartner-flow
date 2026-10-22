@@ -49,48 +49,52 @@ const UNIFIED_TABLE_FIELDS: TargetFieldDef[] = [
     id: "apClientNumber",
     label: "Code Client AP (Compte)",
     required: true,
-    description: "Numéro de compte client Auto Partner (ex: ACCOUNTNUM1, Code AP, CustAccount)",
+    description: "Numéro de compte client Auto Partner (ex: ACCOUNTNUM1, Customer account, Code AP, CustAccount)",
     defaultMatches: [
+      "customeraccount",
+      "custaccount",
       "accountnum1",
       "accountnum",
-      "custaccount",
-      "account",
       "codeap",
       "code_ap",
       "numeroap",
       "codeclient",
       "code_client",
+      "clientap",
+      "codetiers",
+      "tiers",
       "numclient",
       "no_client",
       "nclient",
       "compte",
-      "clientap",
       "no_compte",
       "numcompte",
-      "codetiers",
-      "tiers",
-      "idclient"
+      "idclient",
+      "account"
     ],
   },
   {
     id: "company",
     label: "Nom de l'Enseigne / Client",
     required: false,
-    description: "Raison sociale ou nom d'enseigne (ex: NAMEALIAS ou Textbox)",
+    description: "Raison sociale ou nom d'enseigne (ex: NAMEALIAS, Search name, Name, Enseigne)",
     defaultMatches: [
       "namealias",
-      "company",
-      "nom",
+      "searchname",
+      "alias",
+      "nomcommercial",
+      "nomrecherche",
       "enseigne",
-      "client",
       "raisonsociale",
       "nomclient",
-      "raison_sociale",
-      "name",
+      "company",
       "customername",
+      "name",
+      "nom",
+      "client",
+      "societe",
       "designation",
-      "libelle",
-      "societe"
+      "libelle"
     ],
   },
   {
@@ -265,6 +269,37 @@ const UNIFIED_TABLE_FIELDS: TargetFieldDef[] = [
   },
 ];
 
+function findBestMatchHeader(headers: string[], defaultMatches: string[]): string | undefined {
+  const cleanHeaders = headers.map((h) => ({
+    original: h,
+    clean: h.toLowerCase().replace(/[^a-z0-9]/g, ""),
+  }));
+
+  // Pass 1: exact clean match in order of defaultMatches priority
+  for (const m of defaultMatches) {
+    const cleanM = m.replace(/[^a-z0-9]/g, "");
+    const found = cleanHeaders.find((h) => h.clean === cleanM);
+    if (found) return found.original;
+  }
+
+  // Pass 2: prefix / substring match for significant identifiers (>= 4 chars)
+  for (const m of defaultMatches) {
+    const cleanM = m.replace(/[^a-z0-9]/g, "");
+    if (cleanM.length < 4) continue;
+    const found = cleanHeaders.find((h) => h.clean.includes(cleanM) || cleanM.includes(h.clean));
+    if (found) return found.original;
+  }
+
+  // Pass 3: fallback for short keywords (e.g. "cp", "nom", "tel", "ax")
+  for (const m of defaultMatches) {
+    const cleanM = m.replace(/[^a-z0-9]/g, "");
+    const found = cleanHeaders.find((h) => h.clean === cleanM || h.clean.startsWith(cleanM));
+    if (found) return found.original;
+  }
+
+  return undefined;
+}
+
 function cleanNumber(val: string | undefined): number {
   if (!val) return 0;
   const str = val.toString().replace(/[\s\u00a0\u202f€]/g, "").replace(",", ".");
@@ -395,14 +430,11 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
         const text = (event.target?.result as string) || "";
         const { headers, rows } = parseCsvContent(text);
 
-        // Smart auto-mapping for CA
+        // Smart prioritized auto-mapping for CA
         const autoMap: Record<string, string> = {};
         UNIFIED_TABLE_FIELDS.forEach((target) => {
           if (target.id === "axPurchases") return;
-          const matched = headers.find((h) => {
-            const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, "");
-            return target.defaultMatches.some((m) => cleanH.includes(m.replace(/[^a-z0-9]/g, "")));
-          });
+          const matched = findBestMatchHeader(headers, target.defaultMatches);
           if (matched) autoMap[target.id] = matched;
         });
 
@@ -431,14 +463,11 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
         const text = (event.target?.result as string) || "";
         const { headers, rows } = parseCsvContent(text);
 
-        // Smart auto-mapping for AX
+        // Smart prioritized auto-mapping for AX
         const autoMap: Record<string, string> = {};
         UNIFIED_TABLE_FIELDS.forEach((target) => {
           if (target.id === "amount" || target.id === "ordersCount" || target.id === "target") return;
-          const matched = headers.find((h) => {
-            const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, "");
-            return target.defaultMatches.some((m) => cleanH.includes(m.replace(/[^a-z0-9]/g, "")));
-          });
+          const matched = findBestMatchHeader(headers, target.defaultMatches);
           if (matched) autoMap[target.id] = matched;
         });
 
@@ -539,10 +568,8 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
             if (cClean === cleanAp) return true;
             if (numericAp && cClean.replace(/^0+/, "") === numericAp) return true;
           }
-          if (company && c.company) {
-            const cComp = c.company.toLowerCase();
-            const qComp = company.toLowerCase();
-            if (cComp.includes(qComp) || qComp.includes(cComp)) return true;
+          if (!cleanAp && company && c.company) {
+            return c.company.trim().toLowerCase() === company.trim().toLowerCase();
           }
           return false;
         });
@@ -588,7 +615,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
     }
 
     // 2. Process AX file if present
-    // GUARANTEE: Even if a client has ZERO CA, they are completely kept and imported!
+    // GUARANTEE: Even if a client has ZERO CA, all AX clients are 100% kept and imported!
     if (axFile) {
       const apIdx = axFile.mapping.apClientNumber ? axFile.headers.indexOf(axFile.mapping.apClientNumber) : -1;
       const compIdx = axFile.mapping.company ? axFile.headers.indexOf(axFile.mapping.company) : -1;
@@ -635,48 +662,49 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
             if (cClean === cleanAp) return true;
             if (numericAp && cClean.replace(/^0+/, "") === numericAp) return true;
           }
-          if (company && c.company) {
-            const cComp = c.company.toLowerCase();
-            const qComp = company.toLowerCase();
-            if (cComp.includes(qComp) || qComp.includes(cComp)) return true;
+          if (!cleanAp && company && c.company) {
+            return c.company.trim().toLowerCase() === company.trim().toLowerCase();
           }
           return false;
         });
 
-        // Exact period match key
-        const exactKey = `${(apCode || company).toLowerCase()}_${year}_${month}`;
-
-        // Look for existing row in rowMap
-        let existingKey: string | null = rowMap.has(exactKey) ? exactKey : null;
-
-        if (!existingKey) {
-          // If no exact match (e.g. AX has month 0 or no date, but CA had months), find existing client entry in rowMap
+        // 1. First priority: match client strictly by Code AP
+        let existingKey: string | null = null;
+        if (cleanAp) {
           for (const [k, r] of rowMap.entries()) {
-            const rAp = (r.apCode || "").toLowerCase();
-            const rComp = (r.company || "").toLowerCase();
-            const isSameCode = (cleanAp && rAp === cleanAp) || (numericAp && rAp.replace(/^0+/, "") === numericAp);
-            const isSameComp = company && rComp && (rComp.includes(company.toLowerCase()) || company.toLowerCase().includes(rComp));
+            const rAp = (r.apCode || "").toLowerCase().trim();
+            const isSameCode = (rAp === cleanAp) || (numericAp && rAp.replace(/^0+/, "") === numericAp);
+            if (isSameCode) {
+              existingKey = k;
+              break;
+            }
+          }
+        }
 
-            if ((isSameCode || isSameComp) && r.year === year) {
-              if (r.month === month || month === 0) {
-                existingKey = k;
-                break;
-              }
+        // 2. Strict fallback: match by EXACT company name ONLY if no Code AP exists
+        if (!existingKey && !cleanAp && company) {
+          const cleanComp = company.trim().toLowerCase();
+          for (const [k, r] of rowMap.entries()) {
+            if (!r.apCode && r.company && r.company.trim().toLowerCase() === cleanComp) {
+              existingKey = k;
+              break;
             }
           }
         }
 
         if (!existingKey) {
-          // Client only in AX (NOT in CA file) - MUST BE FULLY IMPORTED WITH CA = 0 €!
+          // Client only in AX (NOT in CA file) - GUARANTEED FULL IMPORT WITH CA = 0 €!
           const clientName = company || (matched ? matched.company : apCode ? `Client AP ${apCode}` : "Client AX");
+          const targetKey = `${(apCode || clientName).toLowerCase()}_${year}_${month}`;
 
-          rowMap.set(exactKey, {
-            key: exactKey,
+          rowMap.set(targetKey, {
+            key: targetKey,
             apCode,
             company: clientName,
             address: addr || (matched ? matched.address || undefined : undefined),
             postalCode: cp || (matched ? matched.postalCode || undefined : undefined),
             city: city || (matched ? matched.city : "France"),
+            contactName: (matched ? matched.contactName : undefined),
             email: email || (matched ? matched.email : undefined),
             phone: phone || (matched ? matched.phone : undefined),
             status: statusVal || (matched ? matched.status : undefined),
@@ -691,22 +719,24 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
             source: "AX_ONLY",
           });
         } else {
-          const existing = rowMap.get(existingKey)!;
-          existing.axPurchases = (existing.axPurchases || 0) + axVal;
-          existing.source = existing.source === "CA_ONLY" ? "BOTH" : existing.source;
-          if ((!existing.company || existing.company.startsWith("Client AP")) && company) {
-            existing.company = company;
+          // Client exists in CA: update all matching client entries in rowMap with AX data
+          for (const [, r] of rowMap.entries()) {
+            const rAp = (r.apCode || "").toLowerCase().trim();
+            const isSame = (cleanAp && (rAp === cleanAp || rAp.replace(/^0+/, "") === numericAp)) ||
+                           (!cleanAp && company && r.company && r.company.trim().toLowerCase() === company.trim().toLowerCase());
+            if (isSame) {
+              if (axVal > 0) r.axPurchases = (r.axPurchases || 0) + axVal;
+              r.source = r.source === "CA_ONLY" ? "BOTH" : r.source;
+              if (company && (!r.company || r.company.startsWith("Client AP"))) r.company = company;
+              if (addr && !r.address) r.address = addr;
+              if (cp && !r.postalCode) r.postalCode = cp;
+              if (city && (!r.city || r.city === "France")) r.city = city;
+              if (email && !r.email) r.email = email;
+              if (phone && !r.phone) r.phone = phone;
+              if (statusVal) r.status = statusVal;
+              if (dirVal) r.directionId = dirVal;
+            }
           }
-          if (!existing.matchedClient && matched) {
-            existing.matchedClient = matched.company;
-          }
-          if (addr && !existing.address) existing.address = addr;
-          if (cp && !existing.postalCode) existing.postalCode = cp;
-          if (city && !existing.city) existing.city = city;
-          if (email && !existing.email) existing.email = email;
-          if (phone && !existing.phone) existing.phone = phone;
-          if (statusVal) existing.status = statusVal;
-          if (dirVal) existing.directionId = dirVal;
         }
       });
     }
@@ -819,7 +849,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
         if (caCode) {
           matchedAxIdx = axApMap.get(caCode) ?? axApMap.get(caCode.replace(/^0+/, ""));
         }
-        if (matchedAxIdx === undefined && caComp) {
+        if (matchedAxIdx === undefined && !caCode && caComp) {
           matchedAxIdx = axCompMap.get(caComp);
         }
 
