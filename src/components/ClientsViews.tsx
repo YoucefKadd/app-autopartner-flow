@@ -884,7 +884,7 @@ export function ClientsViews({
                         {/* 5. LE MAIL */}
                         {isColumnVisible("email") && (
                           <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40`}>
-                            {client.email ? (
+                            {client.email && !client.email.includes("@client.autopartner.fr") ? (
                               <div className="flex items-center justify-between gap-1 max-w-[200px]">
                                 <a
                                   href={`mailto:${client.email}`}
@@ -915,7 +915,7 @@ export function ClientsViews({
                         {/* 6. LE TEL */}
                         {isColumnVisible("phone") && (
                           <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 font-medium text-slate-700 dark:text-zinc-300 whitespace-nowrap`}>
-                            {client.phone ? (
+                            {client.phone && client.phone !== "Non renseigné" && client.phone !== "Non renseigne" ? (
                               <div className="inline-flex items-center gap-1.5">
                                 <a
                                   href={`tel:${client.phone}`}
@@ -1210,11 +1210,11 @@ export function ClientsViews({
                     </div>
                     <div className="flex items-center gap-2">
                       <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate">{client.email || "—"}</span>
+                      <span className="truncate">{client.email && !client.email.includes("@client.autopartner.fr") ? client.email : "—"}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Phone className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                      <span>{client.phone || "—"}</span>
+                      <span>{client.phone && client.phone !== "Non renseigné" && client.phone !== "Non renseigne" ? client.phone : "—"}</span>
                     </div>
                     <div className="flex items-center justify-between gap-2 pt-1 text-[11px]">
                       <div className="flex items-center gap-1.5 min-w-0">

@@ -2597,9 +2597,9 @@ export function ClientFullPage({
                               className="font-medium text-[#d90416] hover:underline flex items-center gap-1.5"
                             >
                               <Mail className="w-3.5 h-3.5 text-slate-400" />
-                              {primaryContact?.email || client.email || "Non renseigné"}
+                              {((primaryContact?.email || client.email) && !(primaryContact?.email || client.email)?.includes("@client.autopartner.fr")) ? (primaryContact?.email || client.email) : "—"}
                             </a>
-                            {(primaryContact?.email || client.email) && (
+                            {((primaryContact?.email || client.email) && !(primaryContact?.email || client.email)?.includes("@client.autopartner.fr")) && (
                               <button
                                 type="button"
                                 onClick={() =>
@@ -2627,9 +2627,9 @@ export function ClientFullPage({
                               className="font-medium text-slate-800 dark:text-zinc-200 hover:underline flex items-center gap-1.5"
                             >
                               <Phone className="w-3.5 h-3.5 text-slate-400" />
-                              {primaryContact?.phone || client.phone || "Non renseigné"}
+                              {((primaryContact?.phone || client.phone) && (primaryContact?.phone || client.phone) !== "Non renseigné" && (primaryContact?.phone || client.phone) !== "Non renseigne") ? (primaryContact?.phone || client.phone) : "—"}
                             </a>
-                            {(primaryContact?.phone || client.phone) && (
+                            {((primaryContact?.phone || client.phone) && (primaryContact?.phone || client.phone) !== "Non renseigné" && (primaryContact?.phone || client.phone) !== "Non renseigne") && (
                               <button
                                 type="button"
                                 onClick={() =>

@@ -112,10 +112,8 @@ export async function POST(request: Request) {
               postalCode: row.postalCode ? row.postalCode.trim() : null,
               city: row.city && row.city.trim() ? row.city.trim() : "France",
               contactName: row.contactName ? row.contactName.trim() : "Contact Comptoir",
-              email: row.email
-                ? row.email.trim().toLowerCase()
-                : `contact.${cleanAp || Date.now() + Math.random().toString(36).substring(7)}@client.autopartner.fr`,
-              phone: row.phone ? row.phone.trim() : "Non renseigné",
+              email: row.email ? row.email.trim().toLowerCase() : "",
+              phone: row.phone ? row.phone.trim() : "",
               position: "Gérant / Responsable",
               status: determinedStatus,
               directionId: row.directionId ? row.directionId.trim() : null,
@@ -144,8 +142,17 @@ export async function POST(request: Request) {
       if (row.postalCode && !matchedClient.postalCode) clientUpdate.postalCode = row.postalCode.trim();
       if (row.city && (!matchedClient.city || matchedClient.city === "France")) clientUpdate.city = row.city.trim();
       if (row.contactName && (!matchedClient.contactName || matchedClient.contactName === "Contact Comptoir")) clientUpdate.contactName = row.contactName.trim();
-      if (row.email && (!matchedClient.email || matchedClient.email.includes("@client.autopartner.fr"))) clientUpdate.email = row.email.trim();
-      if (row.phone && (!matchedClient.phone || matchedClient.phone === "Non renseigné")) clientUpdate.phone = row.phone.trim();
+            if (row.email && row.email.trim()) {
+        clientUpdate.email = row.email.trim().toLowerCase();
+      } else if (matchedClient.email && matchedClient.email.includes("@client.autopartner.fr")) {
+        clientUpdate.email = "";
+      }
+
+      if (row.phone && row.phone.trim()) {
+        clientUpdate.phone = row.phone.trim();
+      } else if (matchedClient.phone === "Non renseigné") {
+        clientUpdate.phone = "";
+      }
       if (row.directionId && row.directionId.trim()) clientUpdate.directionId = row.directionId.trim();
       if (row.status) {
         const parsed = parseClientStatus(row.status);

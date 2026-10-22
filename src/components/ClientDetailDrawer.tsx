@@ -145,7 +145,7 @@ export function ClientDetailDrawer({
                 href={`mailto:${client.email}`}
                 className="font-medium text-zinc-800 dark:text-zinc-200 hover:underline"
               >
-                {client.email || "Non renseigné"}
+                {client.email && !client.email.includes("@client.autopartner.fr") ? client.email : "—"}
               </a>
             </div>
             <div className="flex items-center justify-between">
@@ -153,7 +153,7 @@ export function ClientDetailDrawer({
                 <Phone className="w-3.5 h-3.5" /> Téléphone
               </span>
               <span className="font-medium text-zinc-800 dark:text-zinc-200">
-                {client.phone || "Non renseigné"}
+                {client.phone && client.phone !== "Non renseigné" && client.phone !== "Non renseigne" ? client.phone : "—"}
               </span>
             </div>
             <div className="flex items-center justify-between">
