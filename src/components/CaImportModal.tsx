@@ -43,15 +43,8 @@ interface TargetFieldDef {
   defaultMatches: string[];
 }
 
-// Complete set of CRM, CA and AX fields in the requested table structure
-const CA_TABLE_FIELDS: TargetFieldDef[] = [
-  {
-    id: "company",
-    label: "Nom de l'Enseigne / Client",
-    required: true,
-    description: "Raison sociale ou nom d'enseigne (ex: NAMEALIAS ou Textbox)",
-    defaultMatches: ["namealias", "company", "nom", "enseigne", "client", "raisonsociale", "nomclient", "raison_sociale"],
-  },
+// Complete unified set of CRM, CA and AX fields in a single 4-column table
+const UNIFIED_TABLE_FIELDS: TargetFieldDef[] = [
   {
     id: "apClientNumber",
     label: "Code Client AP (Compte)",
@@ -60,17 +53,17 @@ const CA_TABLE_FIELDS: TargetFieldDef[] = [
     defaultMatches: ["accountnum1", "accountnum", "codeap", "code_ap", "numeroap", "codeclient", "numclient", "compte", "clientap", "no_client"],
   },
   {
-    id: "vatNumber",
-    label: "N° TVA Intracommunautaire",
-    required: false,
-    description: "Numéro de TVA de l'entreprise (ex: VATNUM1)",
-    defaultMatches: ["vatnum1", "vatnum", "tva", "numtva", "vat"],
+    id: "company",
+    label: "Nom de l'Enseigne / Client",
+    required: true,
+    description: "Raison sociale ou nom d'enseigne (ex: NAMEALIAS ou Textbox)",
+    defaultMatches: ["namealias", "company", "nom", "enseigne", "client", "raisonsociale", "nomclient", "raison_sociale"],
   },
   {
     id: "address",
     label: "Adresse postale (Rue / Voie)",
     required: false,
-    description: "Adresse du magasin (ex: ADDRESS, STREET, RUE)",
+    description: "Adresse du magasin (ex: ADDRESS, STREET, RUE, DELIVERYADDRESS)",
     defaultMatches: ["address", "adresse", "street", "rue", "voie", "streetname", "address1", "deliveryaddress", "adressevoie", "adressedistr"],
   },
   {
@@ -89,42 +82,35 @@ const CA_TABLE_FIELDS: TargetFieldDef[] = [
   },
   {
     id: "contactName",
-    label: "Nom Contact Principal (Optionnel)",
+    label: "Nom Contact Principal",
     required: false,
-    description: "Interlocuteur privilégié / responsable magasin",
+    description: "Interlocuteur direct / responsable magasin (ex: CONTACT, RESPONSABLE)",
     defaultMatches: ["contact", "contactname", "interlocuteur", "responsable", "nom_contact"],
   },
   {
     id: "email",
-    label: "Email Contact (Optionnel)",
+    label: "Email Contact",
     required: false,
     description: "Adresse email directe de contact (ex: EMAIL)",
     defaultMatches: ["email", "courriel", "mail", "e_mail"],
   },
   {
     id: "phone",
-    label: "Téléphone (Optionnel)",
+    label: "Téléphone",
     required: false,
     description: "Téléphone direct ou portable (ex: PHONE, TEL)",
     defaultMatches: ["phone", "tel", "telephone", "portable", "mobile"],
   },
   {
-    id: "kamName",
-    label: "Commercial / KAM assigné",
-    required: false,
-    description: "Gestionnaire du compte (ex: PH, Commercial)",
-    defaultMatches: ["ph", "kam", "commercial", "gestionnaire", "responsable_kam"],
-  },
-  {
     id: "month",
-    label: "Date / Période Facture (CA)",
+    label: "Date / Période (Mois)",
     required: false,
-    description: "Format AAAA-MM, JJ/MM/AAAA ou Mois 1-12 (ex: INVOICEDATE)",
-    defaultMatches: ["invoicedate", "date", "periode", "mois", "month", "datefacture"],
+    description: "Format AAAA-MM, JJ/MM/AAAA ou Mois 1-12 (ex: INVOICEDATE, DATE)",
+    defaultMatches: ["invoicedate", "date", "periode", "mois", "month", "datefacture", "dateachat", "date_achat"],
   },
   {
     id: "year",
-    label: "Année / Exercice (Optionnel)",
+    label: "Année / Exercice",
     required: false,
     description: "Année comptable (ex: 2025, 2026) si séparée de la date",
     defaultMatches: ["annee", "year", "exercice", "periode_annee"],
@@ -132,96 +118,44 @@ const CA_TABLE_FIELDS: TargetFieldDef[] = [
   {
     id: "amount",
     label: "Montant CA Facturé (€ HT)",
-    required: true,
-    description: "Chiffre d'affaires facturé mensuel (ex: AMOUNT, CA_HT)",
+    required: false,
+    description: "Chiffre d'affaires facturé mensuel (ex: AMOUNT, CA_HT, VENTES)",
     defaultMatches: ["amount", "ca", "montant", "caht", "chiffreaffaires", "totalca", "ventes", "ca_ht"],
   },
   {
+    id: "axPurchases",
+    label: "Montant Achats AX (€ HT)",
+    required: false,
+    description: "Montant des achats enregistrés dans AX (ex: ACHATS, AX, ACHATS_AX)",
+    defaultMatches: ["ax", "achats", "achatsax", "montantax", "achat", "purchases", "achats_ax", "montant_ax", "total_ax"],
+  },
+  {
+    id: "kamName",
+    label: "Commercial / KAM assigné",
+    required: false,
+    description: "Gestionnaire du compte (ex: PH, Commercial, KAM)",
+    defaultMatches: ["ph", "kam", "commercial", "gestionnaire", "responsable_kam"],
+  },
+  {
     id: "ordersCount",
-    label: "Nombre de Commandes (Optionnel)",
+    label: "Nombre de Commandes",
     required: false,
     description: "Quantité ou volume de commandes du mois (ex: ORDERS)",
     defaultMatches: ["orders", "commandes", "qte", "nbcommandes", "volume", "nb_commandes"],
   },
   {
     id: "target",
-    label: "Objectif Commercial (€ HT) (Optionnel)",
+    label: "Objectif Commercial (€ HT)",
     required: false,
     description: "Objectif de chiffre d'affaires (Optionnel)",
     defaultMatches: ["target", "objectif", "obj", "cible"],
   },
-];
-
-const AX_TABLE_FIELDS: TargetFieldDef[] = [
   {
-    id: "company",
-    label: "Nom de l'Enseigne / Client",
+    id: "vatNumber",
+    label: "N° TVA Intracommunautaire",
     required: false,
-    description: "Raison sociale ou nom d'enseigne (ex: NAMEALIAS ou Client)",
-    defaultMatches: ["namealias", "company", "nom", "enseigne", "client", "raisonsociale", "nomclient"],
-  },
-  {
-    id: "apClientNumber",
-    label: "Code Client AP (Compte)",
-    required: true,
-    description: "Numéro de compte client Auto Partner (ex: ACCOUNTNUM1, Code AP)",
-    defaultMatches: ["accountnum1", "accountnum", "codeap", "code_ap", "numeroap", "codeclient", "numclient", "compte", "clientap", "no_client"],
-  },
-  {
-    id: "month",
-    label: "Date ou Période d'Achat AX",
-    required: false,
-    description: "Format AAAA-MM, JJ/MM/AAAA ou Mois 1-12 (ex: DATE, MOIS)",
-    defaultMatches: ["date", "periode", "mois", "month", "invoicedate", "dateachat", "date_achat"],
-  },
-  {
-    id: "year",
-    label: "Année / Exercice (Optionnel)",
-    required: false,
-    description: "Année comptable si séparée (ex: 2025, 2026)",
-    defaultMatches: ["annee", "year", "exercice", "periode_annee"],
-  },
-  {
-    id: "axPurchases",
-    label: "Montant Achats AX (€ HT)",
-    required: true,
-    description: "Montant des achats enregistrés dans AX (ex: ACHATS, AX, ACHATS_AX)",
-    defaultMatches: ["ax", "achats", "achatsax", "montantax", "achat", "purchases", "achats_ax", "montant_ax", "total_ax"],
-  },
-  {
-    id: "address",
-    label: "Adresse postale (Optionnel si dans AX)",
-    required: false,
-    description: "Adresse du magasin",
-    defaultMatches: ["address", "adresse", "street", "rue", "voie"],
-  },
-  {
-    id: "postalCode",
-    label: "Code Postal (Optionnel)",
-    required: false,
-    description: "Code postal d'implantation",
-    defaultMatches: ["zipcode", "zip", "cp", "codepostal", "postalcode"],
-  },
-  {
-    id: "city",
-    label: "Ville du Magasin (Optionnel)",
-    required: false,
-    description: "Ville d'implantation",
-    defaultMatches: ["city", "ville", "commune"],
-  },
-  {
-    id: "email",
-    label: "Email Contact (Optionnel)",
-    required: false,
-    description: "Adresse email directe",
-    defaultMatches: ["email", "courriel", "mail"],
-  },
-  {
-    id: "phone",
-    label: "Téléphone (Optionnel)",
-    required: false,
-    description: "Téléphone direct",
-    defaultMatches: ["phone", "tel", "telephone"],
+    description: "Numéro de TVA de l'entreprise (ex: VATNUM1)",
+    defaultMatches: ["vatnum1", "vatnum", "tva", "numtva", "vat"],
   },
 ];
 
@@ -283,7 +217,6 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
   const axFileInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<"upload" | "mapping" | "preview" | "importing" | "success">("upload");
-  const [activeMappingTab, setActiveMappingTab] = useState<"CA" | "AX">("CA");
   const [selectedDefaultYear, setSelectedDefaultYear] = useState<number>(new Date().getFullYear());
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -304,7 +237,6 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
     setStep("upload");
     setCaFile(null);
     setAxFile(null);
-    setActiveMappingTab("CA");
     setErrorMsg(null);
     setImportResult(null);
   }
@@ -344,7 +276,8 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
 
         // Smart auto-mapping for CA
         const autoMap: Record<string, string> = {};
-        CA_TABLE_FIELDS.forEach((target) => {
+        UNIFIED_TABLE_FIELDS.forEach((target) => {
+          if (target.id === "axPurchases") return;
           const matched = headers.find((h) => {
             const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, "");
             return target.defaultMatches.some((m) => cleanH.includes(m.replace(/[^a-z0-9]/g, "")));
@@ -358,7 +291,6 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
           rows,
           mapping: autoMap,
         });
-        setActiveMappingTab("CA");
       } catch (err: any) {
         setErrorMsg("Erreur lors de la lecture du fichier CA : " + err.message);
       }
@@ -380,7 +312,8 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
 
         // Smart auto-mapping for AX
         const autoMap: Record<string, string> = {};
-        AX_TABLE_FIELDS.forEach((target) => {
+        UNIFIED_TABLE_FIELDS.forEach((target) => {
+          if (target.id === "amount" || target.id === "ordersCount" || target.id === "target") return;
           const matched = headers.find((h) => {
             const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, "");
             return target.defaultMatches.some((m) => cleanH.includes(m.replace(/[^a-z0-9]/g, "")));
@@ -394,9 +327,6 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
           rows,
           mapping: autoMap,
         });
-        if (!caFile) {
-          setActiveMappingTab("AX");
-        }
       } catch (err: any) {
         setErrorMsg("Erreur lors de la lecture du fichier AX : " + err.message);
       }
@@ -644,10 +574,6 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
   const totalCA = consolidatedRows.reduce((acc, r) => acc + (r.amount || 0), 0);
   const totalAX = consolidatedRows.reduce((acc, r) => acc + (r.axPurchases || 0), 0);
   const bothCount = consolidatedRows.filter((r) => r.source === "BOTH").length;
-
-  // Currently active file and fields for the Table Mapping view
-  const currentActiveFile = activeMappingTab === "CA" ? caFile : axFile;
-  const currentTableFields = activeMappingTab === "CA" ? CA_TABLE_FIELDS : AX_TABLE_FIELDS;
 
   const modalContent = (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -947,142 +873,232 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                 <button
                   type="button"
                   disabled={!caFile && !axFile}
-                  onClick={() => {
-                    setActiveMappingTab(caFile ? "CA" : "AX");
-                    setStep("mapping");
-                  }}
+                  onClick={() => setStep("mapping")}
                   className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-[#d90416] hover:bg-[#b80312] text-white text-xs font-bold transition shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  <span>Passer au Mapping (Tableau)</span>
+                  <span>Passer au Mapping (Tableau Unifié)</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             </div>
           )}
 
-          {/* STEP 2: EXACT REQUESTED TABLE MAPPING */}
-          {step === "mapping" && currentActiveFile && (
+          {/* STEP 2: UNIFIED 4-COLUMN MAPPING TABLE (CHAMPS | FICHIER CA | FICHIER AX | PREVISUALISATION) */}
+          {step === "mapping" && (caFile || axFile) && (
             <div className="space-y-4">
-              {/* Tab Selector if both files present */}
-              {caFile && axFile && (
-                <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-slate-100 dark:bg-zinc-800/80 border border-slate-200 dark:border-zinc-700">
-                  <button
-                    type="button"
-                    onClick={() => setActiveMappingTab("CA")}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
-                      activeMappingTab === "CA"
-                        ? "bg-white dark:bg-zinc-900 text-slate-900 dark:text-white shadow-xs"
-                        : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
-                    }`}
-                  >
-                    <TrendingUp className="w-3.5 h-3.5 text-[#d90416]" />
-                    <span>Tableau Mapping Fichier CA ({caFile.fileName})</span>
-                    {caFile.mapping.amount && (
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" title="Mappé" />
+              {/* Status Header Banner */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 dark:bg-zinc-950/40 p-3.5 rounded-2xl border border-slate-200 dark:border-zinc-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-red-100 dark:bg-red-950/60 text-[#d90416] flex items-center justify-center shrink-0">
+                    <TrendingUp className="w-4 h-4" />
+                  </div>
+                  <div className="text-xs truncate">
+                    <div className="font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                      <span>Fichier 1 : Ventes (CA)</span>
+                      {caFile ? (
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" title="Chargé" />
+                      ) : (
+                        <span className="text-[10px] text-slate-400 font-normal italic">(Non chargé)</span>
+                      )}
+                    </div>
+                    {caFile ? (
+                      <p className="text-[11px] font-mono text-slate-500 truncate" title={caFile.fileName}>
+                        {caFile.fileName} • {caFile.rows.length} lignes • {caFile.headers.length} colonnes
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-slate-400">Aucun fichier CA chargé</p>
                     )}
-                  </button>
+                  </div>
+                </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setActiveMappingTab("AX")}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 ${
-                      activeMappingTab === "AX"
-                        ? "bg-white dark:bg-zinc-900 text-slate-900 dark:text-white shadow-xs"
-                        : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
-                    }`}
-                  >
-                    <ShoppingCart className="w-3.5 h-3.5 text-purple-600" />
-                    <span>Tableau Mapping Fichier AX ({axFile.fileName})</span>
-                    {axFile.mapping.axPurchases && (
-                      <span className="w-2 h-2 rounded-full bg-emerald-500" title="Mappé" />
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-950/60 text-purple-600 flex items-center justify-center shrink-0">
+                    <ShoppingCart className="w-4 h-4" />
+                  </div>
+                  <div className="text-xs truncate">
+                    <div className="font-bold text-slate-800 dark:text-zinc-200 flex items-center gap-1.5">
+                      <span>Fichier 2 : Achats (AX)</span>
+                      {axFile ? (
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" title="Chargé" />
+                      ) : (
+                        <span className="text-[10px] text-slate-400 font-normal italic">(Non chargé)</span>
+                      )}
+                    </div>
+                    {axFile ? (
+                      <p className="text-[11px] font-mono text-slate-500 truncate" title={axFile.fileName}>
+                        {axFile.fileName} • {axFile.rows.length} lignes • {axFile.headers.length} colonnes
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-slate-400">Aucun fichier AX chargé</p>
                     )}
-                  </button>
-                </div>
-              )}
-
-              {/* Status Header */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 dark:bg-zinc-950/40 p-3 rounded-xl border border-slate-200 dark:border-zinc-800">
-                <div className="text-xs">
-                  <span className="font-semibold text-slate-800 dark:text-zinc-200">
-                    Fichier en cours de mapping :
-                  </span>{" "}
-                  <span className="font-mono text-[#d90416] font-bold">{currentActiveFile.fileName}</span> (
-                  {currentActiveFile.rows.length} lignes, {currentActiveFile.headers.length} colonnes)
-                </div>
-                <div className="text-[11px] text-slate-500">
-                  Vérifiez ou adaptez les correspondances ci-dessous avant d&apos;importer.
+                  </div>
                 </div>
               </div>
 
-              {/* THE EXACT REQUESTED MAPPING TABLE */}
-              <div className="rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden">
+              {/* THE REQUESTED 4-COLUMN UNIFIED MAPPING TABLE */}
+              <div className="rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden shadow-xs">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-100 dark:bg-zinc-800/80 text-slate-700 dark:text-zinc-300 font-bold border-b border-slate-200 dark:border-zinc-800">
                     <tr>
-                      <th className="py-2.5 px-4 w-1/3">Champ CRM Auto Partner</th>
-                      <th className="py-2.5 px-4 w-1/3">Colonne détectée dans votre CSV</th>
-                      <th className="py-2.5 px-4 w-1/3">Exemple de valeur (Ligne 1)</th>
+                      <th className="py-3 px-4 w-[28%]">
+                        <span>Champ CRM Auto Partner</span>
+                      </th>
+                      <th className="py-3 px-4 w-[26%]">
+                        <div className="flex items-center gap-1.5 text-slate-900 dark:text-white">
+                          <TrendingUp className="w-3.5 h-3.5 text-[#d90416]" />
+                          <span>Fichier CA (Ventes)</span>
+                        </div>
+                        {caFile && (
+                          <div className="text-[10px] text-slate-400 font-mono font-normal truncate max-w-[200px]" title={caFile.fileName}>
+                            {caFile.fileName}
+                          </div>
+                        )}
+                      </th>
+                      <th className="py-3 px-4 w-[26%]">
+                        <div className="flex items-center gap-1.5 text-slate-900 dark:text-white">
+                          <ShoppingCart className="w-3.5 h-3.5 text-purple-600" />
+                          <span>Fichier AX (Achats)</span>
+                        </div>
+                        {axFile && (
+                          <div className="text-[10px] text-slate-400 font-mono font-normal truncate max-w-[200px]" title={axFile.fileName}>
+                            {axFile.fileName}
+                          </div>
+                        )}
+                      </th>
+                      <th className="py-3 px-4 w-[20%]">
+                        <span>Prévisualisation (Ligne 1)</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60 bg-white dark:bg-zinc-900">
-                    {currentTableFields.map((field) => {
-                      const selectedHeader = currentActiveFile.mapping[field.id] || "";
-                      const selectedIdx = currentActiveFile.headers.indexOf(selectedHeader);
-                      const sampleValue =
-                        selectedIdx >= 0 && currentActiveFile.rows[0] ? currentActiveFile.rows[0][selectedIdx] : "—";
+                    {UNIFIED_TABLE_FIELDS.map((field) => {
+                      const caSelectedHeader = caFile?.mapping[field.id] || "";
+                      const caColIdx = caSelectedHeader && caFile ? caFile.headers.indexOf(caSelectedHeader) : -1;
+                      const caSampleValue =
+                        caColIdx >= 0 && caFile?.rows[0] ? caFile.rows[0][caColIdx] : null;
+
+                      const axSelectedHeader = axFile?.mapping[field.id] || "";
+                      const axColIdx = axSelectedHeader && axFile ? axFile.headers.indexOf(axSelectedHeader) : -1;
+                      const axSampleValue =
+                        axColIdx >= 0 && axFile?.rows[0] ? axFile.rows[0][axColIdx] : null;
 
                       return (
                         <tr key={field.id} className="hover:bg-slate-50/60 dark:hover:bg-zinc-800/40">
-                          <td className="py-2.5 px-4">
+                          {/* Colonne 1 : Champ CRM */}
+                          <td className="py-2.5 px-4 align-top">
                             <div className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-zinc-200">
                               <span>{field.label}</span>
                               {field.required && (
-                                <span className="text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-1 rounded">
+                                <span className="text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-950/50 px-1.5 py-0.2 rounded">
                                   Requis
                                 </span>
                               )}
                             </div>
-                            <p className="text-[11px] text-slate-400">{field.description}</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">
+                              {field.description}
+                            </p>
                           </td>
 
-                          <td className="py-2.5 px-4">
-                            <select
-                              value={selectedHeader}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (activeMappingTab === "CA" && caFile) {
+                          {/* Colonne 2 : Fichier CA */}
+                          <td className="py-2.5 px-4 align-top">
+                            {caFile ? (
+                              <select
+                                value={caSelectedHeader}
+                                onChange={(e) => {
                                   setCaFile({
                                     ...caFile,
-                                    mapping: { ...caFile.mapping, [field.id]: val },
+                                    mapping: { ...caFile.mapping, [field.id]: e.target.value },
                                   });
-                                } else if (activeMappingTab === "AX" && axFile) {
-                                  setAxFile({
-                                    ...axFile,
-                                    mapping: { ...axFile.mapping, [field.id]: val },
-                                  });
-                                }
-                              }}
-                              className={`w-full py-1.5 px-2.5 rounded-lg border text-xs font-mono focus:outline-none focus:border-[#d90416] ${
-                                selectedHeader
-                                  ? "border-emerald-500/60 bg-emerald-50/30 dark:bg-emerald-950/20 text-slate-900 dark:text-zinc-100 font-bold"
-                                  : field.required
-                                  ? "border-red-300 bg-red-50/20 text-slate-500"
-                                  : "border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-500"
-                              }`}
-                            >
-                              <option value="">-- Ignorer / Non mappé --</option>
-                              {currentActiveFile.headers.map((h) => (
-                                <option key={h} value={h}>
-                                  {h}
-                                </option>
-                              ))}
-                            </select>
+                                }}
+                                className={`w-full py-1.5 px-2 rounded-lg border text-xs font-mono focus:outline-none focus:border-[#d90416] ${
+                                  caSelectedHeader
+                                    ? "border-emerald-500/60 bg-emerald-50/40 dark:bg-emerald-950/20 text-slate-900 dark:text-zinc-100 font-bold"
+                                    : field.required && !axSelectedHeader
+                                    ? "border-amber-300 bg-amber-50/20 text-slate-500"
+                                    : "border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-500"
+                                }`}
+                              >
+                                <option value="">-- Ignorer / Non présent --</option>
+                                {caFile.headers.map((h) => (
+                                  <option key={h} value={h}>
+                                    {h}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="py-1 px-2.5 rounded-lg bg-slate-100/70 dark:bg-zinc-800/40 text-[11px] text-slate-400 italic">
+                                Fichier non chargé
+                              </div>
+                            )}
                           </td>
 
-                          <td className="py-2.5 px-4">
-                            <span className="font-mono text-slate-600 dark:text-zinc-400 bg-slate-100 dark:bg-zinc-800 px-2 py-0.5 rounded text-[11px] max-w-[220px] truncate inline-block">
-                              {sampleValue || "(vide)"}
-                            </span>
+                          {/* Colonne 3 : Fichier AX */}
+                          <td className="py-2.5 px-4 align-top">
+                            {axFile ? (
+                              <select
+                                value={axSelectedHeader}
+                                onChange={(e) => {
+                                  setAxFile({
+                                    ...axFile,
+                                    mapping: { ...axFile.mapping, [field.id]: e.target.value },
+                                  });
+                                }}
+                                className={`w-full py-1.5 px-2 rounded-lg border text-xs font-mono focus:outline-none focus:border-purple-600 ${
+                                  axSelectedHeader
+                                    ? "border-purple-500/60 bg-purple-50/40 dark:bg-purple-950/20 text-slate-900 dark:text-zinc-100 font-bold"
+                                    : field.required && !caSelectedHeader
+                                    ? "border-amber-300 bg-amber-50/20 text-slate-500"
+                                    : "border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-slate-500"
+                                }`}
+                              >
+                                <option value="">-- Ignorer / Non présent --</option>
+                                {axFile.headers.map((h) => (
+                                  <option key={h} value={h}>
+                                    {h}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <div className="py-1 px-2.5 rounded-lg bg-slate-100/70 dark:bg-zinc-800/40 text-[11px] text-slate-400 italic">
+                                Fichier non chargé
+                              </div>
+                            )}
+                          </td>
+
+                          {/* Colonne 4 : Prévisualisation */}
+                          <td className="py-2.5 px-4 align-top">
+                            {!caSampleValue && !axSampleValue ? (
+                              <span className="text-slate-400 italic text-[11px]">—</span>
+                            ) : (
+                              <div className="space-y-1">
+                                {caSampleValue !== null && (
+                                  <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-100 dark:bg-red-950/60 text-[#d90416]">
+                                      CA
+                                    </span>
+                                    <span
+                                      className="text-slate-700 dark:text-zinc-300 truncate max-w-[150px] inline-block font-semibold"
+                                      title={caSampleValue}
+                                    >
+                                      {caSampleValue || "(vide)"}
+                                    </span>
+                                  </div>
+                                )}
+                                {axSampleValue !== null && (
+                                  <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300">
+                                      AX
+                                    </span>
+                                    <span
+                                      className="text-slate-700 dark:text-zinc-300 truncate max-w-[150px] inline-block font-semibold"
+                                      title={axSampleValue}
+                                    >
+                                      {axSampleValue || "(vide)"}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </td>
                         </tr>
                       );
@@ -1096,31 +1112,19 @@ export function CaImportModal({ isOpen, onClose, onSuccess }: CaImportModalProps
                 <button
                   type="button"
                   onClick={() => setStep("upload")}
-                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:bg-slate-50"
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:bg-slate-50 transition"
                 >
-                  Changer les fichiers
+                  ← Changer les fichiers
                 </button>
 
-                <div className="flex items-center gap-2">
-                  {caFile && axFile && activeMappingTab === "CA" && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveMappingTab("AX")}
-                      className="px-4 py-2 rounded-xl border border-purple-200 dark:border-purple-800 text-purple-700 dark:text-purple-300 text-xs font-semibold hover:bg-purple-50"
-                    >
-                      Tableau Fichier AX →
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => setStep("preview")}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#d90416] hover:bg-[#b80312] text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                  >
-                    <span>Prévisualiser les clients ({consolidatedRows.length})</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setStep("preview")}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#d90416] hover:bg-[#b80312] text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                >
+                  <span>Passer à la prévisualisation ({consolidatedRows.length} clients)</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
           )}
