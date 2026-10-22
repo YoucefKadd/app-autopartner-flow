@@ -875,42 +875,25 @@ export function TaskWorkspaceDrawer({
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400">
-                  Encart de texte / Notes détaillées & Instructions
+                  Encart de texte / Notes détaillées &amp; Instructions
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setPreviewFormatted((p) => !p)}
-                  className="text-[11px] font-semibold text-[#d90416] hover:underline"
-                >
-                  {previewFormatted ? "Mode Édition" : "Aperçu formaté"}
-                </button>
               </div>
 
-              {!previewFormatted ? (
-                <div className="rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 overflow-hidden focus-within:border-[#d90416]">
-                  <NoteFormattingToolbar
-                    textareaRef={textareaRef}
-                    value={description}
-                    onChange={setDescription}
-                  />
-                  <textarea
-                    ref={textareaRef}
-                    rows={5}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Mettez ici tout le détail souhaité : notes, numéros, références pièces, compte-rendu, liens, listes..."
-                    className="w-full p-3 text-xs text-slate-800 dark:text-zinc-200 bg-transparent focus:outline-none resize-y"
-                  />
-                </div>
-              ) : (
-                <div className="p-3.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-950 min-h-[110px]">
-                  {description.trim() ? (
-                    <FormattedNoteText content={description} />
-                  ) : (
-                    <span className="text-xs text-slate-400 italic">Aucun texte saisi.</span>
-                  )}
-                </div>
-              )}
+              <div>
+                <NoteFormattingToolbar
+                  textareaRef={textareaRef}
+                  value={description}
+                  onChange={setDescription}
+                />
+                <textarea
+                  ref={textareaRef}
+                  rows={5}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Mettez ici tout le détail souhaité : notes, numéros, références pièces, compte-rendu, liens, listes..."
+                  className="hidden"
+                />
+              </div>
             </div>
 
             {/* SUBMIT BUTTON */}
