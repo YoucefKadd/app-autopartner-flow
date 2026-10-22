@@ -75,7 +75,28 @@ export function TasksTab({
   const [quickAddColumn, setQuickAddColumn] = useState<TaskStatus | null>(null);
   const [quickAddTitle, setQuickAddTitle] = useState("");
   const [quickAddPriority, setQuickAddPriority] = useState(false);
+  const [quickAddClientId, setQuickAddClientId] = useState<string | null>(
+    defaultClientId || null
+  );
+  const [quickClientDropdownOpen, setQuickClientDropdownOpen] = useState(false);
+  const [quickClientSearch, setQuickClientSearch] = useState("");
   const [quickSaving, setQuickSaving] = useState(false);
+
+  const selectedQuickClient = useMemo(
+    () => clients.find((c) => c.id === quickAddClientId) || null,
+    [clients, quickAddClientId]
+  );
+
+  const filteredQuickClients = useMemo(() => {
+    const q = quickClientSearch.trim().toLowerCase();
+    if (!q) return clients;
+    return clients.filter(
+      (c) =>
+        c.company.toLowerCase().includes(q) ||
+        c.city.toLowerCase().includes(q) ||
+        (c.apClientNumber && c.apClientNumber.toLowerCase().includes(q))
+    );
+  }, [clients, quickClientSearch]);
 
   // Drag & drop state for Kanban
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
@@ -157,6 +178,15 @@ export function TasksTab({
     onRefresh();
   }
 
+  function openQuickAddForColumn(colStatus: TaskStatus) {
+    setQuickAddColumn(colStatus);
+    setQuickAddTitle("");
+    setQuickAddPriority(false);
+    setQuickAddClientId(defaultClientId || (clientFilter !== "ALL" ? clientFilter : null));
+    setQuickClientDropdownOpen(false);
+    setQuickClientSearch("");
+  }
+
   async function handleQuickAddSubmit(colStatus: TaskStatus) {
     if (!quickAddTitle.trim()) return;
     setQuickSaving(true);
@@ -169,12 +199,15 @@ export function TasksTab({
           status: colStatus,
           category: "COMMERCIAL",
           priority: quickAddPriority,
-          clientId: defaultClientId || (clientFilter !== "ALL" ? clientFilter : null),
+          clientId: quickAddClientId || defaultClientId || null,
           kamId: activeKamId,
         }),
       });
       setQuickAddTitle("");
       setQuickAddPriority(false);
+      setQuickAddClientId(defaultClientId || (clientFilter !== "ALL" ? clientFilter : null));
+      setQuickClientDropdownOpen(false);
+      setQuickClientSearch("");
       setQuickAddColumn(null);
       onRefresh();
     } finally {
@@ -579,10 +612,7 @@ export function TasksTab({
                     </button>
                     <button
                       type="button"
-                      onClick={() => {
-                        setQuickAddColumn(colStatus);
-                        setQuickAddTitle("");
-                      }}
+                      onClick={() => openQuickAddForColumn(colStatus)}
                       title="Ajout rapide d'une carte"
                       className="p-1 rounded-lg text-slate-500 hover:text-[#d90416] hover:bg-white dark:hover:bg-zinc-800 transition-colors cursor-pointer"
                     >
@@ -605,16 +635,106 @@ export function TasksTab({
                           handleQuickAddSubmit(colStatus);
                         } else if (e.key === "Escape") {
                           setQuickAddColumn(null);
+                          setQuickClientDropdownOpen(false);
                         }
                       }}
                       placeholder="Titre de la carte Trello..."
                       className="w-full text-xs font-semibold text-slate-900 dark:text-zinc-100 bg-transparent focus:outline-none"
                     />
+
+                    {/* Sélecteur de client direct dans la carte */}
+                    {!defaultClientId && (
+                      <div className="relative">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => setQuickClientDropdownOpen((o) => !o)}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors cursor-pointer max-w-full ${
+                              selectedQuickClient
+                                ? "bg-red-50 dark:bg-red-950/40 text-[#d90416] border-red-200 dark:border-red-900/50"
+                                : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 border-slate-200 dark:border-zinc-700 hover:border-[#d90416] hover:text-[#d90416]"
+                            }`}
+                          >
+                            <Building2 className="w-3 h-3 shrink-0" />
+                            <span className="truncate max-w-[180px]">
+                              {selectedQuickClient
+                                ? `${selectedQuickClient.company} (${selectedQuickClient.city})`
+                                : "+ Choisir un client"}
+                            </span>
+                          </button>
+
+                          {selectedQuickClient && (
+                            <button
+                              type="button"
+                              onClick={() => setQuickAddClientId(null)}
+                              className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+                              title="Retirer le client"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+
+                        {quickClientDropdownOpen && (
+                          <div className="mt-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-950 shadow-xl p-2 space-y-1.5 z-30">
+                            <div className="relative">
+                              <Search className="w-3 h-3 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                              <input
+                                type="text"
+                                value={quickClientSearch}
+                                onChange={(e) => setQuickClientSearch(e.target.value)}
+                                placeholder="Rechercher un client, ville, code AP..."
+                                className="w-full rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-900 pl-7 pr-2.5 py-1.5 text-[11px] text-slate-900 dark:text-zinc-100 focus:outline-none focus:border-[#d90416]"
+                              />
+                            </div>
+                            <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 dark:divide-zinc-800/60">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setQuickAddClientId(null);
+                                  setQuickClientDropdownOpen(false);
+                                }}
+                                className="w-full text-left px-2 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-50 dark:hover:bg-zinc-900 rounded-md cursor-pointer"
+                              >
+                                — Aucun client (Tâche générale) —
+                              </button>
+                              {filteredQuickClients.map((c) => (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setQuickAddClientId(c.id);
+                                    setQuickClientDropdownOpen(false);
+                                    setQuickClientSearch("");
+                                  }}
+                                  className={`w-full text-left px-2 py-1.5 text-[11px] flex items-center justify-between gap-2 hover:bg-red-50/60 dark:hover:bg-zinc-900 rounded-md cursor-pointer ${
+                                    quickAddClientId === c.id
+                                      ? "bg-red-50 dark:bg-red-950/30 text-[#d90416] font-bold"
+                                      : "text-slate-800 dark:text-zinc-200 font-medium"
+                                  }`}
+                                >
+                                  <span className="truncate">{c.company}</span>
+                                  <span className="text-[10px] text-slate-400 shrink-0">
+                                    {c.city}
+                                  </span>
+                                </button>
+                              ))}
+                              {filteredQuickClients.length === 0 && (
+                                <div className="px-2 py-2 text-[11px] text-slate-400 text-center">
+                                  Aucun client trouvé
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex items-center justify-between pt-1">
                       <button
                         type="button"
                         onClick={() => setQuickAddPriority((p) => !p)}
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border cursor-pointer ${
                           quickAddPriority
                             ? "bg-rose-500 text-white border-rose-600"
                             : "bg-slate-100 dark:bg-zinc-800 text-slate-500 border-transparent"
@@ -626,8 +746,11 @@ export function TasksTab({
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
-                          onClick={() => setQuickAddColumn(null)}
-                          className="px-2 py-1 rounded-lg text-[11px] text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800"
+                          onClick={() => {
+                            setQuickAddColumn(null);
+                            setQuickClientDropdownOpen(false);
+                          }}
+                          className="px-2 py-1 rounded-lg text-[11px] text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800 cursor-pointer"
                         >
                           Annuler
                         </button>
@@ -635,7 +758,7 @@ export function TasksTab({
                           type="button"
                           disabled={quickSaving || !quickAddTitle.trim()}
                           onClick={() => handleQuickAddSubmit(colStatus)}
-                          className="px-3 py-1 rounded-lg bg-[#d90416] text-white text-[11px] font-bold disabled:opacity-50"
+                          className="px-3 py-1 rounded-lg bg-[#d90416] text-white text-[11px] font-bold disabled:opacity-50 cursor-pointer"
                         >
                           Ajouter
                         </button>
@@ -875,10 +998,7 @@ export function TasksTab({
                   {/* Empty state or Add Card button at bottom of column */}
                   <button
                     type="button"
-                    onClick={() => {
-                      setQuickAddColumn(colStatus);
-                      setQuickAddTitle("");
-                    }}
+                    onClick={() => openQuickAddForColumn(colStatus)}
                     className="w-full py-2.5 px-3 rounded-xl border border-dashed border-slate-300 dark:border-zinc-700 hover:border-[#d90416] text-xs font-semibold text-slate-500 dark:text-zinc-400 hover:text-[#d90416] flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
