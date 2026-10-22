@@ -10,12 +10,26 @@ export interface ImportCaRow {
   contactName?: string;
   email?: string;
   phone?: string;
+  status?: string;
+  directionId?: string;
   year: number;
   month: number;
   amount?: number;
   axPurchases?: number;
   ordersCount?: number;
   target?: number;
+}
+
+function parseClientStatus(raw?: string): string | undefined {
+  if (!raw || !raw.trim()) return undefined;
+  const s = raw.trim().toLowerCase();
+  if (s.includes("inact") || s === "0" || s === "bloqu" || s === "non" || s === "false") {
+    return "INACTIVE";
+  }
+  if (s.includes("prospect")) return "PROSPECT";
+  if (s.includes("vip")) return "VIP";
+  if (s.includes("act") || s === "1" || s === "oui" || s === "true") return "ACTIVE";
+  return "ACTIVE";
 }
 
 export async function POST(request: Request) {
@@ -42,6 +56,8 @@ export async function POST(request: Request) {
         contactName: true,
         email: true,
         phone: true,
+        status: true,
+        directionId: true,
       },
     });
 
@@ -90,6 +106,7 @@ export async function POST(request: Request) {
               : "Nouveau Client Importé"
           ).trim();
 
+          const determinedStatus = parseClientStatus(row.status) || "ACTIVE";
           const createdClient = await prisma.client.create({
             data: {
               company: clientCompany,
@@ -103,7 +120,8 @@ export async function POST(request: Request) {
                 : `contact.${cleanAp || Date.now() + Math.random().toString(36).substring(7)}@client.autopartner.fr`,
               phone: row.phone ? row.phone.trim() : "Non renseigné",
               position: "Gérant / Responsable",
-              status: "ACTIVE",
+              status: determinedStatus,
+              directionId: row.directionId ? row.directionId.trim() : null,
               kamId: assignedKam.id,
             },
           });
@@ -128,6 +146,11 @@ export async function POST(request: Request) {
       if (row.contactName && (!matchedClient.contactName || matchedClient.contactName === "Contact Comptoir")) clientUpdate.contactName = row.contactName.trim();
       if (row.email && (!matchedClient.email || matchedClient.email.includes("@client.autopartner.fr"))) clientUpdate.email = row.email.trim();
       if (row.phone && (!matchedClient.phone || matchedClient.phone === "Non renseigné")) clientUpdate.phone = row.phone.trim();
+      if (row.directionId && row.directionId.trim()) clientUpdate.directionId = row.directionId.trim();
+      if (row.status) {
+        const parsed = parseClientStatus(row.status);
+        if (parsed) clientUpdate.status = parsed;
+      }
 
       if (Object.keys(clientUpdate).length > 0) {
         await prisma.client.update({

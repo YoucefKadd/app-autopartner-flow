@@ -157,6 +157,7 @@ export interface ClientItem {
   city: string;
   postalCode?: string;
   apClientNumber?: string;
+  directionId?: string | null;
   logo?: string;
   logoUrl?: string;
   status: ClientStatus;

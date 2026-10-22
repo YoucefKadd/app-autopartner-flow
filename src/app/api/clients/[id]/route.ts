@@ -56,6 +56,7 @@ export async function PATCH(
     if (body.city !== undefined) updateData.city = body.city;
     if (body.apClientNumber !== undefined) updateData.apClientNumber = body.apClientNumber;
     if (body.status !== undefined) updateData.status = body.status;
+    if (body.directionId !== undefined) updateData.directionId = body.directionId;
     if (body.logo !== undefined) updateData.logo = body.logo;
     if (body.healthScore !== undefined)
       updateData.healthScore = Number(body.healthScore);

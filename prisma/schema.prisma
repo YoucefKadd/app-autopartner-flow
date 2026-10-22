@@ -48,6 +48,7 @@ model Client {
   visits         Visit[]
   photos         ClientPhoto[]
   turnovers      Turnover[]
+  directionId    String?       // Route transport / Direction ID AX
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 }

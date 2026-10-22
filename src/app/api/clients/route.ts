@@ -19,6 +19,7 @@ export async function POST(request: Request) {
       lastContactAt,
       kamId,
       logo,
+      directionId,
     } = body;
 
     if (!company || !contactName || !kamId) {
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
         lastContactAt: lastContactAt ? new Date(lastContactAt) : new Date(),
         kamId,
         logo: logo || null,
+        directionId: directionId || null,
       },
       include: {
         notes: true,

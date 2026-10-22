@@ -94,6 +94,39 @@ const UNIFIED_TABLE_FIELDS: TargetFieldDef[] = [
     ],
   },
   {
+    id: "status",
+    label: "Statut Client (Actif / Inactif)",
+    required: false,
+    description: "Statut du compte client (ex: STATUS, CUSTSTATUS, ACTIF, INACTIF)",
+    defaultMatches: [
+      "custstatus",
+      "status",
+      "statut",
+      "etat",
+      "active",
+      "inactive",
+      "actif",
+      "inactif"
+    ],
+  },
+  {
+    id: "directionId",
+    label: "Direction ID (Route Transport)",
+    required: false,
+    description: "Code logistique ou tournée transport (ex: DIRECTIONID, ROUTE, TOURNEE)",
+    defaultMatches: [
+      "directionid",
+      "direction_id",
+      "direction",
+      "routetransport",
+      "route",
+      "deliveryroute",
+      "tournee",
+      "circuit",
+      "transport"
+    ],
+  },
+  {
     id: "address",
     label: "Adresse postale (Rue / Voie)",
     required: false,
@@ -438,6 +471,8 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
       contactName?: string;
       email?: string;
       phone?: string;
+      status?: string;
+      directionId?: string;
       matchedClient: string | null;
       year: number;
       month: number;
@@ -460,6 +495,8 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
       const contactIdx = caFile.mapping.contactName ? caFile.headers.indexOf(caFile.mapping.contactName) : -1;
       const emailIdx = caFile.mapping.email ? caFile.headers.indexOf(caFile.mapping.email) : -1;
       const phoneIdx = caFile.mapping.phone ? caFile.headers.indexOf(caFile.mapping.phone) : -1;
+      const statusIdx = caFile.mapping.status ? caFile.headers.indexOf(caFile.mapping.status) : -1;
+      const dirIdx = caFile.mapping.directionId ? caFile.headers.indexOf(caFile.mapping.directionId) : -1;
       const yearIdx = caFile.mapping.year ? caFile.headers.indexOf(caFile.mapping.year) : -1;
       const monthIdx = caFile.mapping.month ? caFile.headers.indexOf(caFile.mapping.month) : -1;
       const amountIdx = caFile.mapping.amount ? caFile.headers.indexOf(caFile.mapping.amount) : -1;
@@ -491,6 +528,8 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
         const contact = contactIdx >= 0 ? row[contactIdx]?.trim() : undefined;
         const email = emailIdx >= 0 ? row[emailIdx]?.trim() : undefined;
         const phone = phoneIdx >= 0 ? row[phoneIdx]?.trim() : undefined;
+        const statusVal = statusIdx >= 0 ? row[statusIdx]?.trim() : undefined;
+        const dirVal = dirIdx >= 0 ? row[dirIdx]?.trim() : undefined;
 
         const cleanAp = apCode.toLowerCase();
         const numericAp = cleanAp.replace(/^0+/, "");
@@ -522,6 +561,8 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
             contactName: contact || (matched ? matched.contactName : undefined),
             email: email || (matched ? matched.email : undefined),
             phone: phone || (matched ? matched.phone : undefined),
+            status: statusVal || (matched ? matched.status : undefined),
+            directionId: dirVal || (matched ? matched.directionId || undefined : undefined),
             matchedClient: matched ? matched.company : null,
             year,
             month,
@@ -540,6 +581,8 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
           if (city && !existing.city) existing.city = city;
           if (email && !existing.email) existing.email = email;
           if (phone && !existing.phone) existing.phone = phone;
+          if (statusVal) existing.status = statusVal;
+          if (dirVal) existing.directionId = dirVal;
         }
       });
     }
@@ -554,6 +597,8 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
       const cityIdx = axFile.mapping.city ? axFile.headers.indexOf(axFile.mapping.city) : -1;
       const emailIdx = axFile.mapping.email ? axFile.headers.indexOf(axFile.mapping.email) : -1;
       const phoneIdx = axFile.mapping.phone ? axFile.headers.indexOf(axFile.mapping.phone) : -1;
+      const statusIdx = axFile.mapping.status ? axFile.headers.indexOf(axFile.mapping.status) : -1;
+      const dirIdx = axFile.mapping.directionId ? axFile.headers.indexOf(axFile.mapping.directionId) : -1;
       const yearIdx = axFile.mapping.year ? axFile.headers.indexOf(axFile.mapping.year) : -1;
       const monthIdx = axFile.mapping.month ? axFile.headers.indexOf(axFile.mapping.month) : -1;
       const axIdx = axFile.mapping.axPurchases ? axFile.headers.indexOf(axFile.mapping.axPurchases) : -1;
@@ -579,6 +624,8 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
         const city = cityIdx >= 0 ? row[cityIdx]?.trim() : undefined;
         const email = emailIdx >= 0 ? row[emailIdx]?.trim() : undefined;
         const phone = phoneIdx >= 0 ? row[phoneIdx]?.trim() : undefined;
+        const statusVal = statusIdx >= 0 ? row[statusIdx]?.trim() : undefined;
+        const dirVal = dirIdx >= 0 ? row[dirIdx]?.trim() : undefined;
 
         const cleanAp = apCode.toLowerCase();
         const numericAp = cleanAp.replace(/^0+/, "");
@@ -632,6 +679,8 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
             city: city || (matched ? matched.city : "France"),
             email: email || (matched ? matched.email : undefined),
             phone: phone || (matched ? matched.phone : undefined),
+            status: statusVal || (matched ? matched.status : undefined),
+            directionId: dirVal || (matched ? matched.directionId || undefined : undefined),
             matchedClient: matched ? matched.company : null,
             year,
             month,
@@ -656,6 +705,8 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
           if (city && !existing.city) existing.city = city;
           if (email && !existing.email) existing.email = email;
           if (phone && !existing.phone) existing.phone = phone;
+          if (statusVal) existing.status = statusVal;
+          if (dirVal) existing.directionId = dirVal;
         }
       });
     }
@@ -676,6 +727,8 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
       contactName: r.contactName || undefined,
       email: r.email || undefined,
       phone: r.phone || undefined,
+      status: r.status || undefined,
+      directionId: r.directionId || undefined,
       year: r.year,
       month: r.month,
       amount: r.amount !== undefined ? r.amount : 0,
@@ -711,6 +764,78 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
       setStep("mapping");
     }
   }
+
+  // Reconciled sample client index across CA and AX so preview in Step 2 shows the EXACT SAME client!
+  const sampleIndices = useMemo(() => {
+    if (!caFile && !axFile) return { caIdx: -1, axIdx: -1, label: "" };
+
+    const caApCol = caFile?.mapping.apClientNumber ? caFile.headers.indexOf(caFile.mapping.apClientNumber) : -1;
+    const axApCol = axFile?.mapping.apClientNumber ? axFile.headers.indexOf(axFile.mapping.apClientNumber) : -1;
+    const caCompCol = caFile?.mapping.company ? caFile.headers.indexOf(caFile.mapping.company) : -1;
+    const axCompCol = axFile?.mapping.company ? axFile.headers.indexOf(axFile.mapping.company) : -1;
+
+    if (caFile && !axFile) {
+      const r0 = caFile.rows[0];
+      const code = apIdxCol(caApCol, r0);
+      const comp = apIdxCol(caCompCol, r0);
+      return { caIdx: 0, axIdx: -1, label: code || comp || "Ligne 1" };
+    }
+
+    if (!caFile && axFile) {
+      const r0 = axFile.rows[0];
+      const code = apIdxCol(axApCol, r0);
+      const comp = apIdxCol(axCompCol, r0);
+      return { caIdx: -1, axIdx: 0, label: code || comp || "Ligne 1" };
+    }
+
+    // Both files present: Find a common client!
+    function apIdxCol(idx: number, row: string[] | undefined) {
+      return idx >= 0 && row && row[idx] ? row[idx].trim() : "";
+    }
+
+    if (caFile && axFile) {
+      // Build lookup for AX rows by Code AP and Company
+      const axApMap = new Map<string, number>();
+      const axCompMap = new Map<string, number>();
+
+      axFile.rows.forEach((r, idx) => {
+        if (axApCol >= 0 && r[axApCol]) {
+          const c = r[axApCol].trim().toLowerCase();
+          axApMap.set(c, idx);
+          axApMap.set(c.replace(/^0+/, ""), idx);
+        }
+        if (axCompCol >= 0 && r[axCompCol]) {
+          axCompMap.set(r[axCompCol].trim().toLowerCase(), idx);
+        }
+      });
+
+      // Search through CA rows to find the first client that exists in both files!
+      for (let i = 0; i < caFile.rows.length; i++) {
+        const r = caFile.rows[i];
+        const caCode = caApCol >= 0 && r[caApCol] ? r[caApCol].trim().toLowerCase() : "";
+        const caComp = caCompCol >= 0 && r[caCompCol] ? r[caCompCol].trim().toLowerCase() : "";
+
+        let matchedAxIdx: number | undefined;
+        if (caCode) {
+          matchedAxIdx = axApMap.get(caCode) ?? axApMap.get(caCode.replace(/^0+/, ""));
+        }
+        if (matchedAxIdx === undefined && caComp) {
+          matchedAxIdx = axCompMap.get(caComp);
+        }
+
+        if (matchedAxIdx !== undefined) {
+          const displayLabel =
+            (caApCol >= 0 ? r[caApCol]?.trim() : "") ||
+            (caCompCol >= 0 ? r[caCompCol]?.trim() : "") ||
+            `Ligne ${i + 1}`;
+          return { caIdx: i, axIdx: matchedAxIdx, label: displayLabel };
+        }
+      }
+    }
+
+    // Fallback: row 0 of both
+    return { caIdx: 0, axIdx: 0, label: "Ligne 1" };
+  }, [caFile, axFile]);
 
   if (!isOpen) return null;
 
@@ -1110,8 +1235,21 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
                           </div>
                         )}
                       </th>
-                      <th className="py-3 px-4 w-[20%]">
-                        <span>Prévisualisation (Ligne 1)</span>
+                      <th className="py-3 px-4 w-[24%]">
+                        <div className="flex items-center gap-1.5 text-slate-900 dark:text-white">
+                          <span>Prévisualisation</span>
+                          {sampleIndices.label && (
+                            <span
+                              className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-200 dark:bg-zinc-700 text-slate-700 dark:text-zinc-200 font-bold truncate max-w-[130px]"
+                              title={`Client échantillon commun : ${sampleIndices.label}`}
+                            >
+                              {sampleIndices.label}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-slate-400 font-normal">
+                          Même client échantillon (CA &amp; AX)
+                        </div>
                       </th>
                     </tr>
                   </thead>
@@ -1120,12 +1258,16 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
                       const caSelectedHeader = caFile?.mapping[field.id] || "";
                       const caColIdx = caSelectedHeader && caFile ? caFile.headers.indexOf(caSelectedHeader) : -1;
                       const caSampleValue =
-                        caColIdx >= 0 && caFile?.rows[0] ? caFile.rows[0][caColIdx] : null;
+                        caColIdx >= 0 && sampleIndices.caIdx >= 0 && caFile?.rows[sampleIndices.caIdx]
+                          ? caFile.rows[sampleIndices.caIdx][caColIdx]
+                          : null;
 
                       const axSelectedHeader = axFile?.mapping[field.id] || "";
                       const axColIdx = axSelectedHeader && axFile ? axFile.headers.indexOf(axSelectedHeader) : -1;
                       const axSampleValue =
-                        axColIdx >= 0 && axFile?.rows[0] ? axFile.rows[0][axColIdx] : null;
+                        axColIdx >= 0 && sampleIndices.axIdx >= 0 && axFile?.rows[sampleIndices.axIdx]
+                          ? axFile.rows[sampleIndices.axIdx][axColIdx]
+                          : null;
 
                       return (
                         <tr key={field.id} className="hover:bg-slate-50/60 dark:hover:bg-zinc-800/40">
@@ -1326,6 +1468,7 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
                     <tr>
                       <th className="p-2.5">Code AP</th>
                       <th className="p-2.5">Enseigne / Client</th>
+                      <th className="p-2.5">Statut / Route</th>
                       <th className="p-2.5">Adresse &amp; CP</th>
                       <th className="p-2.5">Ville</th>
                       <th className="p-2.5">Période</th>
@@ -1343,6 +1486,25 @@ export function CaImportModal({ isOpen, onClose, onSuccess, targetKamId, kamName
                         <td className="p-2.5 font-semibold text-slate-900 dark:text-white">
                           <div className="truncate max-w-[180px]">{r.company || r.matchedClient || "Client Inconnu"}</div>
                           {r.contactName && <div className="text-[10px] text-slate-400 font-normal">{r.contactName}</div>}
+                        </td>
+                        <td className="p-2.5 text-slate-700 dark:text-zinc-300 text-[11px]">
+                          {r.status && (
+                            <span
+                              className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                r.status.toLowerCase().includes("inact")
+                                  ? "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300"
+                                  : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                              }`}
+                            >
+                              {r.status}
+                            </span>
+                          )}
+                          {r.directionId && (
+                            <div className="text-[10px] font-mono text-purple-700 dark:text-purple-300 font-semibold truncate max-w-[110px]" title={r.directionId}>
+                              {r.directionId}
+                            </div>
+                          )}
+                          {!r.status && !r.directionId && <span className="text-slate-400 italic">—</span>}
                         </td>
                         <td className="p-2.5 text-slate-600 dark:text-zinc-300 text-[11px]">
                           {r.address ? (

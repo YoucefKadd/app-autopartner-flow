@@ -32,6 +32,8 @@ import { Map as MapIcon } from "lucide-react";
 import { DeleteClientModal } from "@/components/DeleteClientModal";
 import { AddVisitModal } from "@/components/AddVisitModal";
 import { CsvImportModal } from "@/components/CsvImportModal";
+import { CaImportModal } from "@/components/CaImportModal";
+import { TrendingUp } from "lucide-react";
 import {
   getClientVisitStatus,
   REVISIT_INTERVAL_OPTIONS,
@@ -65,6 +67,7 @@ export default function ClientsRoutePage() {
 
   // CSV Import modal state
   const [isCsvImportOpen, setIsCsvImportOpen] = useState(false);
+  const [isCaAxImportOpen, setIsCaAxImportOpen] = useState(false);
 
   // Visit modal & settings state
   const [isAddVisitModalOpen, setIsAddVisitModalOpen] = useState(false);
@@ -700,6 +703,17 @@ export default function ClientsRoutePage() {
             <span>Importer CSV</span>
           </button>
 
+          {/* Import CA & AX button */}
+          <button
+            type="button"
+            onClick={() => setIsCaAxImportOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-purple-200 dark:border-purple-800/60 bg-purple-50 dark:bg-purple-950/30 hover:bg-purple-100 dark:hover:bg-purple-900/40 text-xs font-bold text-purple-900 dark:text-purple-200 transition-colors shadow-xs"
+            title="Importer et rapprocher les 2 fichiers CSV (Ventes CA & Achats AX)"
+          >
+            <TrendingUp className="w-3.5 h-3.5 text-[#d90416]" />
+            <span>Importer CA &amp; AX</span>
+          </button>
+
           {/* Primary Auto Partner Red Button ("Nouveau client") */}
           <button
             type="button"
@@ -830,6 +844,17 @@ export default function ClientsRoutePage() {
       <CsvImportModal
         isOpen={isCsvImportOpen}
         onClose={() => setIsCsvImportOpen(false)}
+        targetKamId={activeUser?.id}
+        kamName={activeUser?.name}
+        onSuccess={async () => {
+          await refreshWorkspace(activeUser?.id);
+        }}
+      />
+
+      {/* CA & AX Dual CSV Import Modal */}
+      <CaImportModal
+        isOpen={isCaAxImportOpen}
+        onClose={() => setIsCaAxImportOpen(false)}
         targetKamId={activeUser?.id}
         kamName={activeUser?.name}
         onSuccess={async () => {

@@ -55,6 +55,7 @@ export const AVAILABLE_COLUMNS: ColumnConfig[] = [
   { id: "status", label: "Statut Client", defaultVisible: true },
   { id: "lastVisit", label: "Dernière Visite", defaultVisible: true },
   { id: "address", label: "Adresse complète", defaultVisible: false },
+  { id: "directionId", label: "Direction ID / Route Transport", defaultVisible: false },
   { id: "contactName", label: "Contact / Interlocuteur", defaultVisible: false },
   { id: "actions", label: "Actions rapides", defaultVisible: true },
 ];
@@ -617,6 +618,12 @@ export function ClientsViews({
                         <span>ADRESSE</span>
                       </th>
                     )}
+                    {/* Colonne Direction ID / Route Transport (optionnelle) */}
+                    {isColumnVisible("directionId") && (
+                      <th className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[130px] select-none`}>
+                        <span>ROUTE / DIR</span>
+                      </th>
+                    )}
                     {/* Colonne Contact (optionnelle) */}
                     {isColumnVisible("contactName") && (
                       <th className={`${viewMode === "compact" ? "py-2.5 px-3" : "py-3.5 px-4"} border-r border-slate-100 dark:border-zinc-800/60 min-w-[130px] select-none`}>
@@ -851,6 +858,19 @@ export function ClientsViews({
                         {isColumnVisible("address") && (
                           <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 text-slate-700 dark:text-zinc-300 max-w-[180px] truncate`}>
                             {client.address || "—"}
+                          </td>
+                        )}
+
+                        {/* Direction ID / Route Transport (optionnel) */}
+                        {isColumnVisible("directionId") && (
+                          <td className={`${rowPadding} ${viewMode === "compact" ? "px-3" : "px-4"} border-r border-slate-50 dark:border-zinc-800/40 text-slate-700 dark:text-zinc-300 font-mono text-xs font-semibold`}>
+                            {client.directionId ? (
+                              <span className="px-2 py-0.5 rounded-md bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/50">
+                                {client.directionId}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic font-sans font-normal">—</span>
+                            )}
                           </td>
                         )}
 
