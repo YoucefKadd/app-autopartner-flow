@@ -6,7 +6,7 @@ export interface ImportCaRow {
   company?: string;
   year: number;
   month: number;
-  amount: number;
+  amount?: number;
   axPurchases?: number;
   ordersCount?: number;
   target?: number;
@@ -64,10 +64,30 @@ export async function POST(request: Request) {
 
       const year = Number(row.year) || new Date().getFullYear();
       const month = Number(row.month) || 0; // 0 represents annual total
-      const amount = Number(row.amount) || 0;
-      const axPurchases = Number(row.axPurchases) || 0;
-      const ordersCount = Number(row.ordersCount) || 0;
-      const target = Number(row.target) || 0;
+
+      const createData: any = {
+        clientId: matchedClient.id,
+        year,
+        month,
+        amount: row.amount !== undefined ? Number(row.amount) || 0 : 0,
+        axPurchases: row.axPurchases !== undefined ? Number(row.axPurchases) || 0 : 0,
+        ordersCount: row.ordersCount !== undefined ? Number(row.ordersCount) || 0 : 0,
+        target: row.target !== undefined ? Number(row.target) || 0 : 0,
+      };
+
+      const updateData: any = {};
+      if (row.amount !== undefined) {
+        updateData.amount = Number(row.amount) || 0;
+      }
+      if (row.axPurchases !== undefined) {
+        updateData.axPurchases = Number(row.axPurchases) || 0;
+      }
+      if (row.ordersCount !== undefined) {
+        updateData.ordersCount = Number(row.ordersCount) || 0;
+      }
+      if (row.target !== undefined) {
+        updateData.target = Number(row.target) || 0;
+      }
 
       await prisma.turnover.upsert({
         where: {
@@ -77,21 +97,8 @@ export async function POST(request: Request) {
             month,
           },
         },
-        create: {
-          clientId: matchedClient.id,
-          year,
-          month,
-          amount,
-          axPurchases,
-          ordersCount,
-          target,
-        },
-        update: {
-          amount,
-          axPurchases,
-          ordersCount,
-          target,
-        },
+        create: createData,
+        update: updateData,
       });
 
       matchedCount++;
