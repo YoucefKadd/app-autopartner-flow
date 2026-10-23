@@ -40,6 +40,7 @@ import {
   CheckSquare,
   Kanban,
   UserPlus,
+  Map,
 } from "lucide-react";
 import { ClientItem, KamUser, NoteItem, TaskItem, TaskStatus, TASK_STATUS_CONFIG, parseTaskChecklist, ClientVisit, getInitials, hasPermission, getAssignedManagerIds } from "@/types/kam";
 import { QuickNoteModal } from "@/components/QuickNoteModal";
@@ -495,6 +496,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const isDashboardRoute = pathname === "/" || pathname === "/dashboard";
   const isClientsRoute = pathname?.startsWith("/clients");
+  const isMapRoute = pathname?.startsWith("/carte");
   const isVisitesRoute = pathname?.startsWith("/visites");
   const isCaRoute = pathname?.startsWith("/ca");
   const isNotesRoute = pathname?.startsWith("/notes");
@@ -1164,6 +1166,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </span>
                 </Link>
 
+                <Link
+                  href="/carte"
+                  onClick={() => setMobileDrawerOpen(false)}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-colors ${
+                    isMapRoute
+                      ? "bg-red-50/80 dark:bg-red-950/30 text-[#d90416] font-semibold"
+                      : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100/80 dark:hover:bg-zinc-800/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Map className="w-4 h-4 shrink-0" />
+                    <span>Carte &amp; Territoires</span>
+                  </div>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-950/40 text-[#d90416] font-bold">
+                    GPS &amp; CA
+                  </span>
+                </Link>
+
                 {hasPermission(loggedUser, "add_visits") && (
                   <Link
                     href="/visites"
@@ -1395,6 +1415,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   {sidebarExpanded && (
                     <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
                       {clients.length}
+                    </span>
+                  )}
+                </Link>
+
+                {/* 3RD ITEM: ROUTE /carte (Cartographie & Analyses Territoriales) */}
+                <Link
+                  href="/carte"
+                  title="Cartographie &amp; Analyses Territoriales (/carte)"
+                  className={`relative w-full flex items-center ${
+                    sidebarExpanded
+                      ? "justify-between px-3 py-2.5"
+                      : "justify-center py-2.5"
+                  } rounded-xl text-xs font-medium transition-colors ${
+                    isMapRoute
+                      ? "bg-red-50/80 dark:bg-red-950/30 text-[#d90416] font-semibold"
+                      : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100/80 dark:hover:bg-zinc-800/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Map className="w-4 h-4 shrink-0" />
+                    {sidebarExpanded && <span>Carte &amp; Territoires</span>}
+                  </div>
+                  {sidebarExpanded && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-950/40 text-[#d90416] font-bold">
+                      GPS
                     </span>
                   )}
                 </Link>
