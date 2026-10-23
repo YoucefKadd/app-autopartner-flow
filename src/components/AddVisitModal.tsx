@@ -15,6 +15,8 @@ import {
   AlertTriangle,
   Search,
   Check,
+  CheckSquare,
+  Flame,
 } from "lucide-react";
 import {
   ClientItem,
@@ -65,6 +67,10 @@ export function AddVisitModal({
   const [summary, setSummary] = useState<string>("");
   const [nextVisitDate, setNextVisitDate] = useState<string>("");
   const [revisitInterval, setRevisitInterval] = useState<number>(30);
+  const [createFollowUpTask, setCreateFollowUpTask] = useState<boolean>(false);
+  const [followUpTaskTitle, setFollowUpTaskTitle] = useState<string>("");
+  const [followUpTaskDueDate, setFollowUpTaskDueDate] = useState<string>("");
+  const [followUpTaskPriority, setFollowUpTaskPriority] = useState<boolean>(false);
   const [saving, setSaving] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -100,6 +106,10 @@ export function AddVisitModal({
       setStatus("EFFECTUEE");
       setSummary("");
       setNextVisitDate("");
+      setCreateFollowUpTask(false);
+      setFollowUpTaskTitle("");
+      setFollowUpTaskDueDate("");
+      setFollowUpTaskPriority(false);
       setIsClientDropdownOpen(false);
 
       if (selectedId) {
@@ -217,6 +227,33 @@ export function AddVisitModal({
 
       // 3. Mettre à jour l'intervalle de re-visite paramétré si modifié
       setClientRevisitInterval(clientId, revisitInterval);
+
+      // 4. Créer automatiquement une tâche de suivi dans le Kanban si l'option est cochée
+      if (createFollowUpTask) {
+        const finalTaskTitle =
+          followUpTaskTitle.trim() ||
+          `Suivi visite terrain — ${selectedClient?.company || "Client"} (${CLIENT_VISIT_TYPES[type].label})`;
+        try {
+          await fetch("/api/tasks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: finalTaskTitle,
+              description: `${summary.trim()}${
+                interlocutor ? `\n\n**Interlocuteur :** ${interlocutor}` : ""
+              }`,
+              status: "TODO",
+              category: "VISITE",
+              priority: followUpTaskPriority,
+              dueDate: followUpTaskDueDate || nextVisitDate || null,
+              clientId,
+              kamId: activeKamId,
+            }),
+          });
+        } catch (errTask) {
+          console.warn("Erreur création tâche de suivi visite:", errTask);
+        }
+      }
 
       onSaved();
       onClose();
@@ -478,6 +515,80 @@ export function AddVisitModal({
                 />
               </div>
             </div>
+          </div>
+
+          {/* Option Création de Tâche de suivi Kanban */}
+          <div className="p-3.5 rounded-xl border border-slate-200/80 dark:border-zinc-800 bg-red-50/30 dark:bg-zinc-950/60 space-y-3">
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={createFollowUpTask}
+                onChange={(e) => {
+                  setCreateFollowUpTask(e.target.checked);
+                  if (e.target.checked && !followUpTaskTitle) {
+                    setFollowUpTaskTitle(
+                      `Suivi visite ${selectedClient?.company || "client"} : action / relance`
+                    );
+                  }
+                }}
+                className="mt-0.5 w-4 h-4 rounded text-[#d90416] focus:ring-[#d90416] border-slate-300 dark:border-zinc-700 cursor-pointer"
+              />
+              <div className="flex-1 min-w-0">
+                <span className="text-xs font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-1.5">
+                  <CheckSquare className="w-3.5 h-3.5 text-[#d90416]" />
+                  Créer une tâche de suivi dans le Kanban (Rappel / Action)
+                </span>
+                <p className="text-[11px] text-slate-500 dark:text-zinc-400">
+                  Crée automatiquement une carte Trello liée au client avec échéance et rappel
+                </p>
+              </div>
+            </label>
+
+            {createFollowUpTask && (
+              <div className="pt-2 border-t border-slate-200/60 dark:border-zinc-800 space-y-3 animate-in fade-in duration-150">
+                <div>
+                  <label className="text-[11px] font-semibold text-slate-700 dark:text-zinc-300 block mb-1">
+                    Titre de la tâche de suivi :
+                  </label>
+                  <input
+                    type="text"
+                    value={followUpTaskTitle}
+                    onChange={(e) => setFollowUpTaskTitle(e.target.value)}
+                    placeholder="Ex: Relancer le client pour le RIB mardi, Envoyer devis pièces..."
+                    className="w-full rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416]"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div>
+                    <label className="text-[11px] font-medium text-slate-600 dark:text-zinc-400 block mb-1">
+                      Date limite / Échéance :
+                    </label>
+                    <input
+                      type="date"
+                      value={followUpTaskDueDate}
+                      onChange={(e) => setFollowUpTaskDueDate(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-3 py-1.5 text-xs text-slate-800 dark:text-zinc-200 focus:outline-none focus:border-[#d90416]"
+                    />
+                  </div>
+
+                  <div className="flex items-end pb-1.5">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-zinc-200">
+                      <input
+                        type="checkbox"
+                        checked={followUpTaskPriority}
+                        onChange={(e) => setFollowUpTaskPriority(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded text-[#d90416] focus:ring-[#d90416] cursor-pointer"
+                      />
+                      <span className="flex items-center gap-1 text-[#d90416]">
+                        <Flame className="w-3.5 h-3.5 fill-current" />
+                        Marquer comme Prioritaire
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Actions */}

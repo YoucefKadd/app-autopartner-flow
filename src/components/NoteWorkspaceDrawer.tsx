@@ -26,6 +26,7 @@ import {
   Check,
   PanelRightClose,
   PanelRightOpen,
+  CheckSquare,
 } from "lucide-react";
 import {
   ClientItem,
@@ -34,7 +35,7 @@ import {
   NOTE_CATEGORIES,
   formatFullTimestamp,
 } from "@/types/kam";
-import { NoteFormattingToolbar, FormattedNoteText } from "@/components/NoteFormatter";
+import { NoteFormattingToolbar, FormattedNoteText, stripMarkdown } from "@/components/NoteFormatter";
 
 export type NoteDockMode = "dock" | "split" | "floating";
 
@@ -80,6 +81,8 @@ export function NoteWorkspaceDrawer({
   const [clientId, setClientId] = useState<string>("");
   const [pinned, setPinned] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [convertingToTask, setConvertingToTask] = useState(false);
+  const [taskCreatedMsg, setTaskCreatedMsg] = useState(false);
   const [currentEditingNote, setCurrentEditingNote] = useState<NoteItem | null>(null);
 
   // Tab inside drawer: "editor" or "browser"
@@ -235,6 +238,59 @@ export function NoteWorkspaceDrawer({
       }
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleConvertCurrentNoteToTask() {
+    if (!title.trim() && !content.trim()) return;
+    setConvertingToTask(true);
+    try {
+      const taskTitle =
+        title.trim() || stripMarkdown(content).slice(0, 75) || "Suivi de note KAM";
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: taskTitle,
+          description: content,
+          status: "TODO",
+          category: category === "VISITE" ? "VISITE" : "SUIVI",
+          priority: pinned,
+          clientId: clientId || null,
+          kamId: activeKamId,
+        }),
+      });
+      if (res.ok) {
+        onRefresh();
+        setTaskCreatedMsg(true);
+        setTimeout(() => setTaskCreatedMsg(false), 3000);
+      }
+    } finally {
+      setConvertingToTask(false);
+    }
+  }
+
+  async function handleConvertNoteItemToTask(note: NoteItem, e: React.MouseEvent) {
+    e.stopPropagation();
+    const taskTitle =
+      note.title?.trim() ||
+      stripMarkdown(note.content).slice(0, 75) ||
+      "Suivi de note KAM";
+    const res = await fetch("/api/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: taskTitle,
+        description: note.content,
+        status: "TODO",
+        category: note.category === "VISITE" ? "VISITE" : "SUIVI",
+        priority: Boolean(note.pinned),
+        clientId: note.clientId || null,
+        kamId: activeKamId,
+      }),
+    });
+    if (res.ok) {
+      onRefresh();
     }
   }
 
@@ -597,10 +653,24 @@ export function NoteWorkspaceDrawer({
             </div>
 
             {/* Bottom Actions Bar */}
-            <div className="p-3.5 border-t border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/80 flex items-center justify-between gap-3">
-              <div className="text-[11px] text-slate-500 dark:text-zinc-400 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-[#d90416]" />
-                <span>Raccourci : <strong>/</strong> ou <strong>N</strong> pour ouvrir</span>
+            <div className="p-3.5 border-t border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-950/80 flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleConvertCurrentNoteToTask}
+                  disabled={convertingToTask || (!title.trim() && !content.trim())}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-[#d90416] text-[#d90416] hover:text-white dark:bg-red-950/40 dark:hover:bg-[#d90416] text-xs font-bold transition disabled:opacity-40 cursor-pointer"
+                  title="Créer automatiquement une tâche / rappel dans le Kanban à partir de cette note"
+                >
+                  <CheckSquare className="w-3.5 h-3.5" />
+                  <span>
+                    {taskCreatedMsg
+                      ? "✓ Tâche créée !"
+                      : convertingToTask
+                      ? "Création..."
+                      : "Transformer en tâche"}
+                  </span>
+                </button>
               </div>
 
               <div className="flex items-center gap-2">
@@ -714,7 +784,16 @@ export function NoteWorkspaceDrawer({
                           )}
                         </div>
 
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={(e) => handleConvertNoteItemToTask(note, e)}
+                            title="Transformer en tâche Kanban"
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-950/40 text-[#d90416] hover:bg-[#d90416] hover:text-white text-[9px] font-bold transition cursor-pointer"
+                          >
+                            <CheckSquare className="w-2.5 h-2.5" />
+                            <span>+ Tâche</span>
+                          </button>
                           {onTogglePin && (
                             <button
                               type="button"

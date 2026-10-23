@@ -23,6 +23,7 @@ import {
   ShieldAlert,
   Car,
   Compass,
+  CheckSquare,
 } from "lucide-react";
 import { useWorkspace } from "@/components/AppShell";
 import { AddVisitModal } from "@/components/AddVisitModal";
@@ -50,7 +51,7 @@ type ViewTab = "calendar" | "table" | "timeline" | "radar";
 
 export default function VisitesPage() {
   const router = useRouter();
-  const { clients, activeUser, loggedUser, loading, refreshWorkspace } = useWorkspace();
+  const { clients, activeUser, loggedUser, loading, refreshWorkspace, openQuickTask } = useWorkspace();
 
   const canViewVisits = loggedUser ? hasPermission(loggedUser, "add_visits") : true;
 
@@ -192,6 +193,35 @@ export default function VisitesPage() {
     if (typeof window !== "undefined" && window.confirm("Confirmer la suppression de cette visite ?")) {
       deleteClientVisit(clientId, visitId);
       setSyncTrigger((p) => p + 1);
+    }
+  }
+
+  async function handleCreateFollowUpTask(visit: ClientVisit) {
+    const taskTitle = `Suivi visite — ${visit.client?.company || "Client"} (${visit.interlocutor || "Magasin"})`;
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: taskTitle,
+          description: `Compte-rendu de la visite terrain du ${visit.date} :\n\n${visit.summary}${
+            visit.nextVisitDate ? `\n\n**Prochaine visite convenue :** ${visit.nextVisitDate}` : ""
+          }`,
+          status: "TODO",
+          category: "VISITE",
+          dueDate: visit.nextVisitDate || null,
+          priority: false,
+          clientId: visit.clientId,
+          kamId: activeUser?.id,
+        }),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        await refreshWorkspace();
+        openQuickTask({ task: created, clientId: visit.clientId });
+      }
+    } catch (e) {
+      console.error("Failed to create follow-up task", e);
     }
   }
 
@@ -689,6 +719,16 @@ export default function VisitesPage() {
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
+                          onClick={() => handleCreateFollowUpTask(visit)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                          title="Créer une tâche de suivi Kanban pour cette visite"
+                        >
+                          <CheckSquare className="w-3.5 h-3.5" />
+                          <span>+ Tâche de suivi</span>
+                        </button>
+
+                        <button
+                          type="button"
                           onClick={() => {
                             setAddVisitClientId(visit.clientId);
                             setIsAddVisitModalOpen(true);
@@ -891,6 +931,14 @@ export default function VisitesPage() {
 
                         <td className="py-3 px-4 text-right">
                           <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openQuickTask({ clientId: client.id })}
+                              className="px-2 py-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-500/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 text-[11px] font-semibold transition-colors"
+                              title="Créer une tâche Kanban pour ce client"
+                            >
+                              + Tâche
+                            </button>
                             <button
                               type="button"
                               onClick={() => {

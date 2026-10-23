@@ -18,6 +18,7 @@ import {
   LayoutGrid,
   List,
   Maximize2,
+  CheckSquare,
 } from "lucide-react";
 import {
   ClientItem,
@@ -26,7 +27,8 @@ import {
   NoteItem,
   formatFullTimestamp,
 } from "@/types/kam";
-import { NoteFormattingToolbar, FormattedNoteText } from "@/components/NoteFormatter";
+import { NoteFormattingToolbar, FormattedNoteText, stripMarkdown } from "@/components/NoteFormatter";
+import { useWorkspace } from "@/components/AppShell";
 
 interface NotesTabProps {
   notes: NoteItem[];
@@ -52,7 +54,40 @@ export function NotesTab({
   onTogglePin,
   onOpenAddVisitModal,
 }: NotesTabProps) {
+  const { openQuickTask, refreshWorkspace } = useWorkspace();
   const [search, setSearch] = useState("");
+  const [convertingNoteId, setConvertingNoteId] = useState<string | null>(null);
+
+  async function handleConvertNoteToTask(note: NoteItem) {
+    setConvertingNoteId(note.id);
+    try {
+      const taskTitle =
+        note.title?.trim() ||
+        stripMarkdown(note.content).slice(0, 75) ||
+        "Suivi de note KAM";
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: taskTitle,
+          description: note.content,
+          status: "TODO",
+          category: note.category === "VISITE" ? "VISITE" : "SUIVI",
+          priority: Boolean(note.pinned),
+          clientId: note.clientId || null,
+          kamId: activeKamId,
+        }),
+      });
+      if (res.ok) {
+        const createdTask = await res.json();
+        await refreshWorkspace();
+        onRefresh();
+        openQuickTask({ task: createdTask, clientId: note.clientId || null });
+      }
+    } finally {
+      setConvertingNoteId(null);
+    }
+  }
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [selectedClientFilter, setSelectedClientFilter] = useState<string>("ALL");
   const [viewMode, setViewMode] = useState<"cards" | "list">("cards");
@@ -457,6 +492,16 @@ export function NotesTab({
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
+                        onClick={() => handleConvertNoteToTask(note)}
+                        disabled={convertingNoteId === note.id}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-50 hover:bg-[#d90416] text-[#d90416] hover:text-white dark:bg-red-950/40 dark:hover:bg-[#d90416] text-[11px] font-bold transition cursor-pointer"
+                        title="Transformer cette note en tâche Kanban / rappel lié au client"
+                      >
+                        <CheckSquare className="w-3.5 h-3.5" />
+                        <span>{convertingNoteId === note.id ? "Création..." : "+ Tâche / Rappel"}</span>
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => onTogglePin(note)}
                         title={note.pinned ? "Désépingler" : "Épingler"}
                         className={`p-1.5 rounded-lg transition ${
@@ -533,6 +578,16 @@ export function NotesTab({
                     </div>
 
                     <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleConvertNoteToTask(note)}
+                        disabled={convertingNoteId === note.id}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-50 hover:bg-[#d90416] text-[#d90416] hover:text-white dark:bg-red-950/40 dark:hover:bg-[#d90416] text-[10px] font-bold transition cursor-pointer"
+                        title="Transformer en tâche Kanban / rappel"
+                      >
+                        <CheckSquare className="w-3 h-3" />
+                        <span>{convertingNoteId === note.id ? "..." : "+ Tâche"}</span>
+                      </button>
                       <button
                         type="button"
                         onClick={() => onTogglePin(note)}

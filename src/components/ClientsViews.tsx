@@ -28,6 +28,7 @@ import {
   ChevronsRight,
   CheckSquare,
   Flame,
+  Navigation,
 } from "lucide-react";
 
 import {
@@ -272,6 +273,20 @@ export function ClientsViews({
     if (typeof window !== "undefined") {
       localStorage.setItem("apflow_table_columns_v3", JSON.stringify(all));
     }
+  }
+
+  function handleLaunchRouteForSelected() {
+    const selectedClients = clients.filter((c) => selectedIds.includes(c.id));
+    if (selectedClients.length === 0) return;
+    const stops = selectedClients.map((c) => {
+      let postal = "";
+      if (typeof window !== "undefined") {
+        postal = localStorage.getItem(`apflow_cp_${c.id}`) || "";
+      }
+      return encodeURIComponent([c.company, c.address, postal, c.city, "France"].filter(Boolean).join(" "));
+    });
+    const url = `https://www.google.com/maps/dir/${stops.join("/")}`;
+    window.open(url, "_blank");
   }
 
   // Sorting state for table
@@ -1662,6 +1677,15 @@ export function ClientsViews({
           <span className="text-xs font-medium px-2 border-r border-slate-700">
             Sélectionnés : {selectedIds.length}
           </span>
+          <button
+            type="button"
+            onClick={handleLaunchRouteForSelected}
+            className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-lg bg-[#d90416] hover:bg-[#b80312] text-white transition-colors cursor-pointer shadow-sm"
+            title="Générer l'itinéraire Google Maps multi-étapes pour les magasins sélectionnés"
+          >
+            <Navigation className="w-3.5 h-3.5" />
+            <span>Itinéraire Google Maps ({selectedIds.length})</span>
+          </button>
           <button
             type="button"
             onClick={() => onBulkStatusChange("VIP")}

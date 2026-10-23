@@ -41,7 +41,7 @@ import {
   Kanban,
   UserPlus,
 } from "lucide-react";
-import { ClientItem, KamUser, NoteItem, TaskItem, TaskStatus, ClientVisit, getInitials, hasPermission, getAssignedManagerIds } from "@/types/kam";
+import { ClientItem, KamUser, NoteItem, TaskItem, TaskStatus, TASK_STATUS_CONFIG, parseTaskChecklist, ClientVisit, getInitials, hasPermission, getAssignedManagerIds } from "@/types/kam";
 import { QuickNoteModal } from "@/components/QuickNoteModal";
 import { NoteWorkspaceDrawer, NoteDockMode } from "@/components/NoteWorkspaceDrawer";
 import { TaskWorkspaceDrawer, TaskDockMode } from "@/components/TaskWorkspaceDrawer";
@@ -450,6 +450,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       return compA.localeCompare(compB, "fr");
     });
 
+    // Filter tasks & checklists
+    const matchedTasks = tasks.filter((t) => {
+      const matchTitle = t.title.toLowerCase().includes(q);
+      const matchDesc = Boolean(t.description && t.description.toLowerCase().includes(q));
+      const matchClient = Boolean(t.client?.company && t.client.company.toLowerCase().includes(q));
+      const cl = parseTaskChecklist(t.checklist);
+      const matchChecklist = cl.some((item) => item.text.toLowerCase().includes(q));
+      return matchTitle || matchDesc || matchClient || matchChecklist;
+    });
+
     // Filter notes
     const matchedNotes = notes.filter(
       (n) =>
@@ -472,11 +482,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
     return {
       clients: matchedClients.slice(0, 8),
+      tasks: matchedTasks.slice(0, 6),
       notes: matchedNotes.slice(0, 5),
       visits: matchedVisits.slice(0, 5),
-      totalCount: matchedClients.length + matchedNotes.length + matchedVisits.length,
+      totalCount:
+        matchedClients.length +
+        matchedTasks.length +
+        matchedNotes.length +
+        matchedVisits.length,
     };
-  }, [globalSearch, clients, notes, getClientApNumber]);
+  }, [globalSearch, clients, tasks, notes, getClientApNumber]);
 
   const isDashboardRoute = pathname === "/" || pathname === "/dashboard";
   const isClientsRoute = pathname?.startsWith("/clients");
@@ -559,6 +574,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 ? "Fiche Client"
                 : isDashboardRoute
                 ? "Tableau de Bord"
+                : isTasksRoute
+                ? "Tâches & Kanban"
                 : isVisitesRoute
                 ? "Visites Terrain"
                 : isCaRoute
@@ -721,6 +738,61 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                               <ArrowRight className="w-3.5 h-3.5" />
                             </div>
                           </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tasks & Checklists section */}
+                {searchResults.tasks && searchResults.tasks.length > 0 && (
+                  <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-zinc-800">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#d90416] flex items-center gap-1">
+                      <CheckSquare className="w-3 h-3" />
+                      Tâches &amp; Checklists ({searchResults.tasks.length})
+                    </p>
+                    <div className="space-y-1">
+                      {searchResults.tasks.map((t) => {
+                        const stCfg = TASK_STATUS_CONFIG[t.status] || TASK_STATUS_CONFIG.TODO;
+                        const cl = parseTaskChecklist(t.checklist);
+                        const doneCount = cl.filter((i) => i.completed).length;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => {
+                              openQuickTask({ task: t, clientId: t.clientId });
+                              setSearchDropdownOpen(false);
+                            }}
+                            className="w-full text-left flex items-center justify-between p-2 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-800 transition text-xs group cursor-pointer"
+                          >
+                            <div className="max-w-[85%] min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="font-semibold text-slate-900 dark:text-white line-clamp-1 group-hover:text-[#d90416]">
+                                  {t.title}
+                                </p>
+                                <span
+                                  className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold border ${stCfg.badgeClass}`}
+                                >
+                                  {stCfg.label}
+                                </span>
+                                {cl.length > 0 && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300 font-bold">
+                                    Checklist {doneCount}/{cl.length}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                                {t.client?.company
+                                  ? `Client : ${t.client.company}`
+                                  : "Tâche générale"}
+                                {t.dueDate
+                                  ? ` • Échéance : ${new Date(t.dueDate).toLocaleDateString("fr-FR")}`
+                                  : ""}
+                              </p>
+                            </div>
+                            <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-[#d90416] opacity-0 group-hover:opacity-100 transition shrink-0" />
+                          </button>
                         );
                       })}
                     </div>
