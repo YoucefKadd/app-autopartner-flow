@@ -69,6 +69,42 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
   const currentMonthIdx = new Date().getMonth(); // 0 to 11
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
 
+  // Multi-Month Selection State for period analysis (e.g. Q1, Q2, custom months)
+  const [selectedPeriodMonths, setSelectedPeriodMonths] = useState<number[]>([]);
+
+  const isAllMonthsSelected =
+    selectedPeriodMonths.length === 0 || selectedPeriodMonths.length === 12;
+  const activePeriodMonths = useMemo(() => {
+    return isAllMonthsSelected
+      ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      : [...selectedPeriodMonths].sort((a, b) => a - b);
+  }, [isAllMonthsSelected, selectedPeriodMonths]);
+
+  function togglePeriodMonth(monthNum: number) {
+    setSelectedPeriodMonths((prev) => {
+      if (prev.length === 0 || prev.length === 12) {
+        return [monthNum];
+      }
+      if (prev.includes(monthNum)) {
+        const next = prev.filter((m) => m !== monthNum);
+        return next;
+      } else {
+        const next = [...prev, monthNum].sort((a, b) => a - b);
+        return next.length === 12 ? [] : next;
+      }
+    });
+  }
+
+  function setPeriodPreset(preset: "ALL" | "T1" | "T2" | "T3" | "T4" | "S1" | "S2") {
+    if (preset === "ALL") setSelectedPeriodMonths([]);
+    else if (preset === "T1") setSelectedPeriodMonths([1, 2, 3]);
+    else if (preset === "T2") setSelectedPeriodMonths([4, 5, 6]);
+    else if (preset === "T3") setSelectedPeriodMonths([7, 8, 9]);
+    else if (preset === "T4") setSelectedPeriodMonths([10, 11, 12]);
+    else if (preset === "S1") setSelectedPeriodMonths([1, 2, 3, 4, 5, 6]);
+    else if (preset === "S2") setSelectedPeriodMonths([7, 8, 9, 10, 11, 12]);
+  }
+
   // Editing state for monthly inputs
   // Global Table Editing State (Allows editing ALL months at once)
   const [isEditingAll, setIsEditingAll] = useState(false);
@@ -279,6 +315,24 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
       totalOrders: monthlyData.reduce((acc, m) => acc + m.ordersCount, 0),
     };
   }, [monthlyData, annualTarget]);
+
+  // Statistics calculated specifically for the selected multiple months
+  const periodStats = useMemo(() => {
+    const periodData = monthlyData.filter((m) => activePeriodMonths.includes(m.month));
+    const periodCa = periodData.reduce((acc, m) => acc + m.amount, 0);
+    const periodOrders = periodData.reduce((acc, m) => acc + m.ordersCount, 0);
+    const periodAverage =
+      activePeriodMonths.length > 0 ? Math.round(periodCa / activePeriodMonths.length) : 0;
+    const periodShare =
+      stats.totalTurnover > 0 ? Math.round((periodCa / stats.totalTurnover) * 100) : 0;
+
+    return {
+      periodCa,
+      periodOrders,
+      periodAverage,
+      periodShare,
+    };
+  }, [monthlyData, activePeriodMonths, stats.totalTurnover]);
 
   const draftLiveTotal = useMemo(() => {
     if (!isEditingAll) return stats.totalTurnover;
@@ -517,7 +571,208 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
         </div>
       </div>
 
-      {/* 2. Visual Interactive Bar Chart (Graphique Mensuel) */}
+      {/* 2. Multi-Month Selection & Period Analyzer */}
+      <div className="rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 rounded-xl bg-red-50 dark:bg-red-950/50 text-[#d90416]">
+              <Calendar className="w-4 h-4" />
+            </span>
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-zinc-100 flex items-center gap-2">
+                Sélection Multi-Mois &amp; Analyse Périodique
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+                  {isAllMonthsSelected ? "Année Complète (12 mois)" : `${activePeriodMonths.length} mois sélectionnés`}
+                </span>
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Sélectionnez un ou plusieurs mois (ex: trimestres, semestres, saisons) pour isoler le CA réalisé sur cette période.
+              </p>
+            </div>
+          </div>
+
+          {/* Presets */}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setPeriodPreset("ALL")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                isAllMonthsSelected
+                  ? "bg-[#d90416] text-white shadow-2xs"
+                  : "bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200"
+              }`}
+            >
+              Tous (12m)
+            </button>
+            <button
+              type="button"
+              onClick={() => setPeriodPreset("T1")}
+              className={`px-2 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                JSON.stringify(activePeriodMonths) === JSON.stringify([1, 2, 3])
+                  ? "bg-[#d90416] text-white"
+                  : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"
+              }`}
+              title="Trimestre 1 : Janvier à Mars"
+            >
+              T1
+            </button>
+            <button
+              type="button"
+              onClick={() => setPeriodPreset("T2")}
+              className={`px-2 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                JSON.stringify(activePeriodMonths) === JSON.stringify([4, 5, 6])
+                  ? "bg-[#d90416] text-white"
+                  : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"
+              }`}
+              title="Trimestre 2 : Avril à Juin"
+            >
+              T2
+            </button>
+            <button
+              type="button"
+              onClick={() => setPeriodPreset("T3")}
+              className={`px-2 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                JSON.stringify(activePeriodMonths) === JSON.stringify([7, 8, 9])
+                  ? "bg-[#d90416] text-white"
+                  : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"
+              }`}
+              title="Trimestre 3 : Juillet à Septembre"
+            >
+              T3
+            </button>
+            <button
+              type="button"
+              onClick={() => setPeriodPreset("T4")}
+              className={`px-2 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                JSON.stringify(activePeriodMonths) === JSON.stringify([10, 11, 12])
+                  ? "bg-[#d90416] text-white"
+                  : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"
+              }`}
+              title="Trimestre 4 : Octobre à Décembre"
+            >
+              T4
+            </button>
+            <button
+              type="button"
+              onClick={() => setPeriodPreset("S1")}
+              className={`px-2 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                JSON.stringify(activePeriodMonths) === JSON.stringify([1, 2, 3, 4, 5, 6])
+                  ? "bg-[#d90416] text-white"
+                  : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"
+              }`}
+              title="Semestre 1 : Janvier à Juin"
+            >
+              S1
+            </button>
+            <button
+              type="button"
+              onClick={() => setPeriodPreset("S2")}
+              className={`px-2 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                JSON.stringify(activePeriodMonths) === JSON.stringify([7, 8, 9, 10, 11, 12])
+                  ? "bg-[#d90416] text-white"
+                  : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"
+              }`}
+              title="Semestre 2 : Juillet à Décembre"
+            >
+              S2
+            </button>
+          </div>
+        </div>
+
+        {/* 12 Month Toggle Buttons */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          {MONTH_NAMES.map((name, idx) => {
+            const monthNum = idx + 1;
+            const isSelected = activePeriodMonths.includes(monthNum);
+            const mData = monthlyData.find((m) => m.month === monthNum);
+            const amount = mData ? mData.amount : 0;
+
+            return (
+              <button
+                key={monthNum}
+                type="button"
+                onClick={() => togglePeriodMonth(monthNum)}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                  !isAllMonthsSelected && isSelected
+                    ? "bg-[#d90416] text-white shadow-xs ring-2 ring-[#d90416]/30"
+                    : isAllMonthsSelected
+                    ? "bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200"
+                    : "bg-slate-50 dark:bg-zinc-900 text-slate-400 dark:text-zinc-600 hover:text-slate-700 border border-slate-200/50 dark:border-zinc-800"
+                }`}
+                title={`Cliquer pour inclure/exclure ${name}`}
+              >
+                <span>{SHORT_MONTHS[idx]}</span>
+                {amount > 0 && (
+                  <span
+                    className={`text-[10px] px-1 rounded ${
+                      !isAllMonthsSelected && isSelected
+                        ? "bg-white/20 text-white font-extrabold"
+                        : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-bold"
+                    }`}
+                  >
+                    {Math.round(amount / 1000)}k€
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Period Highlights Banner when a subset is selected */}
+        {!isAllMonthsSelected && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 border-t border-slate-100 dark:border-zinc-800 animate-in fade-in duration-200">
+            <div className="p-3 rounded-xl bg-red-50/60 dark:bg-red-950/30 border border-red-200/60 dark:border-red-900/40">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#d90416]">
+                CA Période ({activePeriodMonths.length} mois)
+              </span>
+              <div className="text-xl font-extrabold text-slate-900 dark:text-zinc-100">
+                {formatEuro(periodStats.periodCa)}
+              </div>
+              <div className="text-[10px] text-slate-500 truncate mt-0.5">
+                {activePeriodMonths.map((m) => SHORT_MONTHS[m - 1]).join(", ")}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/50 border border-slate-200/60 dark:border-zinc-700/50">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Moyenne / Mois
+              </span>
+              <div className="text-xl font-extrabold text-slate-900 dark:text-zinc-100">
+                {formatEuro(periodStats.periodAverage)}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-0.5">
+                sur les {activePeriodMonths.length} mois choisis
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/50 border border-slate-200/60 dark:border-zinc-700/50">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Commandes Période
+              </span>
+              <div className="text-xl font-extrabold text-slate-900 dark:text-zinc-100">
+                {periodStats.periodOrders}
+              </div>
+              <div className="text-[10px] text-slate-400 mt-0.5">
+                commandes cumulées
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-800/50 border border-slate-200/60 dark:border-zinc-700/50">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Part du CA Annuel
+              </span>
+              <div className="text-xl font-extrabold text-[#d90416]">
+                {periodStats.periodShare}%
+              </div>
+              <div className="text-[10px] text-slate-400 mt-0.5">
+                sur {formatEuro(stats.totalTurnover)} (total {selectedYear})
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 3. Visual Interactive Bar Chart (Graphique Mensuel) */}
       <div className="rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
         <div className="flex items-center justify-between">
           <div>
@@ -553,13 +808,24 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
 
               const isCurrentMonth = selectedYear === currentYear && idx === currentMonthIdx;
               const hasData = item.amount > 0;
+              const isSelectedInPeriod = activePeriodMonths.includes(item.month);
 
               return (
                 <div
                   key={item.month}
-                  className="flex-1 flex flex-col items-center gap-2 h-full justify-end group/bar cursor-pointer"
-                  onClick={() => startEditingAll(item.month)}
-                  title={`${item.monthName} ${selectedYear} : ${formatEuro(item.amount)} (${item.ordersCount} commandes). Cliquer pour modifier.`}
+                  className={`flex-1 flex flex-col items-center gap-2 h-full justify-end group/bar cursor-pointer transition-all duration-200 ${
+                    !isAllMonthsSelected && !isSelectedInPeriod
+                      ? "opacity-35 hover:opacity-75"
+                      : "opacity-100"
+                  }`}
+                  onClick={() => {
+                    if (isEditingAll) {
+                      startEditingAll(item.month);
+                    } else {
+                      togglePeriodMonth(item.month);
+                    }
+                  }}
+                  title={`${item.monthName} ${selectedYear} : ${formatEuro(item.amount)} (${item.ordersCount} commandes). Cliquer pour inclure/exclure de la sélection.`}
                 >
                   {/* Tooltip on hover */}
                   <div className="opacity-0 group-hover/bar:opacity-100 transition-opacity bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[10px] py-1 px-2 rounded-lg font-mono font-bold pointer-events-none whitespace-nowrap shadow-md mb-1">
@@ -573,6 +839,8 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
                       hasData
                         ? isCurrentMonth
                           ? "bg-gradient-to-t from-[#d90416] to-red-400 ring-2 ring-red-300 dark:ring-red-900"
+                          : !isAllMonthsSelected && isSelectedInPeriod
+                          ? "bg-[#d90416] ring-2 ring-[#d90416]/40 shadow-xs"
                           : "bg-[#d90416]"
                         : "bg-slate-100 dark:bg-zinc-800"
                     }`}
@@ -584,8 +852,10 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
 
                   {/* Month Label */}
                   <span
-                    className={`text-[11px] font-semibold ${
-                      isCurrentMonth
+                    className={`text-[11px] font-semibold transition-colors ${
+                      !isAllMonthsSelected && isSelectedInPeriod
+                        ? "text-[#d90416] font-bold"
+                        : isCurrentMonth
                         ? "text-[#d90416] font-bold"
                         : "text-slate-500 dark:text-zinc-400"
                     }`}
@@ -709,19 +979,30 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
                 const avgBasket =
                   currentOrders > 0 ? Math.round(currentAmount / currentOrders) : 0;
 
+                const isSelectedInPeriod = activePeriodMonths.includes(item.month);
+
                 return (
                   <tr
                     key={item.month}
                     className={`transition-colors ${
                       isEditingAll
                         ? "bg-amber-50/15 dark:bg-amber-950/10 hover:bg-amber-50/25 dark:hover:bg-amber-950/20"
+                        : !isAllMonthsSelected && isSelectedInPeriod
+                        ? "bg-red-50/40 dark:bg-red-950/20 hover:bg-red-50/60"
                         : "hover:bg-slate-50/50 dark:hover:bg-zinc-800/30"
                     }`}
                   >
                     {/* Mois */}
                     <td className="py-3.5 px-6 font-semibold text-slate-900 dark:text-zinc-100 whitespace-nowrap">
-                      <span>{item.monthName}</span>
-                      <span className="text-slate-400 font-normal ml-1.5">{selectedYear}</span>
+                      <div className="flex items-center gap-2">
+                        <span>{item.monthName}</span>
+                        <span className="text-slate-400 font-normal">{selectedYear}</span>
+                        {!isAllMonthsSelected && isSelectedInPeriod && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-red-100 text-[#d90416] dark:bg-red-950/60 dark:text-red-300">
+                            Période
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* CA Réalisé (€ HT) */}
@@ -833,6 +1114,35 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
 
             {/* Total Row Footer */}
             <tfoot className="border-t-2 border-slate-200 dark:border-zinc-800 bg-slate-50/80 dark:bg-zinc-950/70 font-semibold">
+              {/* Optional Multi-Month Period Subtotal Row */}
+              {!isAllMonthsSelected && (
+                <tr className="border-b border-red-200 dark:border-red-900/60 bg-red-50/80 dark:bg-red-950/40 text-slate-900 dark:text-zinc-100">
+                  <td className="py-3 px-6 text-[#d90416] font-bold uppercase tracking-wider text-[11px]">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-[#d90416]" />
+                      <span>Sous-Total Période ({activePeriodMonths.length} mois)</span>
+                    </div>
+                  </td>
+                  <td className="py-3 px-6 font-mono font-extrabold text-[#d90416] text-sm">
+                    {formatEuro(periodStats.periodCa)}
+                  </td>
+                  <td className="py-3 px-6 text-[#d90416] font-mono font-bold">
+                    {periodStats.periodOrders} cmd
+                  </td>
+                  <td className="py-3 px-6 font-mono font-bold text-[#d90416]">
+                    {periodStats.periodOrders > 0
+                      ? formatEuro(Math.round(periodStats.periodCa / periodStats.periodOrders))
+                      : "—"}
+                  </td>
+                  <td className="py-3 px-6 font-bold text-[#d90416]">
+                    {periodStats.periodShare}%
+                  </td>
+                  <td colSpan={2} className="py-3 px-6 text-[11px] text-[#d90416]/80 font-medium">
+                    {activePeriodMonths.map((m) => SHORT_MONTHS[m - 1]).join(", ")}
+                  </td>
+                </tr>
+              )}
+
               <tr>
                 <td className="py-3.5 px-6 text-slate-900 dark:text-zinc-100 font-bold uppercase tracking-wider text-[11px]">
                   Total Annuel {selectedYear}

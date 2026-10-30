@@ -62,7 +62,56 @@ export default function CaGlobalDashboardPage() {
   }, [loading, loggedUser, router]);
 
   const [selectedYear, setSelectedYear] = useState<number>(2026);
-  const [selectedMonth, setSelectedMonth] = useState<number | "ALL">("ALL"); // "ALL" = Année complète, 1..12 = Mois spécifique
+  // Multi-Month selection state: empty array or 12 items means "Année complète"
+  const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
+
+  const isAllMonthsSelected = selectedMonths.length === 0 || selectedMonths.length === 12;
+
+  const activeMonthList = useMemo(() => {
+    return isAllMonthsSelected
+      ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      : [...selectedMonths].sort((a, b) => a - b);
+  }, [isAllMonthsSelected, selectedMonths]);
+
+  function toggleMonth(monthNum: number) {
+    setSelectedMonths((prev) => {
+      if (prev.length === 0 || prev.length === 12) {
+        return [monthNum];
+      }
+      if (prev.includes(monthNum)) {
+        const next = prev.filter((m) => m !== monthNum);
+        return next;
+      } else {
+        const next = [...prev, monthNum].sort((a, b) => a - b);
+        return next.length === 12 ? [] : next;
+      }
+    });
+  }
+
+  function selectPreset(preset: "ALL" | "T1" | "T2" | "T3" | "T4" | "S1" | "S2") {
+    if (preset === "ALL") setSelectedMonths([]);
+    else if (preset === "T1") setSelectedMonths([1, 2, 3]);
+    else if (preset === "T2") setSelectedMonths([4, 5, 6]);
+    else if (preset === "T3") setSelectedMonths([7, 8, 9]);
+    else if (preset === "T4") setSelectedMonths([10, 11, 12]);
+    else if (preset === "S1") setSelectedMonths([1, 2, 3, 4, 5, 6]);
+    else if (preset === "S2") setSelectedMonths([7, 8, 9, 10, 11, 12]);
+  }
+
+  const periodLabel = useMemo(() => {
+    if (isAllMonthsSelected) return "Année Complète (12 mois)";
+    if (selectedMonths.length === 1) return MONTH_NAMES[selectedMonths[0] - 1];
+    const sorted = [...selectedMonths].sort((a, b) => a - b);
+    const s = JSON.stringify(sorted);
+    if (s === JSON.stringify([1, 2, 3])) return "Trimestre 1 (Jan-Mar)";
+    if (s === JSON.stringify([4, 5, 6])) return "Trimestre 2 (Avr-Juin)";
+    if (s === JSON.stringify([7, 8, 9])) return "Trimestre 3 (Juil-Sep)";
+    if (s === JSON.stringify([10, 11, 12])) return "Trimestre 4 (Oct-Déc)";
+    if (s === JSON.stringify([1, 2, 3, 4, 5, 6])) return "Semestre 1 (Jan-Juin)";
+    if (s === JSON.stringify([7, 8, 9, 10, 11, 12])) return "Semestre 2 (Juil-Déc)";
+    return `${sorted.length} mois (${sorted.map((m) => SHORT_MONTHS[m - 1]).join(", ")})`;
+  }, [isAllMonthsSelected, selectedMonths]);
+
   const [tableMode, setTableMode] = useState<"summary" | "grid12">("summary"); // summary | grid12
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCity, setSelectedCity] = useState("ALL");
@@ -184,10 +233,16 @@ export default function CaGlobalDashboardPage() {
       const totalOrders = monthly.reduce((acc, m) => acc + m.ordersCount, 0);
       const achievementRate = target > 0 ? Math.round((totalTurnover / target) * 100) : 0;
 
-      const selectedMonthTurnover =
-        selectedMonth !== "ALL" ? monthly[selectedMonth - 1]?.amount || 0 : totalTurnover;
-      const selectedMonthOrders =
-        selectedMonth !== "ALL" ? monthly[selectedMonth - 1]?.ordersCount || 0 : totalOrders;
+      const selectedMonthTurnover = isAllMonthsSelected
+        ? totalTurnover
+        : monthly
+            .filter((m) => selectedMonths.includes(m.month))
+            .reduce((acc, m) => acc + m.amount, 0);
+      const selectedMonthOrders = isAllMonthsSelected
+        ? totalOrders
+        : monthly
+            .filter((m) => selectedMonths.includes(m.month))
+            .reduce((acc, m) => acc + m.ordersCount, 0);
 
       return {
         ...client,
@@ -201,7 +256,7 @@ export default function CaGlobalDashboardPage() {
         selectedMonthOrders,
       };
     });
-  }, [clients, dbTurnovers, selectedYear, selectedMonth]);
+  }, [clients, dbTurnovers, selectedYear, isAllMonthsSelected, selectedMonths]);
 
   // Filter and sort clients
   const filteredClients = useMemo(() => {
@@ -250,16 +305,14 @@ export default function CaGlobalDashboardPage() {
     const totalAnnualCa = filteredClients.reduce((acc, c) => acc + c.totalTurnover, 0);
     const totalAnnualOrders = filteredClients.reduce((acc, c) => acc + c.totalOrders, 0);
 
-    // Selected Month Aggregates (or Annual if ALL)
-    const activeCa =
-      selectedMonth === "ALL"
-        ? totalAnnualCa
-        : filteredClients.reduce((acc, c) => acc + c.selectedMonthTurnover, 0);
+    // Selected Month / Period Aggregates (or Annual if ALL)
+    const activeCa = isAllMonthsSelected
+      ? totalAnnualCa
+      : filteredClients.reduce((acc, c) => acc + c.selectedMonthTurnover, 0);
 
-    const activeOrders =
-      selectedMonth === "ALL"
-        ? totalAnnualOrders
-        : filteredClients.reduce((acc, c) => acc + c.selectedMonthOrders, 0);
+    const activeOrders = isAllMonthsSelected
+      ? totalAnnualOrders
+      : filteredClients.reduce((acc, c) => acc + c.selectedMonthOrders, 0);
 
     const totalTarget = filteredClients.reduce((acc, c) => acc + c.target, 0);
     const globalRate = totalTarget > 0 ? Math.round((totalAnnualCa / totalTarget) * 100) : 0;
@@ -287,11 +340,11 @@ export default function CaGlobalDashboardPage() {
 
     const maxMonthAmount = Math.max(...monthlyTotals.map((m) => m.amount), 1000);
 
-    // Breakdown by City (based on active period: selected month or annual)
+    // Breakdown by City (based on active period: selected months or annual)
     const cityMap = new Map<string, number>();
     filteredClients.forEach((c) => {
       const city = c.city || "Autres";
-      const amt = selectedMonth === "ALL" ? c.totalTurnover : c.selectedMonthTurnover;
+      const amt = isAllMonthsSelected ? c.totalTurnover : c.selectedMonthTurnover;
       cityMap.set(city, (cityMap.get(city) || 0) + amt);
     });
     const cityBreakdown = Array.from(cityMap.entries())
@@ -305,14 +358,14 @@ export default function CaGlobalDashboardPage() {
     // Top 5 Clients by active period CA
     const topClients = [...filteredClients]
       .sort((a, b) => {
-        const aVal = selectedMonth === "ALL" ? a.totalTurnover : a.selectedMonthTurnover;
-        const bVal = selectedMonth === "ALL" ? b.totalTurnover : b.selectedMonthTurnover;
+        const aVal = isAllMonthsSelected ? a.totalTurnover : a.selectedMonthTurnover;
+        const bVal = isAllMonthsSelected ? b.totalTurnover : b.selectedMonthTurnover;
         return bVal - aVal;
       })
       .slice(0, 5)
       .map((c) => ({
         ...c,
-        activeTurnover: selectedMonth === "ALL" ? c.totalTurnover : c.selectedMonthTurnover,
+        activeTurnover: isAllMonthsSelected ? c.totalTurnover : c.selectedMonthTurnover,
       }));
 
     return {
@@ -328,7 +381,7 @@ export default function CaGlobalDashboardPage() {
       cityBreakdown,
       topClients,
     };
-  }, [filteredClients, selectedMonth]);
+  }, [filteredClients, isAllMonthsSelected, selectedMonths]);
 
   // Handle Target Update
   async function handleSaveTarget(clientId: string) {
@@ -369,10 +422,11 @@ export default function CaGlobalDashboardPage() {
       "Ville",
       "Statut",
       "Exercice",
-      "CA Total HT",
+      ...(!isAllMonthsSelected ? [`CA Période (${periodLabel}) HT`, `Commandes Période`] : []),
+      "CA Total Annuel HT",
       "Objectif Annuel HT",
       "% Atteinte",
-      "Commandes",
+      "Commandes Annuelles",
       ...MONTH_NAMES.map((m) => `CA ${m}`),
     ];
 
@@ -382,6 +436,7 @@ export default function CaGlobalDashboardPage() {
       c.city,
       c.status,
       selectedYear,
+      ...(!isAllMonthsSelected ? [c.selectedMonthTurnover, c.selectedMonthOrders] : []),
       c.totalTurnover,
       c.target,
       `${c.achievementRate}%`,
@@ -498,23 +553,65 @@ export default function CaGlobalDashboardPage() {
             </select>
           </div>
 
-          {/* Month Selector Dropdown */}
+          {/* Month / Period Selector Dropdown */}
           <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs font-semibold shadow-xs">
             <BarChart3 className="w-3.5 h-3.5 text-[#d90416]" />
-            <span className="text-slate-500 text-[11px]">Mois :</span>
+            <span className="text-slate-500 text-[11px]">Période :</span>
             <select
-              value={selectedMonth}
-              onChange={(e) =>
-                setSelectedMonth(e.target.value === "ALL" ? "ALL" : Number(e.target.value))
+              value={
+                isAllMonthsSelected
+                  ? "ALL"
+                  : selectedMonths.length === 1
+                  ? String(selectedMonths[0])
+                  : JSON.stringify(activeMonthList) === JSON.stringify([1, 2, 3])
+                  ? "T1"
+                  : JSON.stringify(activeMonthList) === JSON.stringify([4, 5, 6])
+                  ? "T2"
+                  : JSON.stringify(activeMonthList) === JSON.stringify([7, 8, 9])
+                  ? "T3"
+                  : JSON.stringify(activeMonthList) === JSON.stringify([10, 11, 12])
+                  ? "T4"
+                  : JSON.stringify(activeMonthList) === JSON.stringify([1, 2, 3, 4, 5, 6])
+                  ? "S1"
+                  : JSON.stringify(activeMonthList) === JSON.stringify([7, 8, 9, 10, 11, 12])
+                  ? "S2"
+                  : "CUSTOM"
               }
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "ALL") selectPreset("ALL");
+                else if (
+                  val === "T1" ||
+                  val === "T2" ||
+                  val === "T3" ||
+                  val === "T4" ||
+                  val === "S1" ||
+                  val === "S2"
+                ) {
+                  selectPreset(val as any);
+                } else if (val !== "CUSTOM") {
+                  setSelectedMonths([Number(val)]);
+                }
+              }}
               className="bg-transparent font-bold text-slate-900 dark:text-zinc-100 focus:outline-none cursor-pointer"
             >
-              <option value="ALL">Tous les mois (Annuel)</option>
+              <option value="ALL">Année Complète (12 mois)</option>
+              <option value="T1">Trimestre 1 (Jan - Mar)</option>
+              <option value="T2">Trimestre 2 (Avr - Juin)</option>
+              <option value="T3">Trimestre 3 (Juil - Sep)</option>
+              <option value="T4">Trimestre 4 (Oct - Déc)</option>
+              <option value="S1">Semestre 1 (Jan - Juin)</option>
+              <option value="S2">Semestre 2 (Juil - Déc)</option>
               {MONTH_NAMES.map((m, idx) => (
-                <option key={idx + 1} value={idx + 1}>
-                  {m}
+                <option key={idx + 1} value={String(idx + 1)}>
+                  Mois : {m}
                 </option>
               ))}
+              {!isAllMonthsSelected &&
+                selectedMonths.length > 1 &&
+                !["T1", "T2", "T3", "T4", "S1", "S2"].includes(periodLabel) && (
+                  <option value="CUSTOM">Sélection personnalisée ({selectedMonths.length} mois)</option>
+                )}
             </select>
           </div>
 
@@ -541,39 +638,130 @@ export default function CaGlobalDashboardPage() {
         </div>
       </div>
 
-      {/* 2. Quick Horizontal Month Filter Pills Bar */}
-      <div className="p-2.5 rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1 shrink-0">
-            Période :
-          </span>
-          <button
-            type="button"
-            onClick={() => setSelectedMonth("ALL")}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer ${
-              selectedMonth === "ALL"
-                ? "bg-[#d90416] text-white shadow-xs"
-                : "bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700"
-            }`}
-          >
-            Année Complète (Cumul 12 mois)
-          </button>
+      {/* 2. Quick Horizontal Multi-Month Filter & Presets Bar */}
+      <div className="p-3 rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs space-y-2.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 rounded-lg bg-red-50 dark:bg-red-950/50 text-[#d90416]">
+              <Calendar className="w-3.5 h-3.5" />
+            </span>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-zinc-200">
+              Sélection Période &amp; Multi-Mois :
+            </span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+              {periodLabel}
+            </span>
+          </div>
+
+          {/* Presets */}
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+            <span className="text-[10px] font-bold uppercase text-slate-400 mr-1 shrink-0">Raccourcis :</span>
+            <button
+              type="button"
+              onClick={() => selectPreset("ALL")}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 ${
+                isAllMonthsSelected
+                  ? "bg-[#d90416] text-white shadow-xs"
+                  : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"
+              }`}
+            >
+              Année (12m)
+            </button>
+            <button
+              type="button"
+              onClick={() => selectPreset("T1")}
+              className={`px-2 py-1 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 ${
+                JSON.stringify(activeMonthList) === JSON.stringify([1, 2, 3])
+                  ? "bg-[#d90416] text-white shadow-xs"
+                  : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"
+              }`}
+              title="Trimestre 1 : Janvier à Mars"
+            >
+              T1
+            </button>
+            <button
+              type="button"
+              onClick={() => selectPreset("T2")}
+              className={`px-2 py-1 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 ${
+                JSON.stringify(activeMonthList) === JSON.stringify([4, 5, 6])
+                  ? "bg-[#d90416] text-white shadow-xs"
+                  : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"
+              }`}
+              title="Trimestre 2 : Avril à Juin"
+            >
+              T2
+            </button>
+            <button
+              type="button"
+              onClick={() => selectPreset("T3")}
+              className={`px-2 py-1 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 ${
+                JSON.stringify(activeMonthList) === JSON.stringify([7, 8, 9])
+                  ? "bg-[#d90416] text-white shadow-xs"
+                  : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"
+              }`}
+              title="Trimestre 3 : Juillet à Septembre"
+            >
+              T3
+            </button>
+            <button
+              type="button"
+              onClick={() => selectPreset("T4")}
+              className={`px-2 py-1 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 ${
+                JSON.stringify(activeMonthList) === JSON.stringify([10, 11, 12])
+                  ? "bg-[#d90416] text-white shadow-xs"
+                  : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"
+              }`}
+              title="Trimestre 4 : Octobre à Décembre"
+            >
+              T4
+            </button>
+            <button
+              type="button"
+              onClick={() => selectPreset("S1")}
+              className={`px-2 py-1 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 ${
+                JSON.stringify(activeMonthList) === JSON.stringify([1, 2, 3, 4, 5, 6])
+                  ? "bg-[#d90416] text-white shadow-xs"
+                  : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"
+              }`}
+              title="Semestre 1 : Janvier à Juin"
+            >
+              S1
+            </button>
+            <button
+              type="button"
+              onClick={() => selectPreset("S2")}
+              className={`px-2 py-1 rounded-lg text-xs font-bold transition cursor-pointer shrink-0 ${
+                JSON.stringify(activeMonthList) === JSON.stringify([7, 8, 9, 10, 11, 12])
+                  ? "bg-[#d90416] text-white shadow-xs"
+                  : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400 hover:bg-slate-200"
+              }`}
+              title="Semestre 2 : Juillet à Décembre"
+            >
+              S2
+            </button>
+          </div>
+        </div>
+
+        {/* 12 Month Toggle Buttons */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1">
           {MONTH_NAMES.map((name, idx) => {
             const monthNum = idx + 1;
-            const isSelected = selectedMonth === monthNum;
+            const isSelected = !isAllMonthsSelected && selectedMonths.includes(monthNum);
             const monthTotal = globalStats.monthlyTotals[idx]?.amount || 0;
+
             return (
               <button
                 key={monthNum}
                 type="button"
-                onClick={() => setSelectedMonth(monthNum)}
+                onClick={() => toggleMonth(monthNum)}
                 className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 cursor-pointer ${
                   isSelected
                     ? "bg-[#d90416] text-white shadow-xs ring-2 ring-[#d90416]/30"
-                    : monthTotal > 0
-                    ? "bg-slate-50 dark:bg-zinc-800/80 text-slate-800 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700 hover:border-[#d90416]"
-                    : "bg-slate-50/50 dark:bg-zinc-900 text-slate-400 dark:text-zinc-500 hover:text-slate-700"
+                    : isAllMonthsSelected
+                    ? "bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200"
+                    : "bg-slate-50 dark:bg-zinc-900 text-slate-400 dark:text-zinc-600 hover:text-slate-700 border border-slate-200/50 dark:border-zinc-800"
                 }`}
+                title={`Cliquer pour inclure/exclure ${name}`}
               >
                 <span>{SHORT_MONTHS[idx]}</span>
                 {monthTotal > 0 && (
@@ -590,18 +778,18 @@ export default function CaGlobalDashboardPage() {
               </button>
             );
           })}
-        </div>
 
-        {selectedMonth !== "ALL" && (
-          <button
-            type="button"
-            onClick={() => setSelectedMonth("ALL")}
-            className="text-xs font-bold text-[#d90416] hover:underline flex items-center gap-1 px-2 py-1 shrink-0 cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Réinitialiser (Tous les mois)</span>
-          </button>
-        )}
+          {!isAllMonthsSelected && (
+            <button
+              type="button"
+              onClick={() => selectPreset("ALL")}
+              className="text-xs font-bold text-[#d90416] hover:underline flex items-center gap-1 px-2.5 py-1.5 shrink-0 cursor-pointer ml-auto"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Tout afficher (Annuel)</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 3. Top Consolidated KPI Cards */}
@@ -610,9 +798,7 @@ export default function CaGlobalDashboardPage() {
         <div className="p-4 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-1.5">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider">
-              {selectedMonth === "ALL"
-                ? "CA Global Réalisé"
-                : `CA ${MONTH_NAMES[selectedMonth - 1]}`}
+              {isAllMonthsSelected ? "CA Global Réalisé" : `CA Période (${periodLabel})`}
             </span>
             <DollarSign className="w-4 h-4 text-[#d90416]" />
           </div>
@@ -621,13 +807,13 @@ export default function CaGlobalDashboardPage() {
           </div>
           <div className="text-[11px] text-slate-500 flex items-center gap-1 truncate">
             <span>
-              {selectedMonth === "ALL"
+              {isAllMonthsSelected
                 ? `Exercice ${selectedYear} (Cumul 12 mois)`
-                : `Mois de ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`}
+                : `Période ${periodLabel} ${selectedYear}`}
             </span>
             <span>•</span>
             <span>
-              {selectedMonth === "ALL"
+              {isAllMonthsSelected
                 ? `${filteredClients.length} clients suivis`
                 : `${
                     filteredClients.filter((c) => c.selectedMonthTurnover > 0).length
@@ -640,12 +826,12 @@ export default function CaGlobalDashboardPage() {
         <div className="p-4 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-1.5">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider">
-              {selectedMonth === "ALL" ? "Objectif Global Fixé" : `Cumul Annuel ${selectedYear}`}
+              {isAllMonthsSelected ? "Objectif Global Fixé" : `Cumul Annuel ${selectedYear}`}
             </span>
             <Target className="w-4 h-4 text-blue-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-zinc-100">
-            {selectedMonth === "ALL"
+            {isAllMonthsSelected
               ? globalStats.totalTarget > 0
                 ? formatEuro(globalStats.totalTarget)
                 : "NC"
@@ -665,7 +851,7 @@ export default function CaGlobalDashboardPage() {
             </div>
           ) : (
             <div className="text-[11px] text-slate-500">
-              {selectedMonth === "ALL"
+              {isAllMonthsSelected
                 ? "Aucun objectif fixé pour cet exercice"
                 : `Objectif annuel : non renseigné`}
             </div>
@@ -676,9 +862,7 @@ export default function CaGlobalDashboardPage() {
         <div className="p-4 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-1.5">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider">
-              {selectedMonth === "ALL"
-                ? "Volume de Commandes"
-                : `Commandes (${SHORT_MONTHS[selectedMonth - 1]})`}
+              {isAllMonthsSelected ? "Volume de Commandes" : `Commandes (${periodLabel})`}
             </span>
             <Layers className="w-4 h-4 text-purple-500" />
           </div>
@@ -686,9 +870,9 @@ export default function CaGlobalDashboardPage() {
             {globalStats.activeOrders.toLocaleString("fr-FR")}
           </div>
           <div className="text-[11px] text-slate-500 truncate">
-            {selectedMonth === "ALL"
+            {isAllMonthsSelected
               ? "Flux de commandes facturées sur l'année"
-              : `Commandes facturées en ${MONTH_NAMES[selectedMonth - 1]}`}
+              : `Commandes facturées sur ${periodLabel}`}
           </div>
         </div>
 
@@ -696,9 +880,7 @@ export default function CaGlobalDashboardPage() {
         <div className="p-4 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-1.5">
           <div className="flex items-center justify-between text-slate-400">
             <span className="text-[11px] font-bold uppercase tracking-wider">
-              {selectedMonth === "ALL"
-                ? "Panier Moyen Magasin"
-                : `Panier Moyen (${SHORT_MONTHS[selectedMonth - 1]})`}
+              {isAllMonthsSelected ? "Panier Moyen Magasin" : `Panier Moyen (${periodLabel})`}
             </span>
             <BarChart3 className="w-4 h-4 text-amber-500" />
           </div>
@@ -706,9 +888,9 @@ export default function CaGlobalDashboardPage() {
             {formatEuro(globalStats.avgBasket)}
           </div>
           <div className="text-[11px] text-slate-500 truncate">
-            {selectedMonth === "ALL"
+            {isAllMonthsSelected
               ? "Montant HT moyen par commande client"
-              : `Moyenne HT en ${MONTH_NAMES[selectedMonth - 1]}`}
+              : `Moyenne HT sur ${periodLabel}`}
           </div>
         </div>
       </div>
@@ -732,7 +914,7 @@ export default function CaGlobalDashboardPage() {
           </div>
 
           <p className="text-[11px] text-slate-400">
-            Cliquez sur une barre mensuelle pour filtrer instantanément le tableau et les indicateurs sur ce mois.
+            Cliquez sur les barres mensuelles pour sélectionner un ou plusieurs mois et isoler les performances.
           </p>
 
           {/* SVG Bar Chart */}
@@ -742,15 +924,16 @@ export default function CaGlobalDashboardPage() {
                 globalStats.maxMonthAmount > 0
                   ? Math.max(4, Math.round((m.amount / globalStats.maxMonthAmount) * 100))
                   : 4;
-              const isSelected = selectedMonth === m.month;
+              const isSelected = !isAllMonthsSelected && selectedMonths.includes(m.month);
 
               return (
                 <div
                   key={m.month}
-                  onClick={() =>
-                    setSelectedMonth((prev) => (prev === m.month ? "ALL" : m.month))
-                  }
-                  className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer"
+                  onClick={() => toggleMonth(m.month)}
+                  className={`flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer transition-all duration-200 ${
+                    !isAllMonthsSelected && !isSelected ? "opacity-35 hover:opacity-75" : "opacity-100"
+                  }`}
+                  title={`${m.fullName} : ${formatEuro(m.amount)} (${m.orders} commandes). Cliquer pour inclure/exclure.`}
                 >
                   {/* Tooltip */}
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-12 bg-slate-900 text-white dark:bg-zinc-800 text-[10px] py-1 px-2 rounded-lg pointer-events-none whitespace-nowrap z-20 shadow-md text-center">
@@ -788,7 +971,7 @@ export default function CaGlobalDashboardPage() {
 
                   {/* Month Label */}
                   <span
-                    className={`text-[10px] font-semibold mt-2 ${
+                    className={`text-[10px] font-semibold mt-2 transition-colors ${
                       isSelected
                         ? "text-[#d90416] font-extrabold underline"
                         : "text-slate-500 dark:text-zinc-400"
@@ -811,8 +994,8 @@ export default function CaGlobalDashboardPage() {
                 Répartition Géographique
               </h2>
             </div>
-            <span className="text-[11px] text-slate-400">
-              {selectedMonth === "ALL" ? "Annuel" : SHORT_MONTHS[selectedMonth - 1]}
+            <span className="text-[11px] text-slate-400 truncate max-w-[140px] text-right">
+              {periodLabel}
             </span>
           </div>
 
@@ -840,7 +1023,7 @@ export default function CaGlobalDashboardPage() {
 
           <div className="pt-3 border-t border-slate-100 dark:border-zinc-800">
             <h3 className="text-xs font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wider mb-2.5">
-              Top 3 Magasins ({selectedMonth === "ALL" ? "Année" : MONTH_NAMES[selectedMonth - 1]})
+              Top 3 Magasins ({periodLabel})
             </h3>
             <div className="space-y-2">
               {globalStats.topClients.slice(0, 3).map((top, idx) => (
@@ -878,14 +1061,14 @@ export default function CaGlobalDashboardPage() {
                 </span>
               </h2>
 
-              {selectedMonth !== "ALL" && (
+              {!isAllMonthsSelected && (
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-[#d90416] border border-red-200 dark:bg-red-950/40 dark:border-red-900/60">
-                  Mois sélectionné : {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+                  Période : {periodLabel} ({selectedYear})
                 </span>
               )}
             </div>
             <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-              Visualisez le CA par mois ou sur l&apos;année complète, et ajustez les objectifs annuels.
+              Visualisez le CA par mois ou sélection de plusieurs mois, comparez aux objectifs et analysez les tendances.
             </p>
           </div>
 
@@ -1008,15 +1191,15 @@ export default function CaGlobalDashboardPage() {
                     </div>
                   </th>
 
-                  {/* If a month is selected: show Month CA column */}
-                  {selectedMonth !== "ALL" && (
+                  {/* If multi-month or single month is selected: show Period CA column */}
+                  {!isAllMonthsSelected && (
                     <th
                       onClick={() => handleToggleSort("selectedMonthTurnover")}
                       className="py-2.5 px-3 text-right cursor-pointer hover:text-[#d90416] transition-colors bg-red-50/40 dark:bg-red-950/20"
                     >
                       <div className="flex items-center justify-end gap-1.5">
                         <span className="text-[#d90416]">
-                          CA {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+                          CA Période ({periodLabel})
                         </span>
                         <ArrowUpDown
                           className={`w-3 h-3 ${
@@ -1080,7 +1263,7 @@ export default function CaGlobalDashboardPage() {
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60 bg-white dark:bg-zinc-900">
                 {filteredClients.length === 0 ? (
                   <tr>
-                    <td colSpan={selectedMonth !== "ALL" ? 9 : 8} className="py-8 text-center text-slate-400">
+                    <td colSpan={!isAllMonthsSelected ? 9 : 8} className="py-8 text-center text-slate-400">
                       Aucun client ne correspond aux critères de recherche.
                     </td>
                   </tr>
@@ -1115,8 +1298,8 @@ export default function CaGlobalDashboardPage() {
                           {client.city}
                         </td>
 
-                        {/* Selected Month Turnover (if month active) */}
-                        {selectedMonth !== "ALL" && (
+                        {/* Selected Month / Period Turnover */}
+                        {!isAllMonthsSelected && (
                           <td className="py-3 px-3 text-right font-bold text-[#d90416] font-mono text-sm bg-red-50/30 dark:bg-red-950/10">
                             {formatEuro(client.selectedMonthTurnover)}
                             {client.selectedMonthOrders > 0 && (
@@ -1202,7 +1385,7 @@ export default function CaGlobalDashboardPage() {
                           )}
                         </td>
 
-                        {/* Monthly Mini Sparkline / Grid with selected month highlighted */}
+                        {/* Monthly Mini Sparkline / Grid with selected months highlighted */}
                         <td className="py-3 px-3">
                           <div className="flex items-end justify-center gap-1 h-7">
                             {client.monthly.map((m) => {
@@ -1214,13 +1397,13 @@ export default function CaGlobalDashboardPage() {
                                 m.amount > 0
                                   ? Math.max(3, Math.round((m.amount / maxClient) * 24))
                                   : 2;
-                              const isThisMonth = selectedMonth === m.month;
+                              const isThisMonth = !isAllMonthsSelected && selectedMonths.includes(m.month);
 
                               return (
                                 <div
                                   key={m.month}
-                                  onClick={() => setSelectedMonth(m.month)}
-                                  title={`${m.monthName}: ${formatEuro(m.amount)}`}
+                                  onClick={() => toggleMonth(m.month)}
+                                  title={`${m.monthName}: ${formatEuro(m.amount)} (${m.ordersCount} cmd). Cliquer pour filtrer.`}
                                   style={{ height: `${h}px` }}
                                   className={`w-1.5 rounded-xs transition-colors cursor-pointer ${
                                     isThisMonth
@@ -1284,7 +1467,7 @@ export default function CaGlobalDashboardPage() {
                   {/* 12 Month Headers (Sortable by each month!) */}
                   {SHORT_MONTHS.map((m, idx) => {
                     const monthNum = idx + 1;
-                    const isSelected = selectedMonth === monthNum;
+                    const isSelected = !isAllMonthsSelected && selectedMonths.includes(monthNum);
                     const fieldKey = `month_${monthNum}`;
 
                     return (
@@ -1307,6 +1490,22 @@ export default function CaGlobalDashboardPage() {
                       </th>
                     );
                   })}
+
+                  {/* If multi-month selected: Subtotal Period column */}
+                  {!isAllMonthsSelected && (
+                    <th
+                      onClick={() => handleToggleSort("selectedMonthTurnover")}
+                      className="py-2.5 px-2.5 text-right cursor-pointer whitespace-nowrap font-black bg-red-100/60 dark:bg-red-950/60 text-[#d90416]"
+                      title={`Sous-total cumulé pour ${periodLabel}`}
+                    >
+                      <div className="flex items-center justify-end gap-1">
+                        <span>Période ({selectedMonths.length}m)</span>
+                        {sortField === "selectedMonthTurnover" && (
+                          <ArrowUpDown className="w-2.5 h-2.5 text-[#d90416]" />
+                        )}
+                      </div>
+                    </th>
+                  )}
 
                   <th
                     onClick={() => handleToggleSort("totalTurnover")}
@@ -1332,7 +1531,7 @@ export default function CaGlobalDashboardPage() {
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60 bg-white dark:bg-zinc-900 font-mono">
                 {filteredClients.length === 0 ? (
                   <tr>
-                    <td colSpan={19} className="py-8 text-center text-slate-400 font-sans">
+                    <td colSpan={!isAllMonthsSelected ? 20 : 19} className="py-8 text-center text-slate-400 font-sans">
                       Aucun magasin ne correspond aux filtres.
                     </td>
                   </tr>
@@ -1360,7 +1559,7 @@ export default function CaGlobalDashboardPage() {
 
                         {/* 12 Months Cells */}
                         {client.monthly.map((m) => {
-                          const isSelected = selectedMonth === m.month;
+                          const isSelected = !isAllMonthsSelected && selectedMonths.includes(m.month);
                           const hasCa = m.amount > 0;
 
                           return (
@@ -1379,6 +1578,13 @@ export default function CaGlobalDashboardPage() {
                             </td>
                           );
                         })}
+
+                        {/* Subtotal Period Cell if multi-month selected */}
+                        {!isAllMonthsSelected && (
+                          <td className="py-2 px-2.5 text-right font-black text-[#d90416] bg-red-50/50 dark:bg-red-950/30 whitespace-nowrap">
+                            {formatEuro(client.selectedMonthTurnover)}
+                          </td>
+                        )}
 
                         {/* Total Annual */}
                         <td className="py-2 px-3 text-right font-black text-[#d90416] bg-slate-50/50 dark:bg-zinc-800/30 whitespace-nowrap">
@@ -1435,7 +1641,7 @@ export default function CaGlobalDashboardPage() {
 
                     {/* Total for each of the 12 months */}
                     {globalStats.monthlyTotals.map((m) => {
-                      const isSelected = selectedMonth === m.month;
+                      const isSelected = !isAllMonthsSelected && selectedMonths.includes(m.month);
 
                       return (
                         <td
@@ -1452,6 +1658,13 @@ export default function CaGlobalDashboardPage() {
                         </td>
                       );
                     })}
+
+                    {/* Subtotal Period in footer */}
+                    {!isAllMonthsSelected && (
+                      <td className="py-3 px-2.5 text-right font-black text-[#d90416] text-xs whitespace-nowrap bg-red-100/70 dark:bg-red-950/80">
+                        {formatEuro(globalStats.activeCa)}
+                      </td>
+                    )}
 
                     <td className="py-3 px-3 text-right font-black text-[#d90416] text-xs whitespace-nowrap">
                       {formatEuro(globalStats.totalAnnualCa)}

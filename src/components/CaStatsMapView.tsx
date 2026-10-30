@@ -61,7 +61,40 @@ export function CaStatsMapView({ clients, activeKamId }: CaStatsMapViewProps) {
 
   // Filters & State
   const [selectedYear, setSelectedYear] = useState<number>(2026);
-  const [selectedMonth, setSelectedMonth] = useState<number | "ALL">("ALL");
+  const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
+
+  const isAllMonthsSelected = selectedMonths.length === 0 || selectedMonths.length === 12;
+
+  const activeMonthList = useMemo(() => {
+    return isAllMonthsSelected
+      ? [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+      : [...selectedMonths].sort((a, b) => a - b);
+  }, [isAllMonthsSelected, selectedMonths]);
+
+  function selectPreset(preset: "ALL" | "T1" | "T2" | "T3" | "T4" | "S1" | "S2") {
+    if (preset === "ALL") setSelectedMonths([]);
+    else if (preset === "T1") setSelectedMonths([1, 2, 3]);
+    else if (preset === "T2") setSelectedMonths([4, 5, 6]);
+    else if (preset === "T3") setSelectedMonths([7, 8, 9]);
+    else if (preset === "T4") setSelectedMonths([10, 11, 12]);
+    else if (preset === "S1") setSelectedMonths([1, 2, 3, 4, 5, 6]);
+    else if (preset === "S2") setSelectedMonths([7, 8, 9, 10, 11, 12]);
+  }
+
+  const periodLabel = useMemo(() => {
+    if (isAllMonthsSelected) return "Année Complète (12 mois)";
+    if (selectedMonths.length === 1) return MONTH_NAMES[selectedMonths[0] - 1];
+    const sorted = [...selectedMonths].sort((a, b) => a - b);
+    const s = JSON.stringify(sorted);
+    if (s === JSON.stringify([1, 2, 3])) return "Trimestre 1 (Jan-Mar)";
+    if (s === JSON.stringify([4, 5, 6])) return "Trimestre 2 (Avr-Juin)";
+    if (s === JSON.stringify([7, 8, 9])) return "Trimestre 3 (Juil-Sep)";
+    if (s === JSON.stringify([10, 11, 12])) return "Trimestre 4 (Oct-Déc)";
+    if (s === JSON.stringify([1, 2, 3, 4, 5, 6])) return "Semestre 1 (Jan-Juin)";
+    if (s === JSON.stringify([7, 8, 9, 10, 11, 12])) return "Semestre 2 (Juil-Déc)";
+    return `${sorted.length} mois (${sorted.map((m) => SHORT_MONTHS[m - 1]).join(", ")})`;
+  }, [isAllMonthsSelected, selectedMonths]);
+
   const [grouping, setGrouping] = useState<GeoGroupingMode>("city");
   const [minCaFilter, setMinCaFilter] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -95,10 +128,10 @@ export function CaStatsMapView({ clients, activeKamId }: CaStatsMapViewProps) {
   // Map each client to resolved geo info & total CA
   const enrichedClients = useMemo(() => {
     return clients.map((client) => {
-      // CA for selected year & optional selected month
+      // CA for selected year & optional selected multi-months
       const clientTurnovers = turnovers.filter((t: any) => {
         if (t.clientId !== client.id) return false;
-        if (selectedMonth !== "ALL" && t.month !== selectedMonth) return false;
+        if (!isAllMonthsSelected && !selectedMonths.includes(t.month)) return false;
         return true;
       });
       const totalCa = clientTurnovers.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
@@ -135,7 +168,7 @@ export function CaStatsMapView({ clients, activeKamId }: CaStatsMapViewProps) {
         ...geo,
       };
     });
-  }, [clients, turnovers]);
+  }, [clients, turnovers, isAllMonthsSelected, selectedMonths]);
 
   // Aggregate by chosen grouping mode
   const rawZones = useMemo(() => {
@@ -524,8 +557,8 @@ export function CaStatsMapView({ clients, activeKamId }: CaStatsMapViewProps) {
             }).format(nationalMetrics.totalCa)}
           </div>
           <p className="text-[11px] text-slate-400">
-            {selectedMonth !== "ALL"
-              ? `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear} • ${nationalMetrics.activeStoresWithCa} magasins actifs`
+            {!isAllMonthsSelected
+              ? `${periodLabel} ${selectedYear} • ${nationalMetrics.activeStoresWithCa} magasins actifs`
               : `Exercice ${selectedYear} (Cumul 12 mois) • ${nationalMetrics.activeStoresWithCa} magasins actifs`}
           </p>
         </div>
@@ -618,19 +651,63 @@ export function CaStatsMapView({ clients, activeKamId }: CaStatsMapViewProps) {
               <option value={2024}>Année 2024</option>
             </select>
 
-            {/* Month Selector */}
+            {/* Multi-Month / Period Selector */}
             <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
+              value={
+                isAllMonthsSelected
+                  ? "ALL"
+                  : selectedMonths.length === 1
+                  ? String(selectedMonths[0])
+                  : JSON.stringify(activeMonthList) === JSON.stringify([1, 2, 3])
+                  ? "T1"
+                  : JSON.stringify(activeMonthList) === JSON.stringify([4, 5, 6])
+                  ? "T2"
+                  : JSON.stringify(activeMonthList) === JSON.stringify([7, 8, 9])
+                  ? "T3"
+                  : JSON.stringify(activeMonthList) === JSON.stringify([10, 11, 12])
+                  ? "T4"
+                  : JSON.stringify(activeMonthList) === JSON.stringify([1, 2, 3, 4, 5, 6])
+                  ? "S1"
+                  : JSON.stringify(activeMonthList) === JSON.stringify([7, 8, 9, 10, 11, 12])
+                  ? "S2"
+                  : "CUSTOM"
+              }
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === "ALL") selectPreset("ALL");
+                else if (
+                  val === "T1" ||
+                  val === "T2" ||
+                  val === "T3" ||
+                  val === "T4" ||
+                  val === "S1" ||
+                  val === "S2"
+                ) {
+                  selectPreset(val as any);
+                } else if (val !== "CUSTOM") {
+                  setSelectedMonths([Number(val)]);
+                }
+              }}
               className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold text-slate-700 dark:text-zinc-300 focus:outline-none focus:border-[#d90416] cursor-pointer"
-              title="Filtrer la carte par mois"
+              title="Filtrer la carte par période ou mois"
             >
               <option value="ALL">📅 Tous les mois (Annuel)</option>
+              <option value="T1">Trimestre 1 (Jan-Mar)</option>
+              <option value="T2">Trimestre 2 (Avr-Juin)</option>
+              <option value="T3">Trimestre 3 (Juil-Sep)</option>
+              <option value="T4">Trimestre 4 (Oct-Déc)</option>
+              <option value="S1">Semestre 1 (Jan-Juin)</option>
+              <option value="S2">Semestre 2 (Juil-Déc)</option>
               {MONTH_NAMES.map((m, idx) => (
-                <option key={idx + 1} value={idx + 1}>
-                  {m}
+                <option key={idx + 1} value={String(idx + 1)}>
+                  Mois : {m}
                 </option>
               ))}
+              {!isAllMonthsSelected &&
+                selectedMonths.length > 1 &&
+                !["T1", "T2", "T3", "T4", "S1", "S2"].includes(periodLabel) && (
+                  <option value="CUSTOM">Sélection : {periodLabel}</option>
+                )}
             </select>
 
             {/* Grouping switcher */}
