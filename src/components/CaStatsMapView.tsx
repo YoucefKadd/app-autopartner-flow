@@ -23,6 +23,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { ClientItem, CLIENT_STATUS_CONFIG } from "@/types/kam";
+import { MONTH_NAMES, SHORT_MONTHS } from "@/components/ClientCaSection";
 import {
   FRENCH_REGIONS,
   FRENCH_DEPARTMENTS,
@@ -60,6 +61,7 @@ export function CaStatsMapView({ clients, activeKamId }: CaStatsMapViewProps) {
 
   // Filters & State
   const [selectedYear, setSelectedYear] = useState<number>(2026);
+  const [selectedMonth, setSelectedMonth] = useState<number | "ALL">("ALL");
   const [grouping, setGrouping] = useState<GeoGroupingMode>("city");
   const [minCaFilter, setMinCaFilter] = useState<number>(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -93,8 +95,12 @@ export function CaStatsMapView({ clients, activeKamId }: CaStatsMapViewProps) {
   // Map each client to resolved geo info & total CA
   const enrichedClients = useMemo(() => {
     return clients.map((client) => {
-      // CA for selected year
-      const clientTurnovers = turnovers.filter((t: any) => t.clientId === client.id);
+      // CA for selected year & optional selected month
+      const clientTurnovers = turnovers.filter((t: any) => {
+        if (t.clientId !== client.id) return false;
+        if (selectedMonth !== "ALL" && t.month !== selectedMonth) return false;
+        return true;
+      });
       const totalCa = clientTurnovers.reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
       const totalOrders = clientTurnovers.reduce(
         (acc, t) => acc + (Number(t.ordersCount) || 0),
@@ -518,7 +524,9 @@ export function CaStatsMapView({ clients, activeKamId }: CaStatsMapViewProps) {
             }).format(nationalMetrics.totalCa)}
           </div>
           <p className="text-[11px] text-slate-400">
-            Exercice {selectedYear} • {nationalMetrics.activeStoresWithCa} magasins actifs
+            {selectedMonth !== "ALL"
+              ? `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear} • ${nationalMetrics.activeStoresWithCa} magasins actifs`
+              : `Exercice ${selectedYear} (Cumul 12 mois) • ${nationalMetrics.activeStoresWithCa} magasins actifs`}
           </p>
         </div>
 
@@ -608,6 +616,21 @@ export function CaStatsMapView({ clients, activeKamId }: CaStatsMapViewProps) {
               <option value={2026}>Année 2026</option>
               <option value={2025}>Année 2025</option>
               <option value={2024}>Année 2024</option>
+            </select>
+
+            {/* Month Selector */}
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value === "ALL" ? "ALL" : Number(e.target.value))}
+              className="px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-bold text-slate-700 dark:text-zinc-300 focus:outline-none focus:border-[#d90416] cursor-pointer"
+              title="Filtrer la carte par mois"
+            >
+              <option value="ALL">📅 Tous les mois (Annuel)</option>
+              {MONTH_NAMES.map((m, idx) => (
+                <option key={idx + 1} value={idx + 1}>
+                  {m}
+                </option>
+              ))}
             </select>
 
             {/* Grouping switcher */}

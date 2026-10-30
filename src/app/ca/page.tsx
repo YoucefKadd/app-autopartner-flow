@@ -26,13 +26,24 @@ import {
   ChevronRight,
   Filter,
   ShieldAlert,
+  RotateCcw,
+  Eye,
+  Table as TableIcon,
 } from "lucide-react";
 import { useWorkspace } from "@/components/AppShell";
 import { ClientItem, hasPermission, getAssignedManagerIds } from "@/types/kam";
 import { MONTH_NAMES, SHORT_MONTHS, MonthlyTurnover } from "@/components/ClientCaSection";
 import { CaImportModal } from "@/components/CaImportModal";
 
-type CaSortField = "apCode" | "company" | "city" | "totalTurnover" | "target" | "achievementRate";
+type CaSortField =
+  | "apCode"
+  | "company"
+  | "city"
+  | "totalTurnover"
+  | "selectedMonthTurnover"
+  | "target"
+  | "achievementRate"
+  | string;
 
 export default function CaGlobalDashboardPage() {
   const router = useRouter();
@@ -51,6 +62,8 @@ export default function CaGlobalDashboardPage() {
   }, [loading, loggedUser, router]);
 
   const [selectedYear, setSelectedYear] = useState<number>(2026);
+  const [selectedMonth, setSelectedMonth] = useState<number | "ALL">("ALL"); // "ALL" = Année complète, 1..12 = Mois spécifique
+  const [tableMode, setTableMode] = useState<"summary" | "grid12">("summary"); // summary | grid12
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCity, setSelectedCity] = useState("ALL");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
@@ -85,7 +98,6 @@ export default function CaGlobalDashboardPage() {
     fetchTurnovers();
   }, [fetchTurnovers, dataVersion]);
 
-
   // Sorting state
   const [sortField, setSortField] = useState<CaSortField>("totalTurnover");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
@@ -95,7 +107,9 @@ export default function CaGlobalDashboardPage() {
       setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
     } else {
       setSortField(field);
-      setSortOrder(field === "company" || field === "city" || field === "apCode" ? "asc" : "desc");
+      setSortOrder(
+        field === "company" || field === "city" || field === "apCode" ? "asc" : "desc"
+      );
     }
   }
 
@@ -147,7 +161,9 @@ export default function CaGlobalDashboardPage() {
       });
 
       // Target: check db month 0 or target field, then localStorage fallback, else 0
-      const targetItem = clientTurnovers.find((t: any) => t.month === 0) || clientTurnovers.find((t: any) => t.target && t.target > 0);
+      const targetItem =
+        clientTurnovers.find((t: any) => t.month === 0) ||
+        clientTurnovers.find((t: any) => t.target && t.target > 0);
       let target = targetItem && targetItem.target > 0 ? Number(targetItem.target) : 0;
       if (!target && typeof window !== "undefined") {
         const savedTarget = localStorage.getItem(`apflow_ca_target_${client.id}_${selectedYear}`);
@@ -158,11 +174,20 @@ export default function CaGlobalDashboardPage() {
       }
 
       // Retrieve AP Code
-      const apCode = client.apClientNumber || (typeof window !== "undefined" ? localStorage.getItem(`apflow_apcode_${client.id}`) || "" : "");
+      const apCode =
+        client.apClientNumber ||
+        (typeof window !== "undefined"
+          ? localStorage.getItem(`apflow_apcode_${client.id}`) || ""
+          : "");
 
       const totalTurnover = monthly.reduce((acc, m) => acc + m.amount, 0);
       const totalOrders = monthly.reduce((acc, m) => acc + m.ordersCount, 0);
       const achievementRate = target > 0 ? Math.round((totalTurnover / target) * 100) : 0;
+
+      const selectedMonthTurnover =
+        selectedMonth !== "ALL" ? monthly[selectedMonth - 1]?.amount || 0 : totalTurnover;
+      const selectedMonthOrders =
+        selectedMonth !== "ALL" ? monthly[selectedMonth - 1]?.ordersCount || 0 : totalOrders;
 
       return {
         ...client,
@@ -172,9 +197,11 @@ export default function CaGlobalDashboardPage() {
         totalTurnover,
         totalOrders,
         achievementRate,
+        selectedMonthTurnover,
+        selectedMonthOrders,
       };
     });
-  }, [clients, dbTurnovers, selectedYear]);
+  }, [clients, dbTurnovers, selectedYear, selectedMonth]);
 
   // Filter and sort clients
   const filteredClients = useMemo(() => {
@@ -202,6 +229,13 @@ export default function CaGlobalDashboardPage() {
         comparison = (a.apCode || "").localeCompare(b.apCode || "", "fr", { numeric: true });
       } else if (sortField === "totalTurnover") {
         comparison = a.totalTurnover - b.totalTurnover;
+      } else if (sortField === "selectedMonthTurnover") {
+        comparison = a.selectedMonthTurnover - b.selectedMonthTurnover;
+      } else if (sortField.startsWith("month_")) {
+        const mIdx = parseInt(sortField.replace("month_", ""), 10) - 1;
+        const aAmt = a.monthly[mIdx]?.amount || 0;
+        const bAmt = b.monthly[mIdx]?.amount || 0;
+        comparison = aAmt - bAmt;
       } else if (sortField === "target") {
         comparison = a.target - b.target;
       } else if (sortField === "achievementRate") {
@@ -213,11 +247,23 @@ export default function CaGlobalDashboardPage() {
 
   // Global Aggregate KPI Stats
   const globalStats = useMemo(() => {
-    const totalCa = filteredClients.reduce((acc, c) => acc + c.totalTurnover, 0);
+    const totalAnnualCa = filteredClients.reduce((acc, c) => acc + c.totalTurnover, 0);
+    const totalAnnualOrders = filteredClients.reduce((acc, c) => acc + c.totalOrders, 0);
+
+    // Selected Month Aggregates (or Annual if ALL)
+    const activeCa =
+      selectedMonth === "ALL"
+        ? totalAnnualCa
+        : filteredClients.reduce((acc, c) => acc + c.selectedMonthTurnover, 0);
+
+    const activeOrders =
+      selectedMonth === "ALL"
+        ? totalAnnualOrders
+        : filteredClients.reduce((acc, c) => acc + c.selectedMonthOrders, 0);
+
     const totalTarget = filteredClients.reduce((acc, c) => acc + c.target, 0);
-    const totalOrders = filteredClients.reduce((acc, c) => acc + c.totalOrders, 0);
-    const globalRate = totalTarget > 0 ? Math.round((totalCa / totalTarget) * 100) : 0;
-    const avgBasket = totalOrders > 0 ? Math.round(totalCa / totalOrders) : 0;
+    const globalRate = totalTarget > 0 ? Math.round((totalAnnualCa / totalTarget) * 100) : 0;
+    const avgBasket = activeOrders > 0 ? Math.round(activeCa / activeOrders) : 0;
 
     // Monthly cumulative across filtered clients
     const monthlyTotals = MONTH_NAMES.map((name, idx) => {
@@ -226,39 +272,55 @@ export default function CaGlobalDashboardPage() {
         const m = c.monthly.find((item) => item.month === monthNum);
         return acc + (m ? m.amount : 0);
       }, 0);
+      const orders = filteredClients.reduce((acc, c) => {
+        const m = c.monthly.find((item) => item.month === monthNum);
+        return acc + (m ? m.ordersCount : 0);
+      }, 0);
       return {
         month: monthNum,
         name: SHORT_MONTHS[idx],
         fullName: name,
         amount: sum,
+        orders,
       };
     });
 
     const maxMonthAmount = Math.max(...monthlyTotals.map((m) => m.amount), 1000);
 
-    // Breakdown by City
+    // Breakdown by City (based on active period: selected month or annual)
     const cityMap = new Map<string, number>();
     filteredClients.forEach((c) => {
       const city = c.city || "Autres";
-      cityMap.set(city, (cityMap.get(city) || 0) + c.totalTurnover);
+      const amt = selectedMonth === "ALL" ? c.totalTurnover : c.selectedMonthTurnover;
+      cityMap.set(city, (cityMap.get(city) || 0) + amt);
     });
     const cityBreakdown = Array.from(cityMap.entries())
       .map(([city, ca]) => ({
         city,
         ca,
-        pct: totalCa > 0 ? Math.round((ca / totalCa) * 100) : 0,
+        pct: activeCa > 0 ? Math.round((ca / activeCa) * 100) : 0,
       }))
       .sort((a, b) => b.ca - a.ca);
 
-    // Top 5 Clients by CA
+    // Top 5 Clients by active period CA
     const topClients = [...filteredClients]
-      .sort((a, b) => b.totalTurnover - a.totalTurnover)
-      .slice(0, 5);
+      .sort((a, b) => {
+        const aVal = selectedMonth === "ALL" ? a.totalTurnover : a.selectedMonthTurnover;
+        const bVal = selectedMonth === "ALL" ? b.totalTurnover : b.selectedMonthTurnover;
+        return bVal - aVal;
+      })
+      .slice(0, 5)
+      .map((c) => ({
+        ...c,
+        activeTurnover: selectedMonth === "ALL" ? c.totalTurnover : c.selectedMonthTurnover,
+      }));
 
     return {
-      totalCa,
+      totalAnnualCa,
+      totalAnnualOrders,
+      activeCa,
+      activeOrders,
       totalTarget,
-      totalOrders,
       globalRate,
       avgBasket,
       monthlyTotals,
@@ -266,7 +328,7 @@ export default function CaGlobalDashboardPage() {
       cityBreakdown,
       topClients,
     };
-  }, [filteredClients]);
+  }, [filteredClients, selectedMonth]);
 
   // Handle Target Update
   async function handleSaveTarget(clientId: string) {
@@ -364,7 +426,7 @@ export default function CaGlobalDashboardPage() {
   return (
     <div className="p-3.5 sm:p-6 lg:px-8 lg:py-6 space-y-6 w-full max-w-7xl mx-auto">
       {/* 1. Header with Title & Top Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80 dark:border-zinc-800">
         <div>
           <div className="flex items-center gap-2.5">
             <span className="p-2.5 rounded-2xl bg-red-50 dark:bg-red-950/50 text-[#d90416]">
@@ -378,16 +440,18 @@ export default function CaGlobalDashboardPage() {
                 </span>
               </h1>
               <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                Vue analytique consolidée, objectifs de vente par client et répartition géographique
+                Vue analytique consolidée, visualisation mensuelle du CA et objectifs de vente par client
               </p>
             </div>
           </div>
         </div>
 
-        {/* Top Right: Exercise Selector + Import CSV + Export */}
+        {/* Top Right: Exercise Selector + Month Selector + Import CSV + Export */}
         <div className="flex flex-wrap items-center gap-2.5">
           {/* KAM / Team Scope Selector for Manager, Directeur & Super Admin */}
-          {(loggedUser?.role === "SUPER_ADMIN" || loggedUser?.role === "DIRECTEUR" || loggedUser?.role === "MANAGER") && (
+          {(loggedUser?.role === "SUPER_ADMIN" ||
+            loggedUser?.role === "DIRECTEUR" ||
+            loggedUser?.role === "MANAGER") && (
             <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs font-semibold shadow-xs">
               <span className="text-slate-500 text-[11px]">Périmètre :</span>
               <select
@@ -403,7 +467,10 @@ export default function CaGlobalDashboardPage() {
                 {users
                   .filter((u) => {
                     if (loggedUser?.role === "MANAGER") {
-                      return getAssignedManagerIds(u).includes(loggedUser.id) || u.id === loggedUser.id;
+                      return (
+                        getAssignedManagerIds(u).includes(loggedUser.id) ||
+                        u.id === loggedUser.id
+                      );
                     }
                     return u.role === "KAM";
                   })
@@ -431,6 +498,26 @@ export default function CaGlobalDashboardPage() {
             </select>
           </div>
 
+          {/* Month Selector Dropdown */}
+          <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs font-semibold shadow-xs">
+            <BarChart3 className="w-3.5 h-3.5 text-[#d90416]" />
+            <span className="text-slate-500 text-[11px]">Mois :</span>
+            <select
+              value={selectedMonth}
+              onChange={(e) =>
+                setSelectedMonth(e.target.value === "ALL" ? "ALL" : Number(e.target.value))
+              }
+              className="bg-transparent font-bold text-slate-900 dark:text-zinc-100 focus:outline-none cursor-pointer"
+            >
+              <option value="ALL">Tous les mois (Annuel)</option>
+              {MONTH_NAMES.map((m, idx) => (
+                <option key={idx + 1} value={idx + 1}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Import CSV */}
           <button
             type="button"
@@ -439,7 +526,7 @@ export default function CaGlobalDashboardPage() {
             title="Importer un fichier de CA et achats AX au format CSV"
           >
             <UploadCloud className="w-3.5 h-3.5 text-[#d90416]" />
-            <span>Importer Fichier CA & AX (CSV)</span>
+            <span className="hidden sm:inline">Importer CSV</span>
           </button>
 
           {/* Export CSV */}
@@ -449,37 +536,120 @@ export default function CaGlobalDashboardPage() {
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#d90416] hover:bg-[#b80312] text-white text-xs font-semibold shadow-sm transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Exporter Rapport</span>
+            <span className="hidden sm:inline">Exporter</span>
           </button>
         </div>
       </div>
 
-      {/* 2. Top Consolidated KPI Cards */}
+      {/* 2. Quick Horizontal Month Filter Pills Bar */}
+      <div className="p-2.5 rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-2xs flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1 shrink-0">
+            Période :
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedMonth("ALL")}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer ${
+              selectedMonth === "ALL"
+                ? "bg-[#d90416] text-white shadow-xs"
+                : "bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 hover:bg-slate-200 dark:hover:bg-zinc-700"
+            }`}
+          >
+            Année Complète (Cumul 12 mois)
+          </button>
+          {MONTH_NAMES.map((name, idx) => {
+            const monthNum = idx + 1;
+            const isSelected = selectedMonth === monthNum;
+            const monthTotal = globalStats.monthlyTotals[idx]?.amount || 0;
+            return (
+              <button
+                key={monthNum}
+                type="button"
+                onClick={() => setSelectedMonth(monthNum)}
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                  isSelected
+                    ? "bg-[#d90416] text-white shadow-xs ring-2 ring-[#d90416]/30"
+                    : monthTotal > 0
+                    ? "bg-slate-50 dark:bg-zinc-800/80 text-slate-800 dark:text-zinc-200 border border-slate-200 dark:border-zinc-700 hover:border-[#d90416]"
+                    : "bg-slate-50/50 dark:bg-zinc-900 text-slate-400 dark:text-zinc-500 hover:text-slate-700"
+                }`}
+              >
+                <span>{SHORT_MONTHS[idx]}</span>
+                {monthTotal > 0 && (
+                  <span
+                    className={`text-[10px] px-1 rounded ${
+                      isSelected
+                        ? "bg-white/20 text-white font-extrabold"
+                        : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 font-bold"
+                    }`}
+                  >
+                    {Math.round(monthTotal / 1000)}k€
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {selectedMonth !== "ALL" && (
+          <button
+            type="button"
+            onClick={() => setSelectedMonth("ALL")}
+            className="text-xs font-bold text-[#d90416] hover:underline flex items-center gap-1 px-2 py-1 shrink-0 cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Réinitialiser (Tous les mois)</span>
+          </button>
+        )}
+      </div>
+
+      {/* 3. Top Consolidated KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Card 1: Total Turnover */}
         <div className="p-4 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-1.5">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">CA Global Réalisé</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">
+              {selectedMonth === "ALL"
+                ? "CA Global Réalisé"
+                : `CA ${MONTH_NAMES[selectedMonth - 1]}`}
+            </span>
             <DollarSign className="w-4 h-4 text-[#d90416]" />
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-zinc-100">
-            {formatEuro(globalStats.totalCa)}
+            {formatEuro(globalStats.activeCa)}
           </div>
-          <div className="text-[11px] text-slate-500 flex items-center gap-1">
-            <span>Exercice {selectedYear}</span>
+          <div className="text-[11px] text-slate-500 flex items-center gap-1 truncate">
+            <span>
+              {selectedMonth === "ALL"
+                ? `Exercice ${selectedYear} (Cumul 12 mois)`
+                : `Mois de ${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`}
+            </span>
             <span>•</span>
-            <span>{filteredClients.length} clients suivis</span>
+            <span>
+              {selectedMonth === "ALL"
+                ? `${filteredClients.length} clients suivis`
+                : `${
+                    filteredClients.filter((c) => c.selectedMonthTurnover > 0).length
+                  } magasins actifs`}
+            </span>
           </div>
         </div>
 
         {/* Card 2: Annual Target & Achievement */}
         <div className="p-4 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-1.5">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Objectif Global Fixé</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">
+              {selectedMonth === "ALL" ? "Objectif Global Fixé" : `Cumul Annuel ${selectedYear}`}
+            </span>
             <Target className="w-4 h-4 text-blue-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-zinc-100">
-            {globalStats.totalTarget > 0 ? formatEuro(globalStats.totalTarget) : "NC"}
+            {selectedMonth === "ALL"
+              ? globalStats.totalTarget > 0
+                ? formatEuro(globalStats.totalTarget)
+                : "NC"
+              : formatEuro(globalStats.totalAnnualCa)}
           </div>
           {globalStats.totalTarget > 0 ? (
             <div className="flex items-center gap-2">
@@ -490,12 +660,14 @@ export default function CaGlobalDashboardPage() {
                 />
               </div>
               <span className="text-[11px] font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                {globalStats.globalRate}%
+                {globalStats.globalRate}% atteint
               </span>
             </div>
           ) : (
             <div className="text-[11px] text-slate-500">
-              Aucun objectif fixé pour cet exercice
+              {selectedMonth === "ALL"
+                ? "Aucun objectif fixé pour cet exercice"
+                : `Objectif annuel : non renseigné`}
             </div>
           )}
         </div>
@@ -503,33 +675,45 @@ export default function CaGlobalDashboardPage() {
         {/* Card 3: Total Orders */}
         <div className="p-4 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-1.5">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Volume de Commandes</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">
+              {selectedMonth === "ALL"
+                ? "Volume de Commandes"
+                : `Commandes (${SHORT_MONTHS[selectedMonth - 1]})`}
+            </span>
             <Layers className="w-4 h-4 text-purple-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-zinc-100">
-            {globalStats.totalOrders.toLocaleString("fr-FR")}
+            {globalStats.activeOrders.toLocaleString("fr-FR")}
           </div>
-          <div className="text-[11px] text-slate-500">
-            Flux de commandes facturées sur l&apos;année
+          <div className="text-[11px] text-slate-500 truncate">
+            {selectedMonth === "ALL"
+              ? "Flux de commandes facturées sur l'année"
+              : `Commandes facturées en ${MONTH_NAMES[selectedMonth - 1]}`}
           </div>
         </div>
 
         {/* Card 4: Average Order Value */}
         <div className="p-4 sm:p-5 rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-1.5">
           <div className="flex items-center justify-between text-slate-400">
-            <span className="text-[11px] font-bold uppercase tracking-wider">Panier Moyen Magasin</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider">
+              {selectedMonth === "ALL"
+                ? "Panier Moyen Magasin"
+                : `Panier Moyen (${SHORT_MONTHS[selectedMonth - 1]})`}
+            </span>
             <BarChart3 className="w-4 h-4 text-amber-500" />
           </div>
           <div className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-zinc-100">
             {formatEuro(globalStats.avgBasket)}
           </div>
-          <div className="text-[11px] text-slate-500">
-            Montant HT moyen par commande client
+          <div className="text-[11px] text-slate-500 truncate">
+            {selectedMonth === "ALL"
+              ? "Montant HT moyen par commande client"
+              : `Moyenne HT en ${MONTH_NAMES[selectedMonth - 1]}`}
           </div>
         </div>
       </div>
 
-      {/* 3. Consolidated Monthly Turnover Chart + Geographic Breakdown */}
+      {/* 4. Consolidated Monthly Turnover Chart + Geographic Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* Monthly Bar Chart (2 cols) */}
         <div className="lg:col-span-2 rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
@@ -540,10 +724,16 @@ export default function CaGlobalDashboardPage() {
                 Évolution Mensuelle Consolidée du CA ({selectedYear})
               </h2>
             </div>
-            <span className="text-xs font-mono font-bold text-[#d90416]">
-              {formatEuro(globalStats.totalCa)} Total
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono font-bold text-[#d90416]">
+                {formatEuro(globalStats.totalAnnualCa)} Cumul Annuel
+              </span>
+            </div>
           </div>
+
+          <p className="text-[11px] text-slate-400">
+            Cliquez sur une barre mensuelle pour filtrer instantanément le tableau et les indicateurs sur ce mois.
+          </p>
 
           {/* SVG Bar Chart */}
           <div className="h-56 w-full flex items-end gap-2 pt-6 pb-2 px-1 border-b border-slate-100 dark:border-zinc-800">
@@ -552,19 +742,34 @@ export default function CaGlobalDashboardPage() {
                 globalStats.maxMonthAmount > 0
                   ? Math.max(4, Math.round((m.amount / globalStats.maxMonthAmount) * 100))
                   : 4;
+              const isSelected = selectedMonth === m.month;
+
               return (
                 <div
                   key={m.month}
-                  className="flex-1 flex flex-col items-center justify-end h-full group relative"
+                  onClick={() =>
+                    setSelectedMonth((prev) => (prev === m.month ? "ALL" : m.month))
+                  }
+                  className="flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer"
                 >
                   {/* Tooltip */}
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-10 bg-slate-900 text-white dark:bg-zinc-800 text-[10px] py-1 px-2 rounded pointer-events-none whitespace-nowrap z-20 shadow-md">
-                    <span className="font-bold">{m.fullName}</span>: {formatEuro(m.amount)}
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-12 bg-slate-900 text-white dark:bg-zinc-800 text-[10px] py-1 px-2 rounded-lg pointer-events-none whitespace-nowrap z-20 shadow-md text-center">
+                    <div className="font-bold">{m.fullName}</div>
+                    <div>{formatEuro(m.amount)}</div>
+                    <div className="text-[9px] text-slate-400">
+                      {m.orders} commande{m.orders > 1 ? "s" : ""}
+                    </div>
                   </div>
 
                   {/* Value on top of bar if > 0 */}
                   {m.amount > 0 && (
-                    <span className="text-[9px] font-mono font-semibold text-slate-500 dark:text-zinc-400 mb-1 opacity-80 group-hover:opacity-100 transition-opacity hidden sm:block">
+                    <span
+                      className={`text-[9px] font-mono font-semibold mb-1 transition-opacity hidden sm:block ${
+                        isSelected
+                          ? "text-[#d90416] font-bold"
+                          : "text-slate-500 dark:text-zinc-400 opacity-80 group-hover:opacity-100"
+                      }`}
+                    >
                       {Math.round(m.amount / 1000)}k
                     </span>
                   )}
@@ -573,14 +778,22 @@ export default function CaGlobalDashboardPage() {
                   <div
                     style={{ height: `${heightPct}%` }}
                     className={`w-full max-w-[32px] rounded-t-lg transition-all ${
-                      m.amount > 0
-                        ? "bg-[#d90416] hover:bg-[#b80312] shadow-xs"
-                        : "bg-slate-100 dark:bg-zinc-800"
+                      isSelected
+                        ? "bg-[#d90416] ring-4 ring-[#d90416]/30 shadow-md"
+                        : m.amount > 0
+                        ? "bg-[#d90416]/80 hover:bg-[#d90416] shadow-xs"
+                        : "bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200"
                     }`}
                   />
 
                   {/* Month Label */}
-                  <span className="text-[10px] font-semibold text-slate-500 dark:text-zinc-400 mt-2">
+                  <span
+                    className={`text-[10px] font-semibold mt-2 ${
+                      isSelected
+                        ? "text-[#d90416] font-extrabold underline"
+                        : "text-slate-500 dark:text-zinc-400"
+                    }`}
+                  >
                     {m.name}
                   </span>
                 </div>
@@ -598,7 +811,9 @@ export default function CaGlobalDashboardPage() {
                 Répartition Géographique
               </h2>
             </div>
-            <span className="text-[11px] text-slate-400">Par Ville</span>
+            <span className="text-[11px] text-slate-400">
+              {selectedMonth === "ALL" ? "Annuel" : SHORT_MONTHS[selectedMonth - 1]}
+            </span>
           </div>
 
           {/* City Progress Bars */}
@@ -606,23 +821,18 @@ export default function CaGlobalDashboardPage() {
             {globalStats.cityBreakdown.slice(0, 5).map((city) => (
               <div key={city.city} className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-slate-800 dark:text-zinc-200">
+                  <span className="font-semibold text-slate-800 dark:text-zinc-200 truncate">
                     {city.city}
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0">
                     <span className="font-mono text-slate-600 dark:text-zinc-300">
                       {formatEuro(city.ca)}
                     </span>
-                    <span className="font-bold text-[#d90416] text-[11px]">
-                      {city.pct}%
-                    </span>
+                    <span className="font-bold text-[#d90416] text-[11px]">{city.pct}%</span>
                   </div>
                 </div>
                 <div className="h-1.5 w-full bg-slate-100 dark:bg-zinc-800 rounded-full overflow-hidden">
-                  <div
-                    className="bg-[#d90416] h-full rounded-full"
-                    style={{ width: `${city.pct}%` }}
-                  />
+                  <div className="bg-[#d90416] h-full rounded-full" style={{ width: `${city.pct}%` }} />
                 </div>
               </div>
             ))}
@@ -630,7 +840,7 @@ export default function CaGlobalDashboardPage() {
 
           <div className="pt-3 border-t border-slate-100 dark:border-zinc-800">
             <h3 className="text-xs font-bold text-slate-700 dark:text-zinc-300 uppercase tracking-wider mb-2.5">
-              Top 3 Magasins Leader
+              Top 3 Magasins ({selectedMonth === "ALL" ? "Année" : MONTH_NAMES[selectedMonth - 1]})
             </h3>
             <div className="space-y-2">
               {globalStats.topClients.slice(0, 3).map((top, idx) => (
@@ -647,7 +857,7 @@ export default function CaGlobalDashboardPage() {
                     </span>
                   </div>
                   <span className="font-bold font-mono text-[#d90416] shrink-0">
-                    {formatEuro(top.totalTurnover)}
+                    {formatEuro(top.activeTurnover)}
                   </span>
                 </div>
               ))}
@@ -656,23 +866,59 @@ export default function CaGlobalDashboardPage() {
         </div>
       </div>
 
-      {/* 4. Clients Table with Direct Target Modification & Monthly Details */}
+      {/* 5. Clients Table with Direct Target Modification & Monthly Details */}
       <div className="rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-[0_1px_3px_rgba(0,0,0,0.02)] overflow-hidden space-y-3 p-4 sm:p-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100 dark:border-zinc-800">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2 border-b border-slate-100 dark:border-zinc-800">
           <div>
-            <h2 className="text-sm font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-2">
-              Détail des Chiffres d&apos;Affaires &amp; Objectifs par Client
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
-                {filteredClients.length}
-              </span>
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-zinc-400">
-              Cliquez sur l&apos;icône crayon pour ajuster l&apos;objectif annuel de chaque compte
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-zinc-100 flex items-center gap-2">
+                Détail des Chiffres d&apos;Affaires &amp; Objectifs par Client
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
+                  {filteredClients.length}
+                </span>
+              </h2>
+
+              {selectedMonth !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-[#d90416] border border-red-200 dark:bg-red-950/40 dark:border-red-900/60">
+                  Mois sélectionné : {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+              Visualisez le CA par mois ou sur l&apos;année complète, et ajustez les objectifs annuels.
             </p>
           </div>
 
-          {/* Filters Bar */}
+          {/* Mode Switcher + Filters Bar */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* View Mode Toggle: Summary vs 12-Month Matrix */}
+            <div className="flex items-center rounded-xl bg-slate-100 dark:bg-zinc-800 p-0.5 border border-slate-200 dark:border-zinc-700 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setTableMode("summary")}
+                className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${
+                  tableMode === "summary"
+                    ? "bg-white dark:bg-zinc-900 text-[#d90416] shadow-2xs"
+                    : "text-slate-600 dark:text-zinc-400 hover:text-slate-900"
+                }`}
+              >
+                Vue Synthétique
+              </button>
+              <button
+                type="button"
+                onClick={() => setTableMode("grid12")}
+                className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 cursor-pointer ${
+                  tableMode === "grid12"
+                    ? "bg-white dark:bg-zinc-900 text-[#d90416] shadow-2xs"
+                    : "text-slate-600 dark:text-zinc-400 hover:text-slate-900"
+                }`}
+                title="Afficher la matrice complète des 12 mois pour tous les magasins"
+              >
+                <TableIcon className="w-3.5 h-3.5" />
+                <span>Matrice 12 Mois</span>
+              </button>
+            </div>
+
             {/* Search */}
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -681,7 +927,7 @@ export default function CaGlobalDashboardPage() {
                 placeholder="Rechercher client, code AP..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-slate-800 dark:text-zinc-200 focus:outline-none focus:border-[#d90416] w-48"
+                className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs text-slate-800 dark:text-zinc-200 focus:outline-none focus:border-[#d90416] w-44"
               />
             </div>
 
@@ -689,7 +935,7 @@ export default function CaGlobalDashboardPage() {
             <select
               value={selectedCity}
               onChange={(e) => setSelectedCity(e.target.value)}
-              className="py-1.5 px-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-[#d90416] cursor-pointer"
+              className="py-1.5 px-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-[#d90416] cursor-pointer max-w-[150px] truncate"
             >
               <option value="ALL">Toutes les Villes</option>
               {cities.map((city) => (
@@ -703,9 +949,9 @@ export default function CaGlobalDashboardPage() {
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="py-1.5 px-3 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-[#d90416] cursor-pointer"
+              className="py-1.5 px-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-xs font-medium text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-[#d90416] cursor-pointer"
             >
-              <option value="ALL">Tous les Statuts</option>
+              <option value="ALL">Tous Statuts</option>
               <option value="VIP">VIP</option>
               <option value="ACTIVE">Actif</option>
               <option value="NEW">Nouveau</option>
@@ -714,211 +960,518 @@ export default function CaGlobalDashboardPage() {
           </div>
         </div>
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50/80 dark:bg-zinc-950/40 text-slate-700 dark:text-zinc-300 font-bold border-y border-slate-100 dark:border-zinc-800 select-none">
-              <tr>
-                <th
-                  onClick={() => handleToggleSort("apCode")}
-                  className="py-2.5 px-3 cursor-pointer hover:text-[#d90416] transition-colors"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>Code AP</span>
-                    <ArrowUpDown className={`w-3 h-3 ${sortField === "apCode" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
-                  </div>
-                </th>
-                <th
-                  onClick={() => handleToggleSort("company")}
-                  className="py-2.5 px-3 cursor-pointer hover:text-[#d90416] transition-colors"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>Client / Magasin</span>
-                    <ArrowUpDown className={`w-3 h-3 ${sortField === "company" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
-                  </div>
-                </th>
-                <th
-                  onClick={() => handleToggleSort("city")}
-                  className="py-2.5 px-3 cursor-pointer hover:text-[#d90416] transition-colors"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>Ville</span>
-                    <ArrowUpDown className={`w-3 h-3 ${sortField === "city" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
-                  </div>
-                </th>
-                <th
-                  onClick={() => handleToggleSort("totalTurnover")}
-                  className="py-2.5 px-3 text-right cursor-pointer hover:text-[#d90416] transition-colors"
-                >
-                  <div className="flex items-center justify-end gap-1.5">
-                    <span>CA Réalisé {selectedYear}</span>
-                    <ArrowUpDown className={`w-3 h-3 ${sortField === "totalTurnover" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
-                  </div>
-                </th>
-                <th
-                  onClick={() => handleToggleSort("target")}
-                  className="py-2.5 px-3 text-right cursor-pointer hover:text-[#d90416] transition-colors"
-                >
-                  <div className="flex items-center justify-end gap-1.5">
-                    <span>Objectif Annuel HT</span>
-                    <ArrowUpDown className={`w-3 h-3 ${sortField === "target" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
-                  </div>
-                </th>
-                <th
-                  onClick={() => handleToggleSort("achievementRate")}
-                  className="py-2.5 px-3 text-center cursor-pointer hover:text-[#d90416] transition-colors"
-                >
-                  <div className="flex items-center justify-center gap-1.5">
-                    <span>% Atteinte</span>
-                    <ArrowUpDown className={`w-3 h-3 ${sortField === "achievementRate" ? "text-[#d90416]" : "text-slate-400 opacity-60"}`} />
-                  </div>
-                </th>
-                <th className="py-2.5 px-3 text-center">Historique Mensuel</th>
-                <th className="py-2.5 px-3 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60 bg-white dark:bg-zinc-900">
-              {filteredClients.map((client) => {
-                const isEditingThisTarget = editingTargetClientId === client.id;
-
-                return (
-                  <tr
-                    key={client.id}
-                    className="hover:bg-slate-50/80 dark:hover:bg-zinc-800/50 transition-colors"
+        {/* ========================================================= */}
+        {/* VIEW 1 : SYNTHESIS TABLE (With optional selected month)  */}
+        {/* ========================================================= */}
+        {tableMode === "summary" && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50/80 dark:bg-zinc-950/40 text-slate-700 dark:text-zinc-300 font-bold border-y border-slate-100 dark:border-zinc-800 select-none">
+                <tr>
+                  <th
+                    onClick={() => handleToggleSort("apCode")}
+                    className="py-2.5 px-3 cursor-pointer hover:text-[#d90416] transition-colors"
                   >
-                    {/* Code AP */}
-                    <td className="py-3 px-3 font-mono font-bold text-slate-900 dark:text-zinc-100">
-                      {client.apCode || "—"}
-                    </td>
+                    <div className="flex items-center gap-1.5">
+                      <span>Code AP</span>
+                      <ArrowUpDown
+                        className={`w-3 h-3 ${
+                          sortField === "apCode" ? "text-[#d90416]" : "text-slate-400 opacity-60"
+                        }`}
+                      />
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleToggleSort("company")}
+                    className="py-2.5 px-3 cursor-pointer hover:text-[#d90416] transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Client / Magasin</span>
+                      <ArrowUpDown
+                        className={`w-3 h-3 ${
+                          sortField === "company" ? "text-[#d90416]" : "text-slate-400 opacity-60"
+                        }`}
+                      />
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleToggleSort("city")}
+                    className="py-2.5 px-3 cursor-pointer hover:text-[#d90416] transition-colors"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <span>Ville</span>
+                      <ArrowUpDown
+                        className={`w-3 h-3 ${
+                          sortField === "city" ? "text-[#d90416]" : "text-slate-400 opacity-60"
+                        }`}
+                      />
+                    </div>
+                  </th>
 
-                    {/* Client Name + Link */}
-                    <td className="py-3 px-3">
-                      <Link
-                        href={`/clients/${client.id}`}
-                        className="font-bold text-slate-900 dark:text-zinc-100 hover:text-[#d90416] transition-colors flex items-center gap-1.5"
-                      >
-                        <span>{client.company}</span>
-                        <ArrowUpRight className="w-3 h-3 opacity-40 group-hover:opacity-100" />
-                      </Link>
-                      <div className="text-[11px] text-slate-400">
-                        {client.contactName}
-                      </div>
-                    </td>
-
-                    {/* City */}
-                    <td className="py-3 px-3 text-slate-600 dark:text-zinc-300">
-                      {client.city}
-                    </td>
-
-                    {/* Total CA */}
-                    <td className="py-3 px-3 text-right font-bold text-[#d90416] font-mono text-sm">
-                      {formatEuro(client.totalTurnover)}
-                    </td>
-
-                    {/* Target with Inline Modification */}
-                    <td className="py-3 px-3 text-right">
-                      {isEditingThisTarget ? (
-                        <div className="inline-flex items-center gap-1 justify-end">
-                          <input
-                            type="text"
-                            value={editingTargetValue}
-                            onChange={(e) => setEditingTargetValue(e.target.value)}
-                            className="w-24 px-2 py-1 rounded border border-[#d90416] text-xs font-mono font-bold text-right bg-white dark:bg-zinc-900 focus:outline-none"
-                            placeholder="Ex: 120000"
-                            autoFocus
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleSaveTarget(client.id)}
-                            className="p-1 rounded bg-[#d90416] text-white hover:bg-[#b80312]"
-                            title="Enregistrer l'objectif"
-                          >
-                            <Check className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setEditingTargetClientId(null)}
-                            className="p-1 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"
-                            title="Annuler"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="inline-flex items-center gap-1.5 justify-end">
-                          <span className="font-mono font-semibold text-slate-700 dark:text-zinc-300">
-                            {client.target > 0 ? formatEuro(client.target) : "NC"}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingTargetClientId(client.id);
-                              setEditingTargetValue(client.target > 0 ? client.target.toString() : "");
-                            }}
-                            className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
-                            title="Modifier l'objectif annuel de ce client"
-                          >
-                            <Pencil className="w-3 h-3 text-[#d90416]" />
-                          </button>
-                        </div>
-                      )}
-                    </td>
-
-                    {/* % Achievement */}
-                    <td className="py-3 px-3 text-center">
-                      {client.target > 0 ? (
-                        <span
-                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold font-mono ${
-                            client.achievementRate >= 100
-                              ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
-                              : client.achievementRate >= 60
-                              ? "bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
-                              : "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800"
-                          }`}
-                        >
-                          {client.achievementRate}%
+                  {/* If a month is selected: show Month CA column */}
+                  {selectedMonth !== "ALL" && (
+                    <th
+                      onClick={() => handleToggleSort("selectedMonthTurnover")}
+                      className="py-2.5 px-3 text-right cursor-pointer hover:text-[#d90416] transition-colors bg-red-50/40 dark:bg-red-950/20"
+                    >
+                      <div className="flex items-center justify-end gap-1.5">
+                        <span className="text-[#d90416]">
+                          CA {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
                         </span>
-                      ) : (
-                        <span className="text-xs text-slate-400 font-mono">NC</span>
-                      )}
-                    </td>
-
-                    {/* Monthly Mini Sparkline / Grid */}
-                    <td className="py-3 px-3">
-                      <div className="flex items-end justify-center gap-1 h-7">
-                        {client.monthly.map((m) => {
-                          const maxClient = Math.max(...client.monthly.map((x) => x.amount), 2000);
-                          const h = m.amount > 0 ? Math.max(3, Math.round((m.amount / maxClient) * 24)) : 2;
-                          return (
-                            <div
-                              key={m.month}
-                              title={`${m.monthName}: ${formatEuro(m.amount)}`}
-                              style={{ height: `${h}px` }}
-                              className={`w-1.5 rounded-xs transition-colors ${
-                                m.amount > 0 ? "bg-[#d90416]" : "bg-slate-200 dark:bg-zinc-800"
-                              }`}
-                            />
-                          );
-                        })}
+                        <ArrowUpDown
+                          className={`w-3 h-3 ${
+                            sortField === "selectedMonthTurnover"
+                              ? "text-[#d90416]"
+                              : "text-slate-400 opacity-60"
+                          }`}
+                        />
                       </div>
-                    </td>
+                    </th>
+                  )}
 
-                    {/* Action Link to Single Client CA Tab */}
-                    <td className="py-3 px-3 text-right">
-                      <Link
-                        href={`/clients/${client.id}`}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:text-[#d90416] hover:border-[#d90416]/50 text-[11px] font-medium transition-colors"
-                      >
-                        <span>Fiche CA</span>
-                        <ChevronRight className="w-3 h-3" />
-                      </Link>
+                  <th
+                    onClick={() => handleToggleSort("totalTurnover")}
+                    className="py-2.5 px-3 text-right cursor-pointer hover:text-[#d90416] transition-colors"
+                  >
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span>Cumul Annuel {selectedYear}</span>
+                      <ArrowUpDown
+                        className={`w-3 h-3 ${
+                          sortField === "totalTurnover"
+                            ? "text-[#d90416]"
+                            : "text-slate-400 opacity-60"
+                        }`}
+                      />
+                    </div>
+                  </th>
+
+                  <th
+                    onClick={() => handleToggleSort("target")}
+                    className="py-2.5 px-3 text-right cursor-pointer hover:text-[#d90416] transition-colors"
+                  >
+                    <div className="flex items-center justify-end gap-1.5">
+                      <span>Objectif Annuel HT</span>
+                      <ArrowUpDown
+                        className={`w-3 h-3 ${
+                          sortField === "target" ? "text-[#d90416]" : "text-slate-400 opacity-60"
+                        }`}
+                      />
+                    </div>
+                  </th>
+                  <th
+                    onClick={() => handleToggleSort("achievementRate")}
+                    className="py-2.5 px-3 text-center cursor-pointer hover:text-[#d90416] transition-colors"
+                  >
+                    <div className="flex items-center justify-center gap-1.5">
+                      <span>% Atteinte</span>
+                      <ArrowUpDown
+                        className={`w-3 h-3 ${
+                          sortField === "achievementRate"
+                            ? "text-[#d90416]"
+                            : "text-slate-400 opacity-60"
+                        }`}
+                      />
+                    </div>
+                  </th>
+                  <th className="py-2.5 px-3 text-center">Historique 12 Mois</th>
+                  <th className="py-2.5 px-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60 bg-white dark:bg-zinc-900">
+                {filteredClients.length === 0 ? (
+                  <tr>
+                    <td colSpan={selectedMonth !== "ALL" ? 9 : 8} className="py-8 text-center text-slate-400">
+                      Aucun client ne correspond aux critères de recherche.
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  filteredClients.map((client) => {
+                    const isEditingThisTarget = editingTargetClientId === client.id;
+
+                    return (
+                      <tr
+                        key={client.id}
+                        className="hover:bg-slate-50/80 dark:hover:bg-zinc-800/50 transition-colors"
+                      >
+                        {/* Code AP */}
+                        <td className="py-3 px-3 font-mono font-bold text-slate-900 dark:text-zinc-100">
+                          {client.apCode || "—"}
+                        </td>
+
+                        {/* Client Name + Link */}
+                        <td className="py-3 px-3">
+                          <Link
+                            href={`/clients/${client.id}`}
+                            className="font-bold text-slate-900 dark:text-zinc-100 hover:text-[#d90416] transition-colors flex items-center gap-1.5"
+                          >
+                            <span>{client.company}</span>
+                            <ArrowUpRight className="w-3 h-3 opacity-40 group-hover:opacity-100" />
+                          </Link>
+                          <div className="text-[11px] text-slate-400">{client.contactName}</div>
+                        </td>
+
+                        {/* City */}
+                        <td className="py-3 px-3 text-slate-600 dark:text-zinc-300">
+                          {client.city}
+                        </td>
+
+                        {/* Selected Month Turnover (if month active) */}
+                        {selectedMonth !== "ALL" && (
+                          <td className="py-3 px-3 text-right font-bold text-[#d90416] font-mono text-sm bg-red-50/30 dark:bg-red-950/10">
+                            {formatEuro(client.selectedMonthTurnover)}
+                            {client.selectedMonthOrders > 0 && (
+                              <div className="text-[10px] font-normal text-slate-400">
+                                {client.selectedMonthOrders} cde{client.selectedMonthOrders > 1 ? "s" : ""}
+                              </div>
+                            )}
+                          </td>
+                        )}
+
+                        {/* Total Annual CA */}
+                        <td className="py-3 px-3 text-right font-bold font-mono text-slate-900 dark:text-zinc-100">
+                          {formatEuro(client.totalTurnover)}
+                        </td>
+
+                        {/* Target with Inline Modification */}
+                        <td className="py-3 px-3 text-right">
+                          {isEditingThisTarget ? (
+                            <div className="inline-flex items-center gap-1 justify-end">
+                              <input
+                                type="text"
+                                value={editingTargetValue}
+                                onChange={(e) => setEditingTargetValue(e.target.value)}
+                                className="w-24 px-2 py-1 rounded border border-[#d90416] text-xs font-mono font-bold text-right bg-white dark:bg-zinc-900 focus:outline-none"
+                                placeholder="Ex: 120000"
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleSaveTarget(client.id)}
+                                className="p-1 rounded bg-[#d90416] text-white hover:bg-[#b80312]"
+                                title="Enregistrer l'objectif"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingTargetClientId(null)}
+                                className="p-1 rounded bg-slate-200 text-slate-700 hover:bg-slate-300"
+                                title="Annuler"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="inline-flex items-center gap-1.5 justify-end">
+                              <span className="font-mono font-semibold text-slate-700 dark:text-zinc-300">
+                                {client.target > 0 ? formatEuro(client.target) : "NC"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingTargetClientId(client.id);
+                                  setEditingTargetValue(
+                                    client.target > 0 ? client.target.toString() : ""
+                                  );
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+                                title="Modifier l'objectif annuel de ce client"
+                              >
+                                <Pencil className="w-3 h-3 text-[#d90416]" />
+                              </button>
+                            </div>
+                          )}
+                        </td>
+
+                        {/* % Achievement */}
+                        <td className="py-3 px-3 text-center">
+                          {client.target > 0 ? (
+                            <span
+                              className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold font-mono ${
+                                client.achievementRate >= 100
+                                  ? "bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800"
+                                  : client.achievementRate >= 60
+                                  ? "bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800"
+                                  : "bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800"
+                              }`}
+                            >
+                              {client.achievementRate}%
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-400 font-mono">NC</span>
+                          )}
+                        </td>
+
+                        {/* Monthly Mini Sparkline / Grid with selected month highlighted */}
+                        <td className="py-3 px-3">
+                          <div className="flex items-end justify-center gap-1 h-7">
+                            {client.monthly.map((m) => {
+                              const maxClient = Math.max(
+                                ...client.monthly.map((x) => x.amount),
+                                2000
+                              );
+                              const h =
+                                m.amount > 0
+                                  ? Math.max(3, Math.round((m.amount / maxClient) * 24))
+                                  : 2;
+                              const isThisMonth = selectedMonth === m.month;
+
+                              return (
+                                <div
+                                  key={m.month}
+                                  onClick={() => setSelectedMonth(m.month)}
+                                  title={`${m.monthName}: ${formatEuro(m.amount)}`}
+                                  style={{ height: `${h}px` }}
+                                  className={`w-1.5 rounded-xs transition-colors cursor-pointer ${
+                                    isThisMonth
+                                      ? "bg-[#d90416] ring-1 ring-[#d90416]"
+                                      : m.amount > 0
+                                      ? "bg-slate-700 dark:bg-zinc-400 hover:bg-[#d90416]"
+                                      : "bg-slate-200 dark:bg-zinc-800"
+                                  }`}
+                                />
+                              );
+                            })}
+                          </div>
+                        </td>
+
+                        {/* Action Link to Single Client CA Tab */}
+                        <td className="py-3 px-3 text-right">
+                          <Link
+                            href={`/clients/${client.id}`}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:text-[#d90416] hover:border-[#d90416]/50 text-[11px] font-medium transition-colors"
+                          >
+                            <span>Fiche CA</span>
+                            <ChevronRight className="w-3 h-3" />
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* ========================================================= */}
+        {/* VIEW 2 : FULL 12-MONTH MATRIX VIEW (All months displayed) */}
+        {/* ========================================================= */}
+        {tableMode === "grid12" && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead className="bg-slate-50/80 dark:bg-zinc-950/40 text-slate-700 dark:text-zinc-300 font-bold border-y border-slate-100 dark:border-zinc-800 select-none">
+                <tr>
+                  <th
+                    onClick={() => handleToggleSort("apCode")}
+                    className="py-2.5 px-2.5 cursor-pointer hover:text-[#d90416] whitespace-nowrap"
+                  >
+                    Code AP
+                  </th>
+                  <th
+                    onClick={() => handleToggleSort("company")}
+                    className="py-2.5 px-2.5 cursor-pointer hover:text-[#d90416] whitespace-nowrap min-w-[140px]"
+                  >
+                    Client / Magasin
+                  </th>
+                  <th
+                    onClick={() => handleToggleSort("city")}
+                    className="py-2.5 px-2 cursor-pointer hover:text-[#d90416] whitespace-nowrap"
+                  >
+                    Ville
+                  </th>
+
+                  {/* 12 Month Headers (Sortable by each month!) */}
+                  {SHORT_MONTHS.map((m, idx) => {
+                    const monthNum = idx + 1;
+                    const isSelected = selectedMonth === monthNum;
+                    const fieldKey = `month_${monthNum}`;
+
+                    return (
+                      <th
+                        key={monthNum}
+                        onClick={() => handleToggleSort(fieldKey)}
+                        className={`py-2.5 px-2 text-right cursor-pointer whitespace-nowrap transition ${
+                          isSelected
+                            ? "bg-red-50 dark:bg-red-950/40 text-[#d90416] font-black"
+                            : "hover:text-[#d90416]"
+                        }`}
+                        title={`Trier par CA ${MONTH_NAMES[idx]}`}
+                      >
+                        <div className="flex items-center justify-end gap-1">
+                          <span>{m}</span>
+                          {sortField === fieldKey && (
+                            <ArrowUpDown className="w-2.5 h-2.5 text-[#d90416]" />
+                          )}
+                        </div>
+                      </th>
+                    );
+                  })}
+
+                  <th
+                    onClick={() => handleToggleSort("totalTurnover")}
+                    className="py-2.5 px-3 text-right cursor-pointer hover:text-[#d90416] whitespace-nowrap font-black bg-slate-100/60 dark:bg-zinc-800/40"
+                  >
+                    Total {selectedYear}
+                  </th>
+                  <th
+                    onClick={() => handleToggleSort("target")}
+                    className="py-2.5 px-2.5 text-right cursor-pointer hover:text-[#d90416] whitespace-nowrap"
+                  >
+                    Objectif
+                  </th>
+                  <th
+                    onClick={() => handleToggleSort("achievementRate")}
+                    className="py-2.5 px-2 text-center cursor-pointer hover:text-[#d90416] whitespace-nowrap"
+                  >
+                    %
+                  </th>
+                  <th className="py-2.5 px-2 text-right whitespace-nowrap">Fiche</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-zinc-800/60 bg-white dark:bg-zinc-900 font-mono">
+                {filteredClients.length === 0 ? (
+                  <tr>
+                    <td colSpan={19} className="py-8 text-center text-slate-400 font-sans">
+                      Aucun magasin ne correspond aux filtres.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredClients.map((client) => {
+                    return (
+                      <tr
+                        key={client.id}
+                        className="hover:bg-slate-50/80 dark:hover:bg-zinc-800/50 transition-colors text-[11px]"
+                      >
+                        <td className="py-2 px-2.5 font-bold text-slate-900 dark:text-zinc-100 whitespace-nowrap">
+                          {client.apCode || "—"}
+                        </td>
+                        <td className="py-2 px-2.5 font-sans font-bold text-slate-900 dark:text-zinc-100 truncate max-w-[150px]">
+                          <Link
+                            href={`/clients/${client.id}`}
+                            className="hover:text-[#d90416] transition"
+                          >
+                            {client.company}
+                          </Link>
+                        </td>
+                        <td className="py-2 px-2 font-sans text-slate-600 dark:text-zinc-300 truncate max-w-[100px]">
+                          {client.city}
+                        </td>
+
+                        {/* 12 Months Cells */}
+                        {client.monthly.map((m) => {
+                          const isSelected = selectedMonth === m.month;
+                          const hasCa = m.amount > 0;
+
+                          return (
+                            <td
+                              key={m.month}
+                              className={`py-2 px-2 text-right whitespace-nowrap ${
+                                isSelected
+                                  ? "bg-red-50/40 dark:bg-red-950/20 font-bold text-[#d90416]"
+                                  : hasCa
+                                  ? "font-semibold text-slate-900 dark:text-zinc-100"
+                                  : "text-slate-300 dark:text-zinc-700"
+                              }`}
+                              title={`${m.monthName} : ${formatEuro(m.amount)} (${m.ordersCount} commandes)`}
+                            >
+                              {hasCa ? formatEuro(m.amount) : "—"}
+                            </td>
+                          );
+                        })}
+
+                        {/* Total Annual */}
+                        <td className="py-2 px-3 text-right font-black text-[#d90416] bg-slate-50/50 dark:bg-zinc-800/30 whitespace-nowrap">
+                          {formatEuro(client.totalTurnover)}
+                        </td>
+
+                        {/* Target */}
+                        <td className="py-2 px-2.5 text-right font-semibold text-slate-600 dark:text-zinc-400 whitespace-nowrap">
+                          {client.target > 0 ? formatEuro(client.target) : "—"}
+                        </td>
+
+                        {/* % Rate */}
+                        <td className="py-2 px-2 text-center whitespace-nowrap">
+                          {client.target > 0 ? (
+                            <span
+                              className={`font-bold ${
+                                client.achievementRate >= 100
+                                  ? "text-emerald-600"
+                                  : client.achievementRate >= 60
+                                  ? "text-blue-600"
+                                  : "text-amber-600"
+                              }`}
+                            >
+                              {client.achievementRate}%
+                            </span>
+                          ) : (
+                            <span className="text-slate-300">—</span>
+                          )}
+                        </td>
+
+                        {/* Fiche link */}
+                        <td className="py-2 px-2 text-right whitespace-nowrap font-sans">
+                          <Link
+                            href={`/clients/${client.id}`}
+                            className="p-1 rounded text-slate-400 hover:text-[#d90416] transition"
+                            title="Ouvrir la fiche client"
+                          >
+                            <ChevronRight className="w-3.5 h-3.5 inline" />
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+
+              {/* Total Summary Footer Row */}
+              {filteredClients.length > 0 && (
+                <tfoot className="bg-slate-100/90 dark:bg-zinc-950 text-slate-900 dark:text-zinc-100 font-bold border-t-2 border-slate-300 dark:border-zinc-700 font-mono text-[11px]">
+                  <tr>
+                    <td colSpan={3} className="py-3 px-3 font-sans font-black uppercase text-xs">
+                      Total ({filteredClients.length} magasins)
+                    </td>
+
+                    {/* Total for each of the 12 months */}
+                    {globalStats.monthlyTotals.map((m) => {
+                      const isSelected = selectedMonth === m.month;
+
+                      return (
+                        <td
+                          key={m.month}
+                          className={`py-3 px-2 text-right whitespace-nowrap ${
+                            isSelected
+                              ? "bg-red-100/60 dark:bg-red-950/60 text-[#d90416] font-black"
+                              : m.amount > 0
+                              ? "text-slate-900 dark:text-zinc-100 font-extrabold"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {m.amount > 0 ? formatEuro(m.amount) : "0 €"}
+                        </td>
+                      );
+                    })}
+
+                    <td className="py-3 px-3 text-right font-black text-[#d90416] text-xs whitespace-nowrap">
+                      {formatEuro(globalStats.totalAnnualCa)}
+                    </td>
+
+                    <td className="py-3 px-2.5 text-right font-bold text-slate-700 dark:text-zinc-300 whitespace-nowrap">
+                      {globalStats.totalTarget > 0 ? formatEuro(globalStats.totalTarget) : "—"}
+                    </td>
+
+                    <td className="py-3 px-2 text-center font-black whitespace-nowrap text-emerald-600">
+                      {globalStats.globalRate}%
+                    </td>
+
+                    <td />
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Csv Import Modal */}

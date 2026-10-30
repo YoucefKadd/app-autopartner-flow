@@ -309,25 +309,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const currentClientMatch = pathname?.match(/^\/clients\/([^/]+)$/);
   const currentRouteClientId = currentClientMatch ? currentClientMatch[1] : null;
 
-  // Keyboard shortcut: press "/" or "n" when not typing in an input to open Quick Note
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
-      if (
-        e.key === "/" ||
-        (e.key.toLowerCase() === "n" && !e.metaKey && !e.ctrlKey)
-      ) {
-        e.preventDefault();
-        setEditingNote(null);
-        setNoteModalClientId(currentRouteClientId);
-        setIsQuickNoteOpen(true);
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentRouteClientId]);
-
   function switchKam(kamId: string) {
     setProfileMenuOpen(false);
     localStorage.setItem("apflow_active_kam_id", kamId);
@@ -637,7 +618,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <button
               type="button"
               onClick={() => openQuickNote()}
-              title="Ajouter une note rapide (Raccourci : / ou N)"
+              title="Ajouter une note rapide"
               className="w-8 h-8 rounded-full bg-[#d90416] hover:bg-[#b80312] text-white flex items-center justify-center shadow-sm transition-transform active:scale-95 shrink-0"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
@@ -1305,7 +1286,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <button
                 type="button"
                 onClick={() => openQuickNote()}
-                title="Ajouter une note rapide (Raccourci : / ou N)"
+                title="Ajouter une note rapide"
                 className={`w-full flex items-center ${
                   sidebarExpanded
                     ? "justify-between px-3.5 py-2.5"
@@ -1316,11 +1297,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <Plus className="w-4 h-4 stroke-[2.5] shrink-0" />
                   {sidebarExpanded && <span>Ajouter une note</span>}
                 </div>
-                {sidebarExpanded && (
-                  <kbd className="px-1.5 py-0.5 text-[10px] rounded bg-white/20 text-white font-mono">
-                    N
-                  </kbd>
-                )}
               </button>
 
               {/* 2ND QUICK BTN: AJOUTER UNE TÂCHE */}
