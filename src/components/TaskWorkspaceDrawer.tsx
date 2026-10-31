@@ -26,6 +26,7 @@ import {
   CircleDot,
   Circle,
   ListChecks,
+  Archive,
 } from "lucide-react";
 import {
   ClientItem,
@@ -575,8 +576,8 @@ export function TaskWorkspaceDrawer({
               <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-zinc-400 block">
                 État d&apos;avancement (Kanban)
               </label>
-              <div className="grid grid-cols-3 gap-2">
-                {(["TODO", "IN_PROGRESS", "DONE"] as TaskStatus[]).map((st) => {
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {(["TODO", "IN_PROGRESS", "DONE", "ARCHIVED"] as TaskStatus[]).map((st) => {
                   const cfg = TASK_STATUS_CONFIG[st];
                   const isSelected = status === st;
                   return (
@@ -584,12 +585,14 @@ export function TaskWorkspaceDrawer({
                       key={st}
                       type="button"
                       onClick={() => setStatus(st)}
-                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      className={`py-2 px-2 rounded-xl border text-[11px] font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                         isSelected
                           ? st === "DONE"
                             ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
                             : st === "IN_PROGRESS"
                             ? "bg-amber-500 text-white border-amber-500 shadow-xs"
+                            : st === "ARCHIVED"
+                            ? "bg-zinc-700 text-white border-zinc-700 shadow-xs"
                             : "bg-slate-800 dark:bg-zinc-100 text-white dark:text-zinc-900 border-slate-800 shadow-xs"
                           : "bg-slate-50 dark:bg-zinc-950 text-slate-600 dark:text-zinc-400 border-slate-200 dark:border-zinc-800 hover:border-slate-400"
                       }`}
@@ -599,7 +602,7 @@ export function TaskWorkspaceDrawer({
                           isSelected ? "bg-white dark:bg-current" : cfg.dotClass
                         }`}
                       />
-                      <span>{cfg.label}</span>
+                      <span className="truncate">{cfg.label}</span>
                     </button>
                   );
                 })}
@@ -928,7 +931,7 @@ export function TaskWorkspaceDrawer({
               </div>
               <div className="flex items-center justify-between gap-1.5 flex-wrap">
                 <div className="flex items-center gap-1">
-                  {(["ALL", "TODO", "IN_PROGRESS", "DONE"] as const).map((st) => (
+                  {(["ALL", "TODO", "IN_PROGRESS", "DONE", "ARCHIVED"] as const).map((st) => (
                     <button
                       key={st}
                       type="button"

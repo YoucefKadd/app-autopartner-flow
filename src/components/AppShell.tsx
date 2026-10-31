@@ -477,12 +477,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const isDashboardRoute = pathname === "/" || pathname === "/dashboard";
   const isClientsRoute = pathname?.startsWith("/clients");
+  const isProspectsRoute = pathname?.startsWith("/prospects");
   const isMapRoute = pathname?.startsWith("/carte");
   const isVisitesRoute = pathname?.startsWith("/visites");
   const isCaRoute = pathname?.startsWith("/ca");
   const isNotesRoute = pathname?.startsWith("/notes");
   const isTasksRoute = pathname?.startsWith("/taches");
   const isAdminRoute = pathname?.startsWith("/admin");
+
+  const prospectsCount = useMemo(
+    () => clients.filter((c) => c.status === "PROSPECT").length,
+    [clients]
+  );
 
   // Render standalone layout without navbar if on login page
   if (isLoginPage) {
@@ -557,6 +563,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 ? "Fiche Client"
                 : isDashboardRoute
                 ? "Tableau de Bord"
+                : isProspectsRoute
+                ? "Prospects & Pipeline Commercial"
                 : isTasksRoute
                 ? "Tâches & Kanban"
                 : isVisitesRoute
@@ -1148,6 +1156,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </Link>
 
                 <Link
+                  href="/prospects"
+                  onClick={() => setMobileDrawerOpen(false)}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-colors ${
+                    isProspectsRoute
+                      ? "bg-red-50/80 dark:bg-red-950/30 text-[#d90416] font-semibold"
+                      : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100/80 dark:hover:bg-zinc-800/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <UserPlus className="w-4 h-4 shrink-0" />
+                    <span>Prospects &amp; Pipe</span>
+                  </div>
+                  {prospectsCount > 0 && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-bold border border-purple-200 dark:border-purple-800">
+                      {prospectsCount}
+                    </span>
+                  )}
+                </Link>
+
+                <Link
                   href="/carte"
                   onClick={() => setMobileDrawerOpen(false)}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-colors ${
@@ -1392,6 +1420,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <span className="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300">
                       {clients.length}
                     </span>
+                  )}
+                </Link>
+
+                {/* PROSPECTS & PIPELINE (/prospects) */}
+                <Link
+                  href="/prospects"
+                  title="Prospects &amp; Pipeline Commercial (/prospects)"
+                  className={`relative w-full flex items-center ${
+                    sidebarExpanded
+                      ? "justify-between px-3 py-2.5"
+                      : "justify-center py-2.5"
+                  } rounded-xl text-xs font-medium transition-colors ${
+                    isProspectsRoute
+                      ? "bg-red-50/80 dark:bg-red-950/30 text-[#d90416] font-semibold"
+                      : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100/80 dark:hover:bg-zinc-800/60"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <UserPlus className="w-4 h-4 shrink-0" />
+                    {sidebarExpanded && <span>Prospects &amp; Pipe</span>}
+                  </div>
+                  {sidebarExpanded && prospectsCount > 0 && (
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 font-bold border border-purple-200 dark:border-purple-800">
+                      {prospectsCount}
+                    </span>
+                  )}
+                  {!sidebarExpanded && prospectsCount > 0 && (
+                    <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-purple-600 ring-2 ring-white dark:ring-zinc-900" />
                   )}
                 </Link>
 

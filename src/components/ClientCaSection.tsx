@@ -12,6 +12,8 @@ import {
   X,
   ArrowUpRight,
   BarChart3,
+  LineChart,
+  AreaChart,
   Sparkles,
   Download,
   UploadCloud,
@@ -68,6 +70,7 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
   const currentYear = new Date().getFullYear();
   const currentMonthIdx = new Date().getMonth(); // 0 to 11
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  const [chartType, setChartType] = useState<"bar" | "line" | "cumulative">("bar");
 
   // Multi-Month Selection State for period analysis (e.g. Q1, Q2, custom months)
   const [selectedPeriodMonths, setSelectedPeriodMonths] = useState<number[]>([]);
@@ -772,110 +775,435 @@ export function ClientCaSection({ client }: ClientCaSectionProps) {
         )}
       </div>
 
-      {/* 3. Visual Interactive Bar Chart (Graphique Mensuel) */}
+      {/* 3. Visual Interactive Multi-Type Chart (Graphique Mensuel) */}
       <div className="rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-6 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-zinc-100 flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-[#d90416]" />
-              Évolution Graphique du Chiffre d&apos;Affaires Mensuel ({selectedYear})
+              {chartType === "bar" ? (
+                <BarChart3 className="w-4 h-4 text-[#d90416]" />
+              ) : chartType === "line" ? (
+                <LineChart className="w-4 h-4 text-[#d90416]" />
+              ) : (
+                <TrendingUp className="w-4 h-4 text-[#d90416]" />
+              )}
+              {chartType === "bar" && `Évolution Mensuelle en Barres (${selectedYear})`}
+              {chartType === "line" && `Courbe & Tendance Facturation (${selectedYear})`}
+              {chartType === "cumulative" && `Progression Annuelle Cumulée vs Objectif (${selectedYear})`}
             </h3>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Visualisation mois par mois des facturations magasin en euros HT
+              {chartType === "bar" && "Visualisation mois par mois des facturations magasin en euros HT"}
+              {chartType === "line" && "Courbe continue des ventes mensuelles avec aire sous la courbe et moyenne"}
+              {chartType === "cumulative" && "Cumul progressif mois après mois comparé à la trajectoire d'objectif linéaire"}
             </p>
           </div>
 
-          <div className="flex items-center gap-3 text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-[#d90416]" />
-              <span className="text-slate-500 dark:text-zinc-400">Facturé</span>
+          <div className="flex items-center gap-3">
+            {/* Chart Type Selector */}
+            <div className="inline-flex items-center bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-xl border border-slate-200/80 dark:border-zinc-700">
+              <button
+                type="button"
+                onClick={() => setChartType("bar")}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  chartType === "bar"
+                    ? "bg-white dark:bg-zinc-900 text-[#d90416] shadow-xs"
+                    : "text-slate-500 hover:text-slate-900 dark:hover:text-zinc-200"
+                }`}
+                title="Affichage Histogramme en barres"
+              >
+                <BarChart3 className="w-3.5 h-3.5" />
+                <span>Barres</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartType("line")}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  chartType === "line"
+                    ? "bg-white dark:bg-zinc-900 text-[#d90416] shadow-xs"
+                    : "text-slate-500 hover:text-slate-900 dark:hover:text-zinc-200"
+                }`}
+                title="Affichage Courbe & Tendance lissée"
+              >
+                <LineChart className="w-3.5 h-3.5" />
+                <span>Courbe</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartType("cumulative")}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  chartType === "cumulative"
+                    ? "bg-white dark:bg-zinc-900 text-[#d90416] shadow-xs"
+                    : "text-slate-500 hover:text-slate-900 dark:hover:text-zinc-200"
+                }`}
+                title="Affichage Progression cumulée annuelle vs Objectif"
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>Cumulé</span>
+              </button>
             </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 rounded bg-slate-200 dark:bg-zinc-700" />
-              <span className="text-slate-400">Prévisionnel</span>
-            </div>
-          </div>
-        </div>
 
-        {/* SVG Custom Bar Chart */}
-        <div className="pt-4">
-          <div className="h-64 flex items-end justify-between gap-2 sm:gap-4 px-2 border-b border-slate-200 dark:border-zinc-800 pb-2">
-            {monthlyData.map((item, idx) => {
-              const heightPct =
-                stats.maxBarAmount > 0
-                  ? Math.min(100, Math.max(item.amount > 0 ? 6 : 2, Math.round((item.amount / stats.maxBarAmount) * 100)))
-                  : 0;
-
-              const isCurrentMonth = selectedYear === currentYear && idx === currentMonthIdx;
-              const hasData = item.amount > 0;
-              const isSelectedInPeriod = activePeriodMonths.includes(item.month);
-
-              return (
-                <div
-                  key={item.month}
-                  className={`flex-1 flex flex-col items-center gap-2 h-full justify-end group/bar cursor-pointer transition-all duration-200 ${
-                    !isAllMonthsSelected && !isSelectedInPeriod
-                      ? "opacity-35 hover:opacity-75"
-                      : "opacity-100"
-                  }`}
-                  onClick={() => {
-                    if (isEditingAll) {
-                      startEditingAll(item.month);
-                    } else {
-                      togglePeriodMonth(item.month);
-                    }
-                  }}
-                  title={`${item.monthName} ${selectedYear} : ${formatEuro(item.amount)} (${item.ordersCount} commandes). Cliquer pour inclure/exclure de la sélection.`}
-                >
-                  {/* Tooltip on hover */}
-                  <div className="opacity-0 group-hover/bar:opacity-100 transition-opacity bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[10px] py-1 px-2 rounded-lg font-mono font-bold pointer-events-none whitespace-nowrap shadow-md mb-1">
-                    {formatEuro(item.amount)}
-                  </div>
-
-                  {/* The Bar */}
-                  <div
-                    style={{ height: `${heightPct}%` }}
-                    className={`w-full max-w-[42px] rounded-t-lg transition-all duration-300 group-hover/bar:brightness-110 relative ${
-                      hasData
-                        ? isCurrentMonth
-                          ? "bg-gradient-to-t from-[#d90416] to-red-400 ring-2 ring-red-300 dark:ring-red-900"
-                          : !isAllMonthsSelected && isSelectedInPeriod
-                          ? "bg-[#d90416] ring-2 ring-[#d90416]/40 shadow-xs"
-                          : "bg-[#d90416]"
-                        : "bg-slate-100 dark:bg-zinc-800"
-                    }`}
-                  >
-                    {isCurrentMonth && (
-                      <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-red-600 animate-ping" />
-                    )}
-                  </div>
-
-                  {/* Month Label */}
-                  <span
-                    className={`text-[11px] font-semibold transition-colors ${
-                      !isAllMonthsSelected && isSelectedInPeriod
-                        ? "text-[#d90416] font-bold"
-                        : isCurrentMonth
-                        ? "text-[#d90416] font-bold"
-                        : "text-slate-500 dark:text-zinc-400"
-                    }`}
-                  >
-                    {SHORT_MONTHS[idx]}
-                  </span>
+            {chartType === "bar" && (
+              <div className="hidden sm:flex items-center gap-3 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded bg-[#d90416]" />
+                  <span className="text-slate-500 dark:text-zinc-400">Facturé</span>
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Average reference line label */}
-          <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 px-2">
-            <span>0 €</span>
-            <span className="font-mono text-[#d90416] font-semibold">
-              Moyenne : {formatEuro(stats.monthlyAverage)} / mois
-            </span>
-            <span>Max : {formatEuro(stats.maxBarAmount)}</span>
+              </div>
+            )}
+            {chartType === "cumulative" && (
+              <div className="hidden sm:flex items-center gap-3 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-0.5 bg-[#d90416]" />
+                  <span className="text-slate-500 dark:text-zinc-400">Réalisé</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-0.5 border-t border-dashed border-slate-400" />
+                  <span className="text-slate-400">Trajectoire Obj.</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* 1. VIEW MODE A: HISTOGRAMME BARRES */}
+        {chartType === "bar" && (
+          <div className="pt-4">
+            <div className="h-64 flex items-end justify-between gap-2 sm:gap-4 px-2 border-b border-slate-200 dark:border-zinc-800 pb-2">
+              {monthlyData.map((item, idx) => {
+                const heightPct =
+                  stats.maxBarAmount > 0
+                    ? Math.min(100, Math.max(item.amount > 0 ? 6 : 2, Math.round((item.amount / stats.maxBarAmount) * 100)))
+                    : 0;
+
+                const isCurrentMonth = selectedYear === currentYear && idx === currentMonthIdx;
+                const hasData = item.amount > 0;
+                const isSelectedInPeriod = activePeriodMonths.includes(item.month);
+
+                return (
+                  <div
+                    key={item.month}
+                    className={`flex-1 flex flex-col items-center gap-2 h-full justify-end group/bar cursor-pointer transition-all duration-200 ${
+                      !isAllMonthsSelected && !isSelectedInPeriod
+                        ? "opacity-35 hover:opacity-75"
+                        : "opacity-100"
+                    }`}
+                    onClick={() => {
+                      if (isEditingAll) {
+                        startEditingAll(item.month);
+                      } else {
+                        togglePeriodMonth(item.month);
+                      }
+                    }}
+                    title={`${item.monthName} ${selectedYear} : ${formatEuro(item.amount)} (${item.ordersCount} commandes). Cliquer pour inclure/exclure de la sélection.`}
+                  >
+                    {/* Tooltip on hover */}
+                    <div className="opacity-0 group-hover/bar:opacity-100 transition-opacity bg-slate-900 dark:bg-zinc-100 text-white dark:text-zinc-900 text-[10px] py-1 px-2 rounded-lg font-mono font-bold pointer-events-none whitespace-nowrap shadow-md mb-1">
+                      {formatEuro(item.amount)}
+                    </div>
+
+                    {/* The Bar */}
+                    <div
+                      style={{ height: `${heightPct}%` }}
+                      className={`w-full max-w-[42px] rounded-t-lg transition-all duration-300 group-hover/bar:brightness-110 relative ${
+                        hasData
+                          ? isCurrentMonth
+                            ? "bg-gradient-to-t from-[#d90416] to-red-400 ring-2 ring-red-300 dark:ring-red-900"
+                            : !isAllMonthsSelected && isSelectedInPeriod
+                            ? "bg-[#d90416] ring-2 ring-[#d90416]/40 shadow-xs"
+                            : "bg-[#d90416]"
+                          : "bg-slate-100 dark:bg-zinc-800"
+                      }`}
+                    >
+                      {isCurrentMonth && (
+                        <span className="absolute -top-2 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-red-600 animate-ping" />
+                      )}
+                    </div>
+
+                    {/* Month Label */}
+                    <span
+                      className={`text-[11px] font-semibold transition-colors ${
+                        !isAllMonthsSelected && isSelectedInPeriod
+                          ? "text-[#d90416] font-bold"
+                          : isCurrentMonth
+                          ? "text-[#d90416] font-bold"
+                          : "text-slate-500 dark:text-zinc-400"
+                      }`}
+                    >
+                      {SHORT_MONTHS[idx]}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Average reference line label */}
+            <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 px-2">
+              <span>0 €</span>
+              <span className="font-mono text-[#d90416] font-semibold">
+                Moyenne : {formatEuro(stats.monthlyAverage)} / mois
+              </span>
+              <span>Max : {formatEuro(stats.maxBarAmount)}</span>
+            </div>
+          </div>
+        )}
+
+        {/* 2. VIEW MODE B: COURBE & TENDANCE (SVG SMOOTH LINE CHART) */}
+        {chartType === "line" && (() => {
+          const maxVal = stats.maxBarAmount > 0 ? stats.maxBarAmount * 1.15 : 1000;
+          const svgPoints = monthlyData.map((m, idx) => {
+            const x = 50 + idx * (900 / 11);
+            const y = 210 - (m.amount / maxVal) * 170;
+            return { x, y, ...m };
+          });
+          const pathD = svgPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? "M" : "L"} ${p.x} ${p.y}`, "");
+          const areaD = `${pathD} L ${svgPoints[svgPoints.length - 1].x} 210 L ${svgPoints[0].x} 210 Z`;
+          const yAvg = 210 - (stats.monthlyAverage / maxVal) * 170;
+
+          return (
+            <div className="pt-2">
+              <div className="w-full overflow-x-auto">
+                <svg viewBox="0 0 1000 240" className="w-full h-64 overflow-visible">
+                  <defs>
+                    <linearGradient id="client-ca-line-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#d90416" stopOpacity="0.25" />
+                      <stop offset="100%" stopColor="#d90416" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Horizontal Grid lines */}
+                  <line x1="50" y1="40" x2="950" y2="40" stroke="currentColor" strokeOpacity="0.08" />
+                  <line x1="50" y1="125" x2="950" y2="125" stroke="currentColor" strokeOpacity="0.08" />
+                  <line x1="50" y1="210" x2="950" y2="210" stroke="currentColor" strokeOpacity="0.2" />
+
+                  {/* Monthly average dashed line */}
+                  {stats.monthlyAverage > 0 && (
+                    <g>
+                      <line
+                        x1="50"
+                        y1={yAvg}
+                        x2="950"
+                        y2={yAvg}
+                        stroke="#94a3b8"
+                        strokeDasharray="5,5"
+                        strokeWidth="1.5"
+                      />
+                      <text
+                        x="940"
+                        y={yAvg - 6}
+                        textAnchor="end"
+                        className="text-[10px] fill-slate-400 font-mono"
+                      >
+                        Moyenne ({formatEuro(stats.monthlyAverage)})
+                      </text>
+                    </g>
+                  )}
+
+                  {/* Area fill under curve */}
+                  <path d={areaD} fill="url(#client-ca-line-grad)" />
+
+                  {/* The main stroke line */}
+                  <path
+                    d={pathD}
+                    fill="none"
+                    stroke="#d90416"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+
+                  {/* Interactive Month Points */}
+                  {svgPoints.map((p, idx) => {
+                    const isSelected = activePeriodMonths.includes(p.month);
+                    const isCurrent = selectedYear === currentYear && idx === currentMonthIdx;
+
+                    return (
+                      <g
+                        key={p.month}
+                        onClick={() => togglePeriodMonth(p.month)}
+                        className="cursor-pointer group/dot"
+                      >
+                        {/* Hover vertical guideline */}
+                        <line
+                          x1={p.x}
+                          y1="40"
+                          x2={p.x}
+                          y2="210"
+                          stroke="#d90416"
+                          strokeWidth="1"
+                          strokeDasharray="3,3"
+                          className="opacity-0 group-hover/dot:opacity-60 transition-opacity"
+                        />
+
+                        {/* Outer Glow Circle */}
+                        <circle
+                          cx={p.x}
+                          cy={p.y}
+                          r={isSelected || isCurrent ? 7 : 5}
+                          fill={p.amount > 0 ? "#d90416" : "#cbd5e1"}
+                          className="transition-all group-hover/dot:r-8"
+                        />
+                        <circle cx={p.x} cy={p.y} r={3} fill="#ffffff" />
+
+                        {/* Month Label */}
+                        <text
+                          x={p.x}
+                          y="228"
+                          textAnchor="middle"
+                          className={`text-[11px] font-bold ${
+                            isSelected ? "fill-[#d90416] font-extrabold" : "fill-slate-500 dark:fill-zinc-400"
+                          }`}
+                        >
+                          {SHORT_MONTHS[idx]}
+                        </text>
+
+                        {/* Value Label above point */}
+                        {p.amount > 0 && (
+                          <text
+                            x={p.x}
+                            y={p.y - 10}
+                            textAnchor="middle"
+                            className="text-[10px] font-mono font-bold fill-slate-700 dark:fill-zinc-200 group-hover/dot:fill-[#d90416]"
+                          >
+                            {Math.round(p.amount / 1000)}k€
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 px-2">
+                <span>0 €</span>
+                <span className="font-mono text-[#d90416] font-semibold">
+                  Moyenne active : {formatEuro(stats.monthlyAverage)} / mois
+                </span>
+                <span>Pic : {formatEuro(stats.maxBarAmount)}</span>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* 3. VIEW MODE C: PROGRESSION CUMULÉE YTD VS OBJECTIF ANNUEL */}
+        {chartType === "cumulative" && (() => {
+          let runningTotal = 0;
+          const cumPoints = monthlyData.map((m, idx) => {
+            runningTotal += m.amount;
+            const targetLine = annualTarget > 0 ? Math.round((annualTarget / 12) * (idx + 1)) : 0;
+            return {
+              ...m,
+              cumAmount: runningTotal,
+              targetLine,
+            };
+          });
+
+          const maxCum = Math.max(runningTotal, annualTarget) * 1.15 || 1000;
+          const svgCumPoints = cumPoints.map((p, idx) => {
+            const x = 50 + idx * (900 / 11);
+            const y = 210 - (p.cumAmount / maxCum) * 170;
+            const yTarget = 210 - (p.targetLine / maxCum) * 170;
+            return { x, y, yTarget, ...p };
+          });
+
+          const pathCum = svgCumPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? "M" : "L"} ${p.x} ${p.y}`, "");
+          const areaCum = `${pathCum} L ${svgCumPoints[svgCumPoints.length - 1].x} 210 L ${svgCumPoints[0].x} 210 Z`;
+
+          return (
+            <div className="pt-2">
+              <div className="w-full overflow-x-auto">
+                <svg viewBox="0 0 1000 240" className="w-full h-64 overflow-visible">
+                  <defs>
+                    <linearGradient id="client-ca-cum-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Horizontal Grid lines */}
+                  <line x1="50" y1="40" x2="950" y2="40" stroke="currentColor" strokeOpacity="0.08" />
+                  <line x1="50" y1="125" x2="950" y2="125" stroke="currentColor" strokeOpacity="0.08" />
+                  <line x1="50" y1="210" x2="950" y2="210" stroke="currentColor" strokeOpacity="0.2" />
+
+                  {/* Target linear trajectory line */}
+                  {annualTarget > 0 && (
+                    <g>
+                      <line
+                        x1="50"
+                        y1="210"
+                        x2="950"
+                        y2={210 - (annualTarget / maxCum) * 170}
+                        stroke="#94a3b8"
+                        strokeDasharray="6,4"
+                        strokeWidth="2"
+                      />
+                      <text
+                        x="940"
+                        y={210 - (annualTarget / maxCum) * 170 - 8}
+                        textAnchor="end"
+                        className="text-[10px] fill-slate-500 font-bold font-mono"
+                      >
+                        Objectif annuel : {formatEuro(annualTarget)}
+                      </text>
+                    </g>
+                  )}
+
+                  {/* Area fill */}
+                  <path d={areaCum} fill="url(#client-ca-cum-grad)" />
+
+                  {/* The cumulative curve */}
+                  <path
+                    d={pathCum}
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+
+                  {/* Points on cumulative curve */}
+                  {svgCumPoints.map((p, idx) => (
+                    <g key={p.month} className="cursor-pointer group/cumpoint">
+                      <circle cx={p.x} cy={p.y} r={5} fill="#10b981" className="group-hover/cumpoint:r-7 transition-all" />
+                      <circle cx={p.x} cy={p.y} r={2.5} fill="#ffffff" />
+
+                      {/* Month label */}
+                      <text
+                        x={p.x}
+                        y="228"
+                        textAnchor="middle"
+                        className="text-[11px] font-bold fill-slate-500 dark:fill-zinc-400"
+                      >
+                        {SHORT_MONTHS[idx]}
+                      </text>
+
+                      {/* Cumulative total on top of point */}
+                      {p.cumAmount > 0 && (
+                        <text
+                          x={p.x}
+                          y={p.y - 10}
+                          textAnchor="middle"
+                          className="text-[10px] font-mono font-bold fill-emerald-600 dark:fill-emerald-400"
+                        >
+                          {Math.round(p.cumAmount / 1000)}k€
+                        </text>
+                      )}
+                    </g>
+                  ))}
+                </svg>
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-slate-400 pt-2 px-2">
+                <span>0 €</span>
+                <span className="font-mono text-emerald-600 font-bold">
+                  Total Cumulé : {formatEuro(stats.totalTurnover)}
+                </span>
+                <span>
+                  Objectif Trajectoire : {annualTarget > 0 ? formatEuro(annualTarget) : "Non défini"}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* 3. Monthly Table & Quick In-line Input */}

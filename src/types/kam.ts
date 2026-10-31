@@ -378,7 +378,7 @@ export function encodeAssignedManagerIds(
 }
 
 
-export type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE";
+export type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "ARCHIVED";
 
 export type TaskCategory =
   | "RELANCE"
@@ -461,6 +461,15 @@ export const TASK_STATUS_CONFIG: Record<
     dotClass: "bg-emerald-500",
     headerClass: "border-emerald-400 dark:border-emerald-600",
     columnBgClass: "bg-emerald-50/40 dark:bg-emerald-950/15",
+  },
+  ARCHIVED: {
+    label: "Archivé",
+    shortLabel: "Archivé",
+    badgeClass:
+      "bg-zinc-500/12 text-zinc-700 border-zinc-400/25 dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700",
+    dotClass: "bg-zinc-400",
+    headerClass: "border-zinc-400 dark:border-zinc-600",
+    columnBgClass: "bg-zinc-100/50 dark:bg-zinc-900/40",
   },
 };
 

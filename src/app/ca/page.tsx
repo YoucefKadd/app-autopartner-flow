@@ -19,6 +19,7 @@ import {
   ArrowUpDown,
   PieChart,
   BarChart3,
+  LineChart,
   Layers,
   ArrowUpRight,
   Sparkles,
@@ -62,6 +63,7 @@ export default function CaGlobalDashboardPage() {
   }, [loading, loggedUser, router]);
 
   const [selectedYear, setSelectedYear] = useState<number>(2026);
+  const [chartType, setChartType] = useState<"bar" | "line" | "cumulative">("bar");
   // Multi-Month selection state: empty array or 12 items means "Année complète"
   const [selectedMonths, setSelectedMonths] = useState<number[]>([]);
 
@@ -897,92 +899,272 @@ export default function CaGlobalDashboardPage() {
 
       {/* 4. Consolidated Monthly Turnover Chart + Geographic Breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Monthly Bar Chart (2 cols) */}
+        {/* Monthly Multi-Type Chart (2 cols) */}
         <div className="lg:col-span-2 rounded-2xl border border-slate-200/90 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-[0_1px_3px_rgba(0,0,0,0.02)] space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <BarChart3 className="w-4 h-4 text-[#d90416]" />
-              <h2 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
-                Évolution Mensuelle Consolidée du CA ({selectedYear})
-              </h2>
+              {chartType === "bar" ? (
+                <BarChart3 className="w-4 h-4 text-[#d90416]" />
+              ) : chartType === "line" ? (
+                <LineChart className="w-4 h-4 text-[#d90416]" />
+              ) : (
+                <TrendingUp className="w-4 h-4 text-[#d90416]" />
+              )}
+              <div>
+                <h2 className="text-sm font-bold text-slate-900 dark:text-zinc-100">
+                  {chartType === "bar" && `Évolution Mensuelle Consolidée du CA (${selectedYear})`}
+                  {chartType === "line" && `Courbe & Tendance Consolidée (${selectedYear})`}
+                  {chartType === "cumulative" && `Progression Annuelle Cumulée YTD (${selectedYear})`}
+                </h2>
+                <p className="text-[11px] text-slate-400">
+                  {chartType === "bar" && "Cliquez sur les barres mensuelles pour filtrer les performances."}
+                  {chartType === "line" && "Courbe continue de facturation consolidée avec gradient et moyenne."}
+                  {chartType === "cumulative" && "Progression cumulée mois par mois vers l'objectif annuel global."}
+                </p>
+              </div>
             </div>
+
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold text-[#d90416]">
-                {formatEuro(globalStats.totalAnnualCa)} Cumul Annuel
+              {/* Chart Type Selector */}
+              <div className="inline-flex items-center bg-slate-100 dark:bg-zinc-800 p-0.5 rounded-xl border border-slate-200/80 dark:border-zinc-700">
+                <button
+                  type="button"
+                  onClick={() => setChartType("bar")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                    chartType === "bar"
+                      ? "bg-white dark:bg-zinc-900 text-[#d90416] shadow-xs"
+                      : "text-slate-500 hover:text-slate-900 dark:hover:text-zinc-200"
+                  }`}
+                  title="Histogramme en barres"
+                >
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  <span>Barres</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartType("line")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                    chartType === "line"
+                      ? "bg-white dark:bg-zinc-900 text-[#d90416] shadow-xs"
+                      : "text-slate-500 hover:text-slate-900 dark:hover:text-zinc-200"
+                  }`}
+                  title="Courbe & Tendance lissée"
+                >
+                  <LineChart className="w-3.5 h-3.5" />
+                  <span>Courbe</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setChartType("cumulative")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                    chartType === "cumulative"
+                      ? "bg-white dark:bg-zinc-900 text-[#d90416] shadow-xs"
+                      : "text-slate-500 hover:text-slate-900 dark:hover:text-zinc-200"
+                  }`}
+                  title="Progression cumulée annuelle"
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Cumulé</span>
+                </button>
+              </div>
+
+              <span className="text-xs font-mono font-bold text-[#d90416] hidden sm:inline-block">
+                {formatEuro(globalStats.totalAnnualCa)} Total
               </span>
             </div>
           </div>
 
-          <p className="text-[11px] text-slate-400">
-            Cliquez sur les barres mensuelles pour sélectionner un ou plusieurs mois et isoler les performances.
-          </p>
+          {/* 1. BAR CHART */}
+          {chartType === "bar" && (
+            <div className="h-56 w-full flex items-end gap-2 pt-6 pb-2 px-1 border-b border-slate-100 dark:border-zinc-800">
+              {globalStats.monthlyTotals.map((m) => {
+                const heightPct =
+                  globalStats.maxMonthAmount > 0
+                    ? Math.max(4, Math.round((m.amount / globalStats.maxMonthAmount) * 100))
+                    : 4;
+                const isSelected = !isAllMonthsSelected && selectedMonths.includes(m.month);
 
-          {/* SVG Bar Chart */}
-          <div className="h-56 w-full flex items-end gap-2 pt-6 pb-2 px-1 border-b border-slate-100 dark:border-zinc-800">
-            {globalStats.monthlyTotals.map((m) => {
-              const heightPct =
-                globalStats.maxMonthAmount > 0
-                  ? Math.max(4, Math.round((m.amount / globalStats.maxMonthAmount) * 100))
-                  : 4;
-              const isSelected = !isAllMonthsSelected && selectedMonths.includes(m.month);
-
-              return (
-                <div
-                  key={m.month}
-                  onClick={() => toggleMonth(m.month)}
-                  className={`flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer transition-all duration-200 ${
-                    !isAllMonthsSelected && !isSelected ? "opacity-35 hover:opacity-75" : "opacity-100"
-                  }`}
-                  title={`${m.fullName} : ${formatEuro(m.amount)} (${m.orders} commandes). Cliquer pour inclure/exclure.`}
-                >
-                  {/* Tooltip */}
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-12 bg-slate-900 text-white dark:bg-zinc-800 text-[10px] py-1 px-2 rounded-lg pointer-events-none whitespace-nowrap z-20 shadow-md text-center">
-                    <div className="font-bold">{m.fullName}</div>
-                    <div>{formatEuro(m.amount)}</div>
-                    <div className="text-[9px] text-slate-400">
-                      {m.orders} commande{m.orders > 1 ? "s" : ""}
+                return (
+                  <div
+                    key={m.month}
+                    onClick={() => toggleMonth(m.month)}
+                    className={`flex-1 flex flex-col items-center justify-end h-full group relative cursor-pointer transition-all duration-200 ${
+                      !isAllMonthsSelected && !isSelected ? "opacity-35 hover:opacity-75" : "opacity-100"
+                    }`}
+                    title={`${m.fullName} : ${formatEuro(m.amount)} (${m.orders} commandes). Cliquer pour inclure/exclure.`}
+                  >
+                    {/* Tooltip */}
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute -top-12 bg-slate-900 text-white dark:bg-zinc-800 text-[10px] py-1 px-2 rounded-lg pointer-events-none whitespace-nowrap z-20 shadow-md text-center">
+                      <div className="font-bold">{m.fullName}</div>
+                      <div>{formatEuro(m.amount)}</div>
+                      <div className="text-[9px] text-slate-400">
+                        {m.orders} commande{m.orders > 1 ? "s" : ""}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Value on top of bar if > 0 */}
-                  {m.amount > 0 && (
-                    <span
-                      className={`text-[9px] font-mono font-semibold mb-1 transition-opacity hidden sm:block ${
+                    {/* Value on top of bar if > 0 */}
+                    {m.amount > 0 && (
+                      <span
+                        className={`text-[9px] font-mono font-semibold mb-1 transition-opacity hidden sm:block ${
+                          isSelected
+                            ? "text-[#d90416] font-bold"
+                            : "text-slate-500 dark:text-zinc-400 opacity-80 group-hover:opacity-100"
+                        }`}
+                      >
+                        {Math.round(m.amount / 1000)}k
+                      </span>
+                    )}
+
+                    {/* The Bar */}
+                    <div
+                      style={{ height: `${heightPct}%` }}
+                      className={`w-full max-w-[32px] rounded-t-lg transition-all ${
                         isSelected
-                          ? "text-[#d90416] font-bold"
-                          : "text-slate-500 dark:text-zinc-400 opacity-80 group-hover:opacity-100"
+                          ? "bg-[#d90416] ring-4 ring-[#d90416]/30 shadow-md"
+                          : m.amount > 0
+                          ? "bg-[#d90416]/80 hover:bg-[#d90416] shadow-xs"
+                          : "bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200"
+                      }`}
+                    />
+
+                    {/* Month Label */}
+                    <span
+                      className={`text-[10px] font-semibold mt-2 transition-colors ${
+                        isSelected
+                          ? "text-[#d90416] font-extrabold underline"
+                          : "text-slate-500 dark:text-zinc-400"
                       }`}
                     >
-                      {Math.round(m.amount / 1000)}k
+                      {m.name}
                     </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 2. LINE / AREA CHART */}
+          {chartType === "line" && (() => {
+            const maxVal = globalStats.maxMonthAmount > 0 ? globalStats.maxMonthAmount * 1.15 : 1000;
+            const avgMonthly = Math.round(globalStats.totalAnnualCa / 12);
+            const svgPoints = globalStats.monthlyTotals.map((m, idx) => {
+              const x = 40 + idx * (920 / 11);
+              const y = 190 - (m.amount / maxVal) * 150;
+              return { x, y, ...m };
+            });
+            const pathD = svgPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? "M" : "L"} ${p.x} ${p.y}`, "");
+            const areaD = `${pathD} L ${svgPoints[svgPoints.length - 1].x} 190 L ${svgPoints[0].x} 190 Z`;
+            const yAvg = 190 - (avgMonthly / maxVal) * 150;
+
+            return (
+              <div className="pt-2">
+                <svg viewBox="0 0 1000 220" className="w-full h-56 overflow-visible">
+                  <defs>
+                    <linearGradient id="ca-global-line-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#d90416" stopOpacity="0.25" />
+                      <stop offset="100%" stopColor="#d90416" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+
+                  <line x1="40" y1="40" x2="960" y2="40" stroke="currentColor" strokeOpacity="0.08" />
+                  <line x1="40" y1="115" x2="960" y2="115" stroke="currentColor" strokeOpacity="0.08" />
+                  <line x1="40" y1="190" x2="960" y2="190" stroke="currentColor" strokeOpacity="0.2" />
+
+                  {avgMonthly > 0 && (
+                    <g>
+                      <line x1="40" y1={yAvg} x2="960" y2={yAvg} stroke="#94a3b8" strokeDasharray="5,5" strokeWidth="1.5" />
+                      <text x="950" y={yAvg - 5} textAnchor="end" className="text-[10px] fill-slate-400 font-mono">
+                        Moyenne ({formatEuro(avgMonthly)})
+                      </text>
+                    </g>
                   )}
 
-                  {/* The Bar */}
-                  <div
-                    style={{ height: `${heightPct}%` }}
-                    className={`w-full max-w-[32px] rounded-t-lg transition-all ${
-                      isSelected
-                        ? "bg-[#d90416] ring-4 ring-[#d90416]/30 shadow-md"
-                        : m.amount > 0
-                        ? "bg-[#d90416]/80 hover:bg-[#d90416] shadow-xs"
-                        : "bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200"
-                    }`}
-                  />
+                  <path d={areaD} fill="url(#ca-global-line-grad)" />
+                  <path d={pathD} fill="none" stroke="#d90416" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
 
-                  {/* Month Label */}
-                  <span
-                    className={`text-[10px] font-semibold mt-2 transition-colors ${
-                      isSelected
-                        ? "text-[#d90416] font-extrabold underline"
-                        : "text-slate-500 dark:text-zinc-400"
-                    }`}
-                  >
-                    {m.name}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+                  {svgPoints.map((p, idx) => {
+                    const isSelected = !isAllMonthsSelected && selectedMonths.includes(p.month);
+                    return (
+                      <g key={p.month} onClick={() => toggleMonth(p.month)} className="cursor-pointer group/dot">
+                        <circle cx={p.x} cy={p.y} r={isSelected ? 7 : 5} fill={p.amount > 0 ? "#d90416" : "#cbd5e1"} className="group-hover/dot:r-8 transition-all" />
+                        <circle cx={p.x} cy={p.y} r={2.5} fill="#ffffff" />
+                        <text x={p.x} y="208" textAnchor="middle" className={`text-[10px] font-bold ${isSelected ? "fill-[#d90416] font-extrabold" : "fill-slate-500 dark:fill-zinc-400"}`}>
+                          {p.name}
+                        </text>
+                        {p.amount > 0 && (
+                          <text x={p.x} y={p.y - 9} textAnchor="middle" className="text-[9px] font-mono font-bold fill-slate-700 dark:fill-zinc-200">
+                            {Math.round(p.amount / 1000)}k
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })}
+                </svg>
+              </div>
+            );
+          })()}
+
+          {/* 3. CUMULATIVE CHART */}
+          {chartType === "cumulative" && (() => {
+            let running = 0;
+            const cumData = globalStats.monthlyTotals.map((m, idx) => {
+              running += m.amount;
+              const targetSoFar = globalStats.totalTarget > 0 ? Math.round((globalStats.totalTarget / 12) * (idx + 1)) : 0;
+              return { ...m, cumAmount: running, targetSoFar };
+            });
+            const maxCum = Math.max(running, globalStats.totalTarget) * 1.15 || 1000;
+            const svgPoints = cumData.map((p, idx) => {
+              const x = 40 + idx * (920 / 11);
+              const y = 190 - (p.cumAmount / maxCum) * 150;
+              return { x, y, ...p };
+            });
+            const pathD = svgPoints.reduce((acc, p, i) => `${acc} ${i === 0 ? "M" : "L"} ${p.x} ${p.y}`, "");
+            const areaD = `${pathD} L ${svgPoints[svgPoints.length - 1].x} 190 L ${svgPoints[0].x} 190 Z`;
+
+            return (
+              <div className="pt-2">
+                <svg viewBox="0 0 1000 220" className="w-full h-56 overflow-visible">
+                  <defs>
+                    <linearGradient id="ca-global-cum-grad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+
+                  <line x1="40" y1="40" x2="960" y2="40" stroke="currentColor" strokeOpacity="0.08" />
+                  <line x1="40" y1="115" x2="960" y2="115" stroke="currentColor" strokeOpacity="0.08" />
+                  <line x1="40" y1="190" x2="960" y2="190" stroke="currentColor" strokeOpacity="0.2" />
+
+                  {globalStats.totalTarget > 0 && (
+                    <g>
+                      <line x1="40" y1="190" x2="960" y2={190 - (globalStats.totalTarget / maxCum) * 150} stroke="#94a3b8" strokeDasharray="6,4" strokeWidth="2" />
+                      <text x="950" y={190 - (globalStats.totalTarget / maxCum) * 150 - 6} textAnchor="end" className="text-[10px] fill-slate-500 font-bold font-mono">
+                        Objectif Consolidé : {formatEuro(globalStats.totalTarget)}
+                      </text>
+                    </g>
+                  )}
+
+                  <path d={areaD} fill="url(#ca-global-cum-grad)" />
+                  <path d={pathD} fill="none" stroke="#10b981" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+
+                  {svgPoints.map((p) => (
+                    <g key={p.month} className="cursor-pointer group/cumpoint">
+                      <circle cx={p.x} cy={p.y} r={5} fill="#10b981" className="group-hover/cumpoint:r-7 transition-all" />
+                      <circle cx={p.x} cy={p.y} r={2.5} fill="#ffffff" />
+                      <text x={p.x} y="208" textAnchor="middle" className="text-[10px] font-bold fill-slate-500 dark:fill-zinc-400">
+                        {p.name}
+                      </text>
+                      {p.cumAmount > 0 && (
+                        <text x={p.x} y={p.y - 9} textAnchor="middle" className="text-[9px] font-mono font-bold fill-emerald-600 dark:fill-emerald-400">
+                          {Math.round(p.cumAmount / 1000)}k€
+                        </text>
+                      )}
+                    </g>
+                  ))}
+                </svg>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Geographic Breakdown & Top 5 Clients (1 col) */}

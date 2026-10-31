@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { ClientItem, ClientStatus, CLIENT_STATUS_CONFIG, formatRelativeDate } from "@/types/kam";
 import { getClientVisitStatus } from "@/lib/visits";
+import { batchGeocodeClients, GeocodedAddress } from "@/lib/addressGeocoder";
 
 // Approximate coordinates for major French cities / departments as reliable fallback
 const FRENCH_CITIES_COORDINATES: Record<string, [number, number]> = {
@@ -188,30 +189,94 @@ export function ClientsMapView({
       .filter(Boolean) as ClientItem[];
   }, [tourStopIds, clients]);
 
-  // Geocode clients from saved addresses or city dictionary
+  // Real street address geocoding map: clientId -> GeocodedAddress
+  const [realAddressCoords, setRealAddressCoords] = useState<Map<string, GeocodedAddress>>(() => {
+    const initialMap = new Map<string, GeocodedAddress>();
+    if (typeof window !== "undefined") {
+      clients.forEach((c) => {
+        const cleanAddress = (c.address || "").trim();
+        const cleanCity = (c.city || "").trim();
+        const cleanZip = (c.postalCode || "").trim();
+        const norm = `${cleanAddress}_${cleanZip}_${cleanCity}`
+          .toLowerCase()
+          .replace(/\s+/g, " ")
+          .trim();
+        const cacheKey = `apflow_geo_${c.id}_${norm}`;
+        try {
+          const stored = localStorage.getItem(cacheKey);
+          if (stored) {
+            initialMap.set(c.id, JSON.parse(stored));
+          }
+        } catch {}
+      });
+    }
+    return initialMap;
+  });
+
+  // Batch geocode clients with actual street addresses via French Government BAN API
+  useEffect(() => {
+    let isCancelled = false;
+    const clientsToGeocode = clients.map((c) => ({
+      id: c.id,
+      address: c.address,
+      city: c.city,
+      postalCode: c.postalCode,
+    }));
+
+    batchGeocodeClients(clientsToGeocode, (newResults) => {
+      if (!isCancelled) {
+        setRealAddressCoords((prev) => {
+          const merged = new Map(prev);
+          newResults.forEach((val, key) => merged.set(key, val));
+          return merged;
+        });
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [clients]);
+
+  // Geocode clients from real street address BAN API, saved addresses, or city dictionary
   const geocodedClients = useMemo(() => {
     return clients.map((c) => {
       let lat: number | null = null;
       let lng: number | null = null;
-      let postalCode = "";
+      let postalCode = c.postalCode || "";
+      let isExactAddress = false;
 
-      if (typeof window !== "undefined") {
-        postalCode = localStorage.getItem(`apflow_cp_${c.id}`) || "";
-        try {
-          const stored = localStorage.getItem(`apflow_addresses_v4_${c.id}`);
-          if (stored) {
-            const list = JSON.parse(stored);
-            const primary = list.find((item: any) => item.isPrimary) || list[0];
-            if (primary?.coordinates && Array.isArray(primary.coordinates)) {
-              lng = primary.coordinates[0];
-              lat = primary.coordinates[1];
-            }
-            if (!postalCode && primary?.postalCode) postalCode = primary.postalCode;
-          }
-        } catch {}
+      // 1. Try real street address coordinates from BAN API
+      const realGeo = realAddressCoords.get(c.id);
+      if (realGeo && realGeo.isExactAddress) {
+        lat = realGeo.lat;
+        lng = realGeo.lng;
+        isExactAddress = true;
+        if (!postalCode && realGeo.postcode) postalCode = realGeo.postcode;
       }
 
-      // Fallback: match by city
+      // 2. Try saved custom coordinates in localStorage
+      if (lat === null || lng === null) {
+        if (typeof window !== "undefined") {
+          const storedZip = localStorage.getItem(`apflow_cp_${c.id}`);
+          if (storedZip) postalCode = storedZip;
+          try {
+            const stored = localStorage.getItem(`apflow_addresses_v4_${c.id}`);
+            if (stored) {
+              const list = JSON.parse(stored);
+              const primary = list.find((item: any) => item.isPrimary) || list[0];
+              if (primary?.coordinates && Array.isArray(primary.coordinates)) {
+                lng = primary.coordinates[0];
+                lat = primary.coordinates[1];
+                isExactAddress = true;
+              }
+              if (!postalCode && primary?.postalCode) postalCode = primary.postalCode;
+            }
+          } catch {}
+        }
+      }
+
+      // 3. Fallback: match by city center
       if (lat === null || lng === null) {
         const key = normalizeCityKey(c.city || "");
         if (FRENCH_CITIES_COORDINATES[key]) {
@@ -245,8 +310,10 @@ export function ClientsMapView({
         }
       }
 
-      // Slightly displace duplicate coordinates so markers are distinguishable
-      const [finalLat, finalLng] = getDisplacedCoordinates(lat, lng, c.id);
+      // If exact real street address, DO NOT displace! Pin is precisely on the building!
+      // Only displace if falling back to generic city center so duplicate city markers don't overlap.
+      const finalLat = isExactAddress ? lat! : getDisplacedCoordinates(lat!, lng!, c.id)[0];
+      const finalLng = isExactAddress ? lng! : getDisplacedCoordinates(lat!, lng!, c.id)[1];
       const visitStatus = getClientVisitStatus(c);
 
       return {
@@ -255,9 +322,10 @@ export function ClientsMapView({
         lng: finalLng,
         postalCode,
         visitStatus,
+        isExactAddress,
       };
     });
-  }, [clients]);
+  }, [clients, realAddressCoords]);
 
   // Filtered clients for the map
   const filteredList = useMemo(() => {
@@ -519,15 +587,24 @@ export function ClientsMapView({
 
       const marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
 
-      // Popup Content with status badge and 1-click Tour Toggle
+      // Popup Content with status badge, real address verification and 1-click Tour Toggle
+      const exactAddressLabel = client.address
+        ? `${client.address}, ${item.postalCode ? `${item.postalCode} ` : ""}${client.city}`
+        : `${client.city} ${item.postalCode ? `(${item.postalCode})` : ""}`;
+
       const popupHtml = `
-        <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; padding: 4px; min-width: 160px;">
+        <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; padding: 4px; min-width: 180px;">
           <div style="font-weight: 700; color: #0f172a; font-size: 13px; margin-bottom: 2px;">
             ${client.company}
           </div>
-          <div style="color: #64748b; font-size: 11px; margin-bottom: 6px;">
-            📍 ${client.city} ${item.postalCode ? `(${item.postalCode})` : ""}
+          <div style="color: #64748b; font-size: 11px; margin-bottom: 4px;">
+            📍 ${exactAddressLabel}
           </div>
+          ${
+            item.isExactAddress
+              ? `<div style="display: inline-block; padding: 2px 6px; border-radius: 4px; background: #ecfdf5; color: #047857; font-size: 9px; font-weight: 700; margin-bottom: 6px; border: 1px solid #a7f3d0;">✓ Adresse réelle GPS vérifiée</div>`
+              : `<div style="display: inline-block; padding: 2px 6px; border-radius: 4px; background: #f8fafc; color: #64748b; font-size: 9px; font-weight: 600; margin-bottom: 6px;">📍 Agglomération ${client.city}</div>`
+          }
           <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
             <span style="display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; background: ${ringColor}; color: ${markerBg}; border: 1px solid ${markerBg}40;">
               ● Statut : ${statusLabel}
@@ -546,7 +623,7 @@ export function ClientsMapView({
               <a href="/clients/${client.id}" style="color: #d90416; font-weight: 700; text-decoration: none; font-size: 11px;">
                 Ouvrir fiche →
               </a>
-              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${client.company} ${client.city}`)}" target="_blank" style="color: #2563eb; font-weight: 600; text-decoration: none; font-size: 11px;">
+              <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([client.company, client.address, item.postalCode, client.city, "France"].filter(Boolean).join(" "))}" target="_blank" style="color: #2563eb; font-weight: 600; text-decoration: none; font-size: 11px;">
                 GPS Direct ↗
               </a>
             </div>
@@ -843,9 +920,14 @@ export function ClientsMapView({
                           <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-0.5">
                             <MapPin className="w-3 h-3 text-[#d90416] shrink-0" />
                             <span className="truncate">
-                              {client.city} {postalCode ? `(${postalCode})` : ""}
+                              {client.address ? `${client.address}, ` : ""}{client.city} {postalCode ? `(${postalCode})` : ""}
                             </span>
                           </div>
+                          {item.isExactAddress && (
+                            <span className="text-[9px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-0.5 mt-0.5">
+                              ✓ Adresse réelle GPS vérifiée
+                            </span>
+                          )}
                         </div>
 
                         {/* Quick 1-click Tour Toggle button */}
