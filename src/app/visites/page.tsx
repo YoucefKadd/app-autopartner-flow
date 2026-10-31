@@ -24,6 +24,7 @@ import {
   Car,
   Compass,
   CheckSquare,
+  FileSpreadsheet,
 } from "lucide-react";
 import { useWorkspace } from "@/components/AppShell";
 import { AddVisitModal } from "@/components/AddVisitModal";
@@ -51,7 +52,7 @@ type ViewTab = "calendar" | "table" | "timeline" | "radar";
 
 export default function VisitesPage() {
   const router = useRouter();
-  const { clients, activeUser, loggedUser, loading, refreshWorkspace, openQuickTask } = useWorkspace();
+  const { clients, activeUser, loggedUser, loading, refreshWorkspace, openQuickTask, openActivityReport } = useWorkspace();
 
   const canViewVisits = loggedUser ? hasPermission(loggedUser, "add_visits") : true;
 
@@ -292,6 +293,17 @@ export default function VisitesPage() {
           >
             <Sliders className="w-3.5 h-3.5 text-[#d90416]" />
             <span>Cadence standard : {globalInterval}j</span>
+          </button>
+
+          {/* Activity Report button */}
+          <button
+            type="button"
+            onClick={() => openActivityReport()}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs font-semibold text-slate-700 dark:text-zinc-300 hover:border-[#d90416] transition-colors cursor-pointer shadow-2xs"
+            title="Générer un rapport d'activité (Journalier, Hebdo, Mensuel - CSV, Excel, PDF)"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-[#d90416]" />
+            <span>Rapports</span>
           </button>
 
           {/* Primary Action Button */}

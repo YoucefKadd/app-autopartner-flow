@@ -41,12 +41,14 @@ import {
   Kanban,
   UserPlus,
   Map,
+  FileSpreadsheet,
 } from "lucide-react";
 import { ClientItem, KamUser, NoteItem, TaskItem, TaskStatus, TASK_STATUS_CONFIG, parseTaskChecklist, ClientVisit, getInitials, hasPermission, getAssignedManagerIds } from "@/types/kam";
 import { QuickNoteModal } from "@/components/QuickNoteModal";
 import { NoteWorkspaceDrawer, NoteDockMode } from "@/components/NoteWorkspaceDrawer";
 import { TaskWorkspaceDrawer, TaskDockMode } from "@/components/TaskWorkspaceDrawer";
 import { ClientFormModal } from "@/components/ClientFormModal";
+import { ActivityReportModal } from "@/components/ActivityReportModal";
 import { DatabaseSyncHelper } from "@/components/DatabaseSyncHelper";
 import { getAllPortfolioVisits } from "@/lib/visits";
 
@@ -74,6 +76,7 @@ interface WorkspaceContextValue {
     defaultStatus?: TaskStatus;
   }) => void;
   openClientModal: (client?: ClientItem | null) => void;
+  openActivityReport: () => void;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -134,6 +137,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<ClientItem | null>(null);
+  const [isActivityReportOpen, setIsActivityReportOpen] = useState(false);
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
 
   // Close mobile drawer on route change
@@ -514,6 +518,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         openQuickNote,
         openQuickTask,
         openClientModal,
+        openActivityReport: () => setIsActivityReportOpen(true),
       }}
     >
       <div className="h-screen flex flex-col overflow-hidden bg-[#f8f9fb] dark:bg-zinc-950 text-slate-900 dark:text-zinc-100">
@@ -859,8 +864,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          {/* Right: Dark mode toggle + User Profile (Notice: Bell & Comment icons removed per user request) */}
+          {/* Right: Activity Reports + Dark mode toggle + User Profile (Notice: Bell & Comment icons removed per user request) */}
           <div className="flex items-center gap-1.5 sm:gap-3">
+            {/* Activity Reports Button */}
+            <button
+              type="button"
+              onClick={() => setIsActivityReportOpen(true)}
+              title="Générer un Rapport d'Activité (Journalier, Hebdo, Mensuel - CSV, Excel, PDF)"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-zinc-200 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded-lg transition-colors border border-slate-200 dark:border-zinc-700 cursor-pointer shadow-2xs"
+            >
+              <FileSpreadsheet className="w-4 h-4 text-[#d90416]" />
+              <span className="hidden sm:inline">Rapports</span>
+            </button>
+
             {/* Dark mode button */}
             <button
               type="button"
@@ -1269,6 +1285,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </span>
                 </Link>
 
+                {/* Mobile Drawer: Activity Reports */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsActivityReportOpen(true);
+                    setMobileDrawerOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 dark:text-zinc-400 hover:bg-slate-100/80 dark:hover:bg-zinc-800/60 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    <FileSpreadsheet className="w-4 h-4 shrink-0 text-[#d90416]" />
+                    <span>Rapports d&apos;Activité</span>
+                  </div>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-950/40 text-[#d90416] font-bold">
+                    Export
+                  </span>
+                </button>
+
                 {loggedUser?.role === "SUPER_ADMIN" && (
                   <Link
                     href="/admin"
@@ -1580,6 +1614,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   )}
                 </Link>
 
+                {/* ITEM: RAPPORTS D'ACTIVITÉ */}
+                <button
+                  type="button"
+                  onClick={() => setIsActivityReportOpen(true)}
+                  title="Générer un Rapport d'Activité (Journalier, Hebdo, Mensuel - CSV, Excel, PDF)"
+                  className={`relative w-full flex items-center ${
+                    sidebarExpanded
+                      ? "justify-between px-3 py-2.5"
+                      : "justify-center py-2.5"
+                  } rounded-xl text-xs font-medium text-slate-600 dark:text-zinc-400 hover:bg-slate-100/80 dark:hover:bg-zinc-800/60 transition-colors cursor-pointer`}
+                >
+                  <div className="flex items-center gap-3">
+                    <FileSpreadsheet className="w-4 h-4 shrink-0 text-[#d90416]" />
+                    {sidebarExpanded && <span>Rapports d&apos;Activité</span>}
+                  </div>
+                  {sidebarExpanded && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-50 dark:bg-red-950/40 text-[#d90416] font-bold">
+                      Export
+                    </span>
+                  )}
+                </button>
+
                 {/* 6TH ITEM: ROUTE /admin (Super Admin only) */}
                 {loggedUser?.role === "SUPER_ADMIN" && (
                   <Link
@@ -1711,6 +1767,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               activeKamId={activeUser.id}
               editingClient={editingClient}
               onSaved={() => refreshWorkspace(activeUser.id)}
+            />
+
+            <ActivityReportModal
+              isOpen={isActivityReportOpen}
+              onClose={() => setIsActivityReportOpen(false)}
+              clients={clients}
+              visits={visits}
+              notes={notes}
+              tasks={tasks}
+              kamName={activeUser?.name}
             />
           </>
         )}

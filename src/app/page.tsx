@@ -28,6 +28,7 @@ import {
   CheckSquare,
   ListChecks,
   Check,
+  FileSpreadsheet,
 } from "lucide-react";
 import { useWorkspace } from "@/components/AppShell";
 import {
@@ -59,6 +60,7 @@ export default function DashboardHomePage() {
     openQuickNote,
     openQuickTask,
     openClientModal,
+    openActivityReport,
     refreshWorkspace,
   } = useWorkspace();
 
@@ -452,6 +454,16 @@ export default function DashboardHomePage() {
           >
             <UploadCloud className="w-3.5 h-3.5 text-blue-600" />
             <span>Importer Clients</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => openActivityReport()}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-700 text-xs font-semibold transition cursor-pointer shadow-2xs"
+            title="Générer un rapport d'activité (Journalier, Hebdo, Mensuel - CSV, Excel, PDF)"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-[#d90416]" />
+            <span>Rapport d&apos;activité</span>
           </button>
         </div>
       </div>

@@ -53,7 +53,9 @@ import {
   CheckSquare,
   Flame,
   Columns3,
+  Barcode,
 } from "lucide-react";
+import { BarcodeSvg } from "@/components/BarcodeSvg";
 import {
   ClientItem,
   ClientStatus,
@@ -899,7 +901,12 @@ export function ClientFullPage({
       try {
         const parsed = JSON.parse(savedFiche);
         const merged = { ...ficheData, ...parsed };
-        if (customApCode) merged.apClientNumber = customApCode;
+        if (customApCode) {
+          merged.apClientNumber = customApCode;
+          merged.deliveryBarcode = customApCode;
+        } else if (merged.apClientNumber) {
+          merged.deliveryBarcode = merged.apClientNumber;
+        }
         setFicheData(merged);
         setTempFicheData(merged);
       } catch {
@@ -907,8 +914,16 @@ export function ClientFullPage({
       }
     } else {
       if (customApCode) {
-        setFicheData((prev) => ({ ...prev, apClientNumber: customApCode }));
-        setTempFicheData((prev) => ({ ...prev, apClientNumber: customApCode }));
+        setFicheData((prev) => ({
+          ...prev,
+          apClientNumber: customApCode,
+          deliveryBarcode: customApCode,
+        }));
+        setTempFicheData((prev) => ({
+          ...prev,
+          apClientNumber: customApCode,
+          deliveryBarcode: customApCode,
+        }));
       } else {
         setTempFicheData(ficheData);
       }
@@ -2330,9 +2345,9 @@ export function ClientFullPage({
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-zinc-800">
-                  <span className="text-slate-500">Code-barres Livraison</span>
-                  <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">
-                    {ficheData.deliveryBarcode}
+                  <span className="text-slate-500">Code-barres Livraison (Code AP)</span>
+                  <span className="font-mono font-bold text-slate-800 dark:text-zinc-200">
+                    {ficheData.apClientNumber || ficheData.deliveryBarcode || "—"}
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-1.5 border-b border-slate-100 dark:border-zinc-800">
@@ -4637,22 +4652,16 @@ export function ClientFullPage({
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    {/* Code-barres de livraison */}
-                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 rounded-xl px-3 py-1.5">
-                      <QrCode className="w-5 h-5 text-slate-800 dark:text-zinc-200 shrink-0" />
-                      <span className="font-mono text-xs font-bold text-slate-900 dark:text-zinc-100">
-                        {ficheData.deliveryBarcode}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => window.print()}
-                        className="ml-1 p-1 rounded bg-slate-900 text-white hover:bg-slate-800"
-                        title="Imprimer"
-                      >
-                        <Printer className="w-3 h-3" />
-                      </button>
-                    </div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {/* Code-barres de livraison officiel = Code Client AP */}
+                    <BarcodeSvg
+                      value={ficheData.apClientNumber || ficheData.deliveryBarcode || ""}
+                      companyName={client.company}
+                      address={client.address || ""}
+                      city={client.city}
+                      sasCode={ficheData.sasAccessCode}
+                      deliverySchedule={ficheData.deliverySchedule}
+                    />
 
                     {isEditingLogistique ? (
                       <div className="flex items-center gap-2">
@@ -5073,7 +5082,7 @@ export function ClientFullPage({
                       <span>Étape 11 : Mail d&apos;onboarding client</span>
                     </div>
                     <p className="text-[11px] text-slate-600 dark:text-zinc-400">
-                      Envoyer le N° Client AP ({ficheData.apClientNumber}) et le code-barres de livraison ({ficheData.deliveryBarcode}) à imprimer par le client.
+                      Envoyer le N° Client AP ({ficheData.apClientNumber}) avec son code-barres de livraison officiel à imprimer pour affichage au sas.
                     </p>
                     <button
                       type="button"
