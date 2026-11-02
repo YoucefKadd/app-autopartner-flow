@@ -170,24 +170,22 @@ export const MAP_TILES: Record<
   satellite: {
     name: "Satellite Aérien",
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attribution: '&copy; Esri & Maxar Earthstar',
+    attribution: '&copy; Esri, Maxar, Earthstar Geographics',
     maxZoom: 19,
     icon: "🛰️",
   },
   dark: {
     name: "Mode Sombre",
-    url: "https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png",
-    subdomains: "abcd",
-    attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
-    maxZoom: 19,
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    attribution: '&copy; Esri, HERE, Garmin, (c) OpenStreetMap',
+    maxZoom: 16,
     icon: "🌙",
   },
   light: {
     name: "Clair Minimal",
-    url: "https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png",
-    subdomains: "abcd",
-    attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
-    maxZoom: 19,
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+    attribution: '&copy; Esri, HERE, Garmin, (c) OpenStreetMap',
+    maxZoom: 16,
     icon: "☀️",
   },
 };
@@ -261,7 +259,8 @@ export function ClientsMapView({
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("ALL");
 
-  // Tournée Terrain Builder state
+  // Mobile view mode: "map" (carte plein écran) | "list" (liste des clients scrollable) | "tournee" (itinéraire)
+  const [mobileView, setMobileView] = useState<"map" | "list" | "tournee">("map");
   const [sidebarTab, setSidebarTab] = useState<"stores" | "tournee">("stores");
   const [tourStopIds, setTourStopIds] = useState<string[]>(() => {
     if (typeof window !== "undefined") {
@@ -472,7 +471,7 @@ export function ClientsMapView({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isFullscreen]);
 
-  // Invalidate Leaflet size when height, sidebar or fullscreen changes
+  // Invalidate Leaflet size when height, sidebar, fullscreen or mobileView changes
   useEffect(() => {
     if (mapInstanceRef.current) {
       const timer = setTimeout(() => {
@@ -480,7 +479,7 @@ export function ClientsMapView({
       }, 200);
       return () => clearTimeout(timer);
     }
-  }, [mapHeight, isFullscreen, isSidebarOpen, mapStyle]);
+  }, [mapHeight, isFullscreen, isSidebarOpen, mapStyle, mobileView]);
 
   function toggleTourStop(clientId: string) {
     setTourStopIds((prev) => {
@@ -834,17 +833,18 @@ export function ClientsMapView({
 
   function handleFocusClient(client: ClientItem, lat: number, lng: number) {
     setSelectedClient(client);
+    setMobileView("map");
     if (mapInstanceRef.current) {
-      mapInstanceRef.current.flyTo([lat, lng], 13, { duration: 1.2 });
+      mapInstanceRef.current.flyTo([lat, lng], 14, { duration: 1.2 });
     }
   }
 
   // Height container class based on mapHeight state
   const heightClass = useMemo(() => {
     if (isFullscreen) return "h-full flex-1";
-    if (mapHeight === "compact") return "h-[500px]";
-    if (mapHeight === "maxi") return "h-[860px]";
-    return "h-[680px]";
+    if (mapHeight === "compact") return "h-[560px] sm:h-[500px]";
+    if (mapHeight === "maxi") return "h-[85vh] sm:h-[860px]";
+    return "h-[75vh] sm:h-[680px]";
   }, [mapHeight, isFullscreen]);
 
   return (
@@ -1062,26 +1062,85 @@ export function ClientsMapView({
         </div>
 
         {/* =========================================================================
+            MOBILE SEGMENTED CONTROLS (CARTE / LISTE / TOURNÉE)
+           ========================================================================= */}
+        <div className="flex lg:hidden items-center bg-slate-100 dark:bg-zinc-800/90 p-1 rounded-2xl border border-slate-200 dark:border-zinc-700 shadow-2xs">
+          <button
+            type="button"
+            onClick={() => {
+              setMobileView("map");
+              setTimeout(() => mapInstanceRef.current?.invalidateSize(), 150);
+            }}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+              mobileView === "map"
+                ? "bg-white dark:bg-zinc-900 text-[#d90416] shadow-2xs"
+                : "text-slate-600 dark:text-zinc-400"
+            }`}
+          >
+            <span>🗺️ Carte</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMobileView("list")}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+              mobileView === "list"
+                ? "bg-white dark:bg-zinc-900 text-slate-900 dark:text-white shadow-2xs"
+                : "text-slate-600 dark:text-zinc-400"
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5" />
+            <span>Clients ({filteredList.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMobileView("tournee")}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+              mobileView === "tournee"
+                ? "bg-[#d90416] text-white shadow-2xs"
+                : "text-slate-600 dark:text-zinc-400"
+            }`}
+          >
+            <Navigation className="w-3.5 h-3.5" />
+            <span>Tournée ({tourStopIds.length})</span>
+          </button>
+        </div>
+
+        {/* =========================================================================
             MAP + COLLAPSIBLE SIDEBAR CONTAINER
            ========================================================================= */}
         <div
           className={`flex flex-col lg:flex-row gap-0 ${heightClass} rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden shadow-xs relative`}
         >
           {/* MAP CANVAS CONTAINER */}
-          <div className="relative flex-1 h-full min-h-[400px]">
+          <div
+            className={`relative flex-1 h-full min-h-[400px] ${
+              mobileView !== "map" ? "hidden lg:block" : "block"
+            }`}
+          >
             <div ref={mapContainerRef} className="w-full h-full z-0" />
 
             {/* Floating Search & Status Select On Map */}
             <div className="absolute top-3.5 left-3.5 right-3.5 sm:right-auto z-[1000] flex flex-wrap items-center gap-2 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md p-2 rounded-2xl border border-slate-200/90 dark:border-zinc-800 shadow-md">
-              <div className="relative w-44 sm:w-52">
+              <div className="relative w-full sm:w-52">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Rechercher client, code AP..."
-                  className="w-full pl-8 pr-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50/70 dark:bg-zinc-950 text-xs text-slate-800 dark:text-zinc-200 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416]"
+                  className="w-full pl-8 pr-7 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50/70 dark:bg-zinc-950 text-xs text-slate-800 dark:text-zinc-200 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416]"
                 />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
 
               {/* Filter by Client Status */}
@@ -1098,10 +1157,25 @@ export function ClientsMapView({
                 ))}
               </select>
 
+              {/* Button to open list on mobile or toggle sidebar on desktop */}
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileView("list");
+                  setIsSidebarOpen(true);
+                  setSidebarTab("stores");
+                }}
+                className="lg:hidden inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-700 dark:text-zinc-300"
+              >
+                <Building2 className="w-3.5 h-3.5 text-[#d90416]" />
+                <span>Liste ({filteredList.length})</span>
+              </button>
+
               {/* Shortcut to Tournée tab */}
               <button
                 type="button"
                 onClick={() => {
+                  setMobileView("tournee");
                   setIsSidebarOpen(true);
                   setSidebarTab("tournee");
                 }}
@@ -1115,7 +1189,7 @@ export function ClientsMapView({
                 <span>Tournée ({tourStopIds.length})</span>
               </button>
 
-              <span className="text-[11px] font-bold text-slate-600 dark:text-zinc-300 px-1">
+              <span className="text-[11px] font-bold text-slate-600 dark:text-zinc-300 px-1 hidden sm:inline">
                 {filteredList.length} affiché(s)
               </span>
             </div>
@@ -1179,14 +1253,21 @@ export function ClientsMapView({
               COLLAPSIBLE RIGHT SIDEBAR : DUAL TABS (MAGASINS vs TOURNÉE TERRAIN)
              ========================================================================= */}
           {isSidebarOpen && (
-            <div className="w-full lg:w-96 flex flex-col border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-950/40 shrink-0">
+            <div
+              className={`w-full lg:w-96 flex flex-col border-t lg:border-t-0 lg:border-l border-slate-200 dark:border-zinc-800 bg-slate-50/50 dark:bg-zinc-950/40 shrink-0 ${
+                mobileView === "map" ? "hidden lg:flex" : "flex flex-1 h-full min-h-0"
+              }`}
+            >
               {/* Navigation Tabs Header */}
               <div className="flex items-center border-b border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-1.5 gap-1 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setSidebarTab("stores")}
+                  onClick={() => {
+                    setSidebarTab("stores");
+                    setMobileView("list");
+                  }}
                   className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    sidebarTab === "stores"
+                    (sidebarTab === "stores" && mobileView !== "tournee") || mobileView === "list"
                       ? "bg-slate-100 dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 shadow-2xs"
                       : "text-slate-500 hover:text-slate-800 dark:text-zinc-400"
                   }`}
@@ -1197,9 +1278,12 @@ export function ClientsMapView({
 
                 <button
                   type="button"
-                  onClick={() => setSidebarTab("tournee")}
+                  onClick={() => {
+                    setSidebarTab("tournee");
+                    setMobileView("tournee");
+                  }}
                   className={`flex-1 py-1.5 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
-                    sidebarTab === "tournee"
+                    sidebarTab === "tournee" || mobileView === "tournee"
                       ? "bg-[#d90416] text-white shadow-2xs"
                       : "text-slate-500 hover:text-slate-800 dark:text-zinc-400"
                   }`}
@@ -1209,7 +1293,7 @@ export function ClientsMapView({
                   {tourStopIds.length > 0 && (
                     <span
                       className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-                        sidebarTab === "tournee" ? "bg-white text-[#d90416]" : "bg-[#d90416] text-white"
+                        sidebarTab === "tournee" || mobileView === "tournee" ? "bg-white text-[#d90416]" : "bg-[#d90416] text-white"
                       }`}
                     >
                       {tourStopIds.length}
@@ -1219,8 +1303,77 @@ export function ClientsMapView({
               </div>
 
               {/* TAB 1: STORES DIRECTORY */}
-              {sidebarTab === "stores" && (
-                <div className="flex-1 flex flex-col overflow-hidden">
+              {((sidebarTab === "stores" && mobileView !== "tournee") || mobileView === "list") && (
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+                  {/* Mobile Search and Filter Inside List */}
+                  <div className="p-2.5 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 lg:hidden space-y-2 shrink-0">
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Rechercher client, ville, CP..."
+                        className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 text-xs text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416]"
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery("")}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 p-1"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                      <button
+                        type="button"
+                        onClick={() => setQuickFilter("ALL")}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 ${
+                          quickFilter === "ALL"
+                            ? "bg-slate-900 text-white dark:bg-white dark:text-zinc-900"
+                            : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-300"
+                        }`}
+                      >
+                        Tous ({geocodedClients.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setQuickFilter("ACTIVE_VIP")}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 ${
+                          quickFilter === "ACTIVE_VIP"
+                            ? "bg-emerald-600 text-white"
+                            : "bg-slate-100 dark:bg-zinc-800 text-emerald-700 dark:text-emerald-400"
+                        }`}
+                      >
+                        Actifs &amp; VIP
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setQuickFilter("PROSPECTS")}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 ${
+                          quickFilter === "PROSPECTS"
+                            ? "bg-purple-600 text-white"
+                            : "bg-slate-100 dark:bg-zinc-800 text-purple-700 dark:text-purple-400"
+                        }`}
+                      >
+                        Prospects
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setQuickFilter("OVERDUE")}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 ${
+                          quickFilter === "OVERDUE"
+                            ? "bg-red-600 text-white"
+                            : "bg-slate-100 dark:bg-zinc-800 text-red-700 dark:text-red-400"
+                        }`}
+                      >
+                        Retard
+                      </button>
+                    </div>
+                  </div>
                   {/* Selected Store Card (if any) */}
                   {selectedClient ? (
                     <div className="p-4 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 shadow-xs shrink-0">
@@ -1401,8 +1554,8 @@ export function ClientsMapView({
               )}
 
               {/* TAB 2: TOURNÉE TERRAIN BUILDER */}
-              {sidebarTab === "tournee" && (
-                <div className="flex-1 flex flex-col overflow-hidden">
+              {(sidebarTab === "tournee" || mobileView === "tournee") && (
+                <div className="flex-1 flex flex-col overflow-hidden min-h-0">
                   {/* Tour summary bar */}
                   <div className="p-3 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between text-xs shrink-0">
                     <div>
