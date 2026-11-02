@@ -157,12 +157,13 @@ export type MapStyleType = "osm" | "satellite" | "dark" | "light";
 
 export const MAP_TILES: Record<
   MapStyleType,
-  { name: string; url: string; attribution: string; maxZoom: number; icon: string }
+  { name: string; url: string; subdomains?: string; attribution: string; maxZoom: number; icon: string }
 > = {
   osm: {
     name: "Plan Routier",
     url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: '&copy; OpenStreetMap contributors',
+    subdomains: "abc",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
     icon: "🗺️",
   },
@@ -175,15 +176,17 @@ export const MAP_TILES: Record<
   },
   dark: {
     name: "Mode Sombre",
-    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-    attribution: '&copy; CARTO',
+    url: "https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png",
+    subdomains: "abcd",
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
     maxZoom: 19,
     icon: "🌙",
   },
   light: {
     name: "Clair Minimal",
-    url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-    attribution: '&copy; CARTO',
+    url: "https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png",
+    subdomains: "abcd",
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
     maxZoom: 19,
     icon: "☀️",
   },
@@ -589,6 +592,7 @@ export function ClientsMapView({
       // Add selected Tile Layer
       const tileCfg = MAP_TILES[mapStyle] || MAP_TILES.osm;
       tileLayerRef.current = L.tileLayer(tileCfg.url, {
+        subdomains: tileCfg.subdomains || "abc",
         attribution: tileCfg.attribution,
         maxZoom: tileCfg.maxZoom,
       }).addTo(map);
@@ -618,6 +622,7 @@ export function ClientsMapView({
       }
       const tileCfg = MAP_TILES[mapStyle] || MAP_TILES.osm;
       tileLayerRef.current = L.default.tileLayer(tileCfg.url, {
+        subdomains: tileCfg.subdomains || "abc",
         attribution: tileCfg.attribution,
         maxZoom: tileCfg.maxZoom,
       }).addTo(mapInstanceRef.current);
