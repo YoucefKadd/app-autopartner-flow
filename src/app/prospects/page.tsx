@@ -42,134 +42,32 @@ import { useWorkspace } from "@/components/AppShell";
 import { ClientItem, ClientStatus, formatRelativeDate } from "@/types/kam";
 import { AddressAutocomplete, AddressSuggestion } from "@/components/AddressAutocomplete";
 import { AddVisitModal } from "@/components/AddVisitModal";
+import { ProspectsMapView } from "@/components/ProspectsMapView";
+import { Map as MapIcon, SlidersHorizontal } from "lucide-react";
 
-/**
- * Trade-adapted pipeline stages for wholesale automotive spare parts distribution (Autopartner)
- * Replaces generic SaaS columns with the real commercial representative (KAM) sales cycle:
- * 1. À démarcher (Atelier identifié / Nouveau sur le secteur)
- * 2. 1ère Visite (Visite de découverte effectuée, catalogue AP & portail présentés)
- * 3. En Test (Essai tournées de livraison, devis pièces, conditions tarifaires)
- * 4. Prêt Code AP (Dossier administratif Kbis/RIB complet, prêt pour création compte AP)
- * 5. Sans suite (Optionnel / Masquable pour garder le Kanban épuré)
- */
-export type ProspectStage =
-  | "A_DEMARCHER"
-  | "EN_ECHANGE"
-  | "EN_TEST"
-  | "PRET_CODE_AP"
-  | "SANS_SUITE";
-
-interface ProspectStageConfig {
-  value: ProspectStage;
-  label: string;
-  shortLabel: string;
-  subtitle: string;
-  badgeClass: string;
-  dotClass: string;
-  headerBorder: string;
-  columnBg: string;
-}
-
-// 4 Core Active Stages (Spacious 4-column layout)
-const CORE_PROSPECT_STAGES: ProspectStageConfig[] = [
-  {
-    value: "A_DEMARCHER",
-    label: "1. Atelier à démarcher",
-    shortLabel: "1. À démarcher",
-    subtitle: "Atelier identifié sur le secteur, potentiel à qualifier",
-    badgeClass: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
-    dotClass: "bg-blue-500",
-    headerBorder: "border-blue-400",
-    columnBg: "bg-blue-50/20 dark:bg-blue-950/15",
-  },
-  {
-    value: "EN_ECHANGE",
-    label: "2. Visite & Découverte atelier",
-    shortLabel: "2. Visité / En échange",
-    subtitle: "Rencontre gérant ou chef d'atelier, catalogue AP présenté",
-    badgeClass: "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30",
-    dotClass: "bg-amber-500",
-    headerBorder: "border-amber-400",
-    columnBg: "bg-amber-50/20 dark:bg-amber-950/15",
-  },
-  {
-    value: "EN_TEST",
-    label: "3. En Test & Conditions tarifaires",
-    shortLabel: "3. En Test / Remises",
-    subtitle: "Test des tournées livraison, devis pièces & comparaison remises",
-    badgeClass: "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30",
-    dotClass: "bg-purple-500",
-    headerBorder: "border-purple-400",
-    columnBg: "bg-purple-50/20 dark:bg-purple-950/15",
-  },
-  {
-    value: "PRET_CODE_AP",
-    label: "4. Prêt pour Ouverture Compte AP",
-    shortLabel: "4. Prêt Code AP",
-    subtitle: "Dossier Kbis/RIB complet, prêt pour attribution Code AP & Sas de nuit",
-    badgeClass: "bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30",
-    dotClass: "bg-emerald-500",
-    headerBorder: "border-emerald-500",
-    columnBg: "bg-emerald-50/30 dark:bg-emerald-950/20",
-  },
-];
-
-// Collapsible 5th Stage (Closed / On hold)
-const SANS_SUITE_STAGE: ProspectStageConfig = {
-  value: "SANS_SUITE",
-  label: "Sans suite / En veille",
-  shortLabel: "Sans suite",
-  subtitle: "Non retenu, conditions non réunies ou en veille",
-  badgeClass: "bg-zinc-500/15 text-zinc-700 dark:text-zinc-400 border-zinc-500/25",
-  dotClass: "bg-zinc-400",
-  headerBorder: "border-zinc-400",
-  columnBg: "bg-zinc-100/30 dark:bg-zinc-900/30",
-};
-
-// All stages combined for dropdowns and filters
-const ALL_PROSPECT_STAGES = [...CORE_PROSPECT_STAGES, SANS_SUITE_STAGE];
-
-// Normalization function to ensure backwards compatibility with previous stage keys
-function normalizeProspectStage(raw?: string | null): ProspectStage {
-  if (!raw) return "A_DEMARCHER";
-  if (raw === "NOUVEAU" || raw === "A_DEMARCHER") return "A_DEMARCHER";
-  if (raw === "CONTACTE" || raw === "EN_ECHANGE") return "EN_ECHANGE";
-  if (raw === "PROPOSITION" || raw === "NEGOCIATION" || raw === "EN_TEST") return "EN_TEST";
-  if (raw === "FINALISATION" || raw === "PRET_CODE_AP") return "PRET_CODE_AP";
-  if (raw === "PERDU" || raw === "SANS_SUITE") return "SANS_SUITE";
-  return "A_DEMARCHER";
-}
-
-// Automotive workshop types (Garages, carrosseries, etc.)
-const WORKSHOP_ACTIVITY_TYPES = [
-  { value: "GARAGE_MRA", label: "Garage MRA (Mécanique)", icon: "🔧" },
-  { value: "CARROSSERIE", label: "Carrosserie & Peinture", icon: "🎨" },
-  { value: "CENTRE_AUTO", label: "Centre Auto / Pneumatique", icon: "🛞" },
-  { value: "CONCESSION", label: "Concession / Agent de Marque", icon: "🏢" },
-  { value: "FLOTTE", label: "Flotte / Transporteur", icon: "🚚" },
-  { value: "REVENDEUR", label: "Revendeur Pièces Détachées", icon: "📦" },
-];
-
-// Main competitors in automotive parts wholesale
-const MAIN_COMPETITORS = [
-  "Alliance Automotive Group (Groupauto / Precisium)",
-  "Autodistribution (AD)",
-  "LKQ / Rhiag",
-  "Doyen Auto (API)",
-  "Flauraud",
-  "Autre distributeur local",
-];
+import {
+  ProspectStage,
+  ProspectStageConfig,
+  CORE_PROSPECT_STAGES,
+  SANS_SUITE_STAGE,
+  ALL_PROSPECT_STAGES,
+  PROSPECT_STAGES,
+  normalizeProspectStage,
+  PROSPECT_ACTIVITY_TYPES,
+  MAIN_COMPETITORS,
+} from "@/types/prospects";
 
 export default function ProspectsPipelinePage() {
   const router = useRouter();
   const { clients, users, activeUser, refreshWorkspace, openQuickNote, openQuickTask } =
     useWorkspace();
 
-  // View state: "kanban" (default pipeline) | "table"
-  const [viewMode, setViewMode] = useState<"kanban" | "table">("kanban");
+  // View state: "kanban" (default pipeline) | "table" | "map"
+  const [viewMode, setViewMode] = useState<"kanban" | "table" | "map">("kanban");
   const [searchQuery, setSearchQuery] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("ALL");
   const [cityFilter, setCityFilter] = useState<string>("ALL");
+  const [activityFilter, setActivityFilter] = useState<string>("ALL");
   const [showSansSuite, setShowSansSuite] = useState(false);
 
   // Track stages locally per prospect: clientId -> ProspectStage
@@ -198,7 +96,7 @@ export default function ProspectsPipelinePage() {
   // New Prospect Modal State
   const [isAddProspectOpen, setIsAddProspectOpen] = useState(false);
   const [newCompany, setNewCompany] = useState("");
-  const [newActivity, setNewActivity] = useState("GARAGE_MRA");
+  const [newActivity, setNewActivity] = useState("REVENDEUR_PIECES");
   const [newContact, setNewContact] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -208,7 +106,6 @@ export default function ProspectsPipelinePage() {
   const [newPotential, setNewPotential] = useState("30000");
   const [newStage, setNewStage] = useState<ProspectStage>("A_DEMARCHER");
   const [newSupplier, setNewSupplier] = useState(MAIN_COMPETITORS[0]);
-  const [newSasAvailable, setNewSasAvailable] = useState("A_INSTALLER");
   const [newNotes, setNewNotes] = useState("");
   const [isAddingProspect, setIsAddingProspect] = useState(false);
 
@@ -237,8 +134,9 @@ export default function ProspectsPipelinePage() {
           loadedPots[c.id] = 25000; // default estimated potential
         }
 
+        // 4 Core trade defaults if empty
         const storedAct = localStorage.getItem(`apflow_prospect_activity_${c.id}`);
-        if (storedAct) loadedActs[c.id] = storedAct;
+        loadedActs[c.id] = storedAct || "REVENDEUR_PIECES";
 
         const storedSup = localStorage.getItem(`apflow_prospect_supplier_${c.id}`);
         if (storedSup) loadedSups[c.id] = storedSup;
@@ -260,8 +158,10 @@ export default function ProspectsPipelinePage() {
   const filteredProspects = useMemo(() => {
     return prospectClients.filter((c) => {
       const stage = prospectStages[c.id] || "A_DEMARCHER";
+      const act = prospectActivities[c.id] || "REVENDEUR_PIECES";
       if (stageFilter !== "ALL" && stage !== stageFilter) return false;
       if (cityFilter !== "ALL" && c.city !== cityFilter) return false;
+      if (activityFilter !== "ALL" && act !== activityFilter) return false;
 
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase();
@@ -274,7 +174,7 @@ export default function ProspectsPipelinePage() {
 
       return true;
     });
-  }, [prospectClients, prospectStages, stageFilter, cityFilter, searchQuery]);
+  }, [prospectClients, prospectStages, prospectActivities, stageFilter, cityFilter, activityFilter, searchQuery]);
 
   // City options for filtering
   const cities = useMemo(() => {
@@ -405,17 +305,17 @@ export default function ProspectsPipelinePage() {
             priority: true,
           },
           {
-            title: `Installer affiche code-barres & clé SAS de nuit (${convertingProspect.company})`,
-            category: "TECHNIQUE",
+            title: `Paramétrer conditions tarifaires & remises pièces (${convertingProspect.company})`,
+            category: "COMMERCIAL",
             priority: true,
           },
           {
-            title: `Paramétrer tournée de livraison & seuils de franco (${convertingProspect.company})`,
+            title: `Paramétrer tournée de livraison & franco (${convertingProspect.company})`,
             category: "LOGISTIQUE",
             priority: true,
           },
           {
-            title: `Planifier 1ère commande d'approvisionnement stock (${convertingProspect.company})`,
+            title: `Planifier 1ère commande d'approvisionnement (${convertingProspect.company})`,
             category: "COMMERCIAL",
             priority: false,
           },
@@ -494,7 +394,6 @@ export default function ProspectsPipelinePage() {
         localStorage.setItem(`apflow_prospect_stage_${created.id}`, newStage);
         localStorage.setItem(`apflow_prospect_activity_${created.id}`, newActivity);
         localStorage.setItem(`apflow_prospect_supplier_${created.id}`, newSupplier);
-        localStorage.setItem(`apflow_prospect_sas_${created.id}`, newSasAvailable);
 
         setProspectPotentials((prev) => ({ ...prev, [created.id]: potNum }));
         setProspectStages((prev) => ({ ...prev, [created.id]: newStage }));
@@ -508,8 +407,8 @@ export default function ProspectsPipelinePage() {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                title: `Prospection atelier : ${newCompany.trim()}`,
-                content: `Type : ${newActivity} | Fournisseur actuel : ${newSupplier} | Sas de nuit : ${newSasAvailable}\n\n${newNotes.trim()}`,
+                title: `Prospection client pièces : ${newCompany.trim()}`,
+                content: `Type : ${newActivity} | Fournisseur actuel : ${newSupplier}\n\n${newNotes.trim()}`,
                 category: "PROSPECTION",
                 clientId: created.id,
                 kamId: targetKamId,
@@ -521,7 +420,7 @@ export default function ProspectsPipelinePage() {
 
       // Reset form
       setNewCompany("");
-      setNewActivity("GARAGE_MRA");
+      setNewActivity("REVENDEUR_PIECES");
       setNewContact("");
       setNewPhone("");
       setNewEmail("");
@@ -531,7 +430,6 @@ export default function ProspectsPipelinePage() {
       setNewPotential("30000");
       setNewStage("A_DEMARCHER");
       setNewSupplier(MAIN_COMPETITORS[0]);
-      setNewSasAvailable("A_INSTALLER");
       setNewNotes("");
       setIsAddProspectOpen(false);
 
@@ -563,20 +461,20 @@ export default function ProspectsPipelinePage() {
             </span>
             <div>
               <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-zinc-100 flex items-center gap-2">
-                Pipeline &amp; Suivi des Prospects
+                Prospection &amp; Développement Commercial
                 <span className="text-xs px-2.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-mono font-bold">
                   {prospectClients.length} prospects
                 </span>
               </h1>
               <p className="text-xs text-slate-500 dark:text-zinc-400">
-                Cycle commercial adapté au métier de la pièce auto : qualification atelier, test des tournées et attribution Code Client AP.
+                Suivi dédié aux revendeurs de pièces détachées, jobbers et distributeurs boutiques : Kanban, tableau complet et cartographie géographique (ville, département, région).
               </p>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          {/* View Mode Toggle */}
+          {/* View Mode Toggle: Kanban | Tableau | Carte */}
           <div className="inline-flex items-center bg-white dark:bg-zinc-900 p-0.5 rounded-xl border border-slate-200/90 dark:border-zinc-800 shadow-2xs">
             <button
               type="button"
@@ -600,7 +498,19 @@ export default function ProspectsPipelinePage() {
               }`}
             >
               <TableIcon className="w-3.5 h-3.5" />
-              <span>Tableau Commercial</span>
+              <span>Tableau Liste</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("map")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === "map"
+                  ? "bg-purple-600 text-white shadow-2xs"
+                  : "text-slate-600 dark:text-zinc-400 hover:text-slate-900"
+              }`}
+            >
+              <MapIcon className="w-3.5 h-3.5" />
+              <span>Carte Territoires</span>
             </button>
           </div>
 
@@ -693,6 +603,20 @@ export default function ProspectsPipelinePage() {
             {ALL_PROSPECT_STAGES.map((st) => (
               <option key={st.value} value={st.value}>
                 {st.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Activity / Type Filter */}
+          <select
+            value={activityFilter}
+            onChange={(e) => setActivityFilter(e.target.value)}
+            className="rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-purple-600 cursor-pointer"
+          >
+            <option value="ALL">Tous les types de prospects</option>
+            {PROSPECT_ACTIVITY_TYPES.map((a) => (
+              <option key={a.value} value={a.value}>
+                {a.icon} {a.label}
               </option>
             ))}
           </select>
@@ -812,10 +736,10 @@ export default function ProspectsPipelinePage() {
                     colProspects.map((prospect) => {
                       const potential = prospectPotentials[prospect.id] || 25000;
                       const isEditingPot = editingPotentialId === prospect.id;
-                      const actCode = prospectActivities[prospect.id] || "GARAGE_MRA";
+                      const actCode = prospectActivities[prospect.id] || "REVENDEUR_PIECES";
                       const actCfg =
-                        WORKSHOP_ACTIVITY_TYPES.find((a) => a.value === actCode) ||
-                        WORKSHOP_ACTIVITY_TYPES[0];
+                        PROSPECT_ACTIVITY_TYPES.find((a) => a.value === actCode) ||
+                        PROSPECT_ACTIVITY_TYPES[0];
                       const supplier = prospectSuppliers[prospect.id];
 
                       return (
@@ -1001,7 +925,7 @@ export default function ProspectsPipelinePage() {
       )}
 
       {/* =====================================================================
-          VIEW 2: COMMERCIAL TABLE VIEW (TABLEAU DÉTAILLÉ)
+          VIEW 2: COMMERCIAL TABLE VIEW (TABLEAU COMPLET STYLE CLIENTS)
          ===================================================================== */}
       {viewMode === "table" && (
         <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xs overflow-hidden">
@@ -1009,10 +933,12 @@ export default function ProspectsPipelinePage() {
             <table className="w-full text-left text-xs text-slate-700 dark:text-zinc-300">
               <thead className="bg-slate-50 dark:bg-zinc-950/70 border-b border-slate-200 dark:border-zinc-800 text-[11px] font-bold uppercase text-slate-400">
                 <tr>
-                  <th className="py-3 px-4">Atelier &amp; Enseigne</th>
-                  <th className="py-3 px-4">Activité</th>
+                  <th className="py-3 px-4">Enseigne / Prospect</th>
+                  <th className="py-3 px-4">Activité Métier</th>
                   <th className="py-3 px-4">Contact</th>
-                  <th className="py-3 px-4">Ville</th>
+                  <th className="py-3 px-4">E-mail</th>
+                  <th className="py-3 px-4">Téléphone</th>
+                  <th className="py-3 px-4">Ville &amp; CP</th>
                   <th className="py-3 px-4">Étape Pipeline</th>
                   <th className="py-3 px-4">Potentiel Estimé</th>
                   <th className="py-3 px-4">Fournisseur Actuel</th>
@@ -1022,7 +948,7 @@ export default function ProspectsPipelinePage() {
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
                 {filteredProspects.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="py-12 text-center text-slate-400">
+                    <td colSpan={10} className="py-12 text-center text-slate-400">
                       Aucun prospect ne correspond aux critères
                     </td>
                   </tr>
@@ -1033,10 +959,10 @@ export default function ProspectsPipelinePage() {
                       ALL_PROSPECT_STAGES.find((s) => s.value === currentStage) ||
                       ALL_PROSPECT_STAGES[0];
                     const potential = prospectPotentials[prospect.id] || 25000;
-                    const actCode = prospectActivities[prospect.id] || "GARAGE_MRA";
+                    const actCode = prospectActivities[prospect.id] || "REVENDEUR_PIECES";
                     const actCfg =
-                      WORKSHOP_ACTIVITY_TYPES.find((a) => a.value === actCode) ||
-                      WORKSHOP_ACTIVITY_TYPES[0];
+                      PROSPECT_ACTIVITY_TYPES.find((a) => a.value === actCode) ||
+                      PROSPECT_ACTIVITY_TYPES[0];
                     const supplier = prospectSuppliers[prospect.id] || "Non renseigné";
 
                     return (
@@ -1054,7 +980,7 @@ export default function ProspectsPipelinePage() {
                             <span>{prospect.company}</span>
                           </Link>
                           {prospect.address && (
-                            <div className="text-[11px] text-slate-400 font-normal truncate mt-0.5">
+                            <div className="text-[11px] text-slate-400 font-normal truncate mt-0.5 max-w-[200px]">
                               {prospect.address}
                             </div>
                           )}
@@ -1062,34 +988,53 @@ export default function ProspectsPipelinePage() {
 
                         {/* Activity */}
                         <td className="py-3 px-4 whitespace-nowrap">
-                          <span className="text-[11px] font-semibold text-slate-700 dark:text-zinc-300">
-                            {actCfg.icon} {actCfg.label.split(" ")[0]}
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-[11px] font-semibold text-slate-700 dark:text-zinc-300">
+                            <span>{actCfg.icon}</span>
+                            <span>{actCfg.label}</span>
                           </span>
                         </td>
 
                         {/* Contact */}
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 whitespace-nowrap">
                           <div className="font-semibold text-slate-800 dark:text-zinc-200">
                             {prospect.contactName || "—"}
                           </div>
-                          <div className="text-[11px] text-slate-400 flex items-center gap-2 mt-0.5">
-                            {prospect.phone && (
-                              <a href={`tel:${prospect.phone}`} className="hover:text-emerald-600">
-                                {prospect.phone}
-                              </a>
-                            )}
-                            {prospect.email && (
-                              <a href={`mailto:${prospect.email}`} className="hover:text-blue-600 truncate max-w-[140px]">
-                                {prospect.email}
-                              </a>
-                            )}
-                          </div>
                         </td>
 
-                        {/* City */}
+                        {/* Email */}
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          {prospect.email ? (
+                            <a
+                              href={`mailto:${prospect.email}`}
+                              className="text-blue-600 hover:underline flex items-center gap-1"
+                            >
+                              <Mail className="w-3 h-3 shrink-0" />
+                              <span className="truncate max-w-[160px]">{prospect.email}</span>
+                            </a>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+
+                        {/* Phone */}
+                        <td className="py-3 px-4 whitespace-nowrap font-mono text-[11px]">
+                          {prospect.phone && prospect.phone !== "NC" ? (
+                            <a
+                              href={`tel:${prospect.phone}`}
+                              className="text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                            >
+                              <Phone className="w-3 h-3 shrink-0" />
+                              <span>{prospect.phone}</span>
+                            </a>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+
+                        {/* City & CP */}
                         <td className="py-3 px-4 whitespace-nowrap">
                           <span className="font-medium text-slate-700 dark:text-zinc-300">
-                            📍 {prospect.city}
+                            📍 {prospect.postalCode ? `${prospect.postalCode} ` : ""}{prospect.city}
                           </span>
                         </td>
 
@@ -1163,6 +1108,26 @@ export default function ProspectsPipelinePage() {
       )}
 
       {/* =====================================================================
+          VIEW 3: GEOGRAPHICAL MAP VIEW (VILLE, DÉPARTEMENT, RÉGION)
+         ===================================================================== */}
+      {viewMode === "map" && (
+        <ProspectsMapView
+          prospects={prospectClients}
+          prospectStages={prospectStages}
+          prospectPotentials={prospectPotentials}
+          prospectActivities={prospectActivities}
+          prospectSuppliers={prospectSuppliers}
+          onSelectProspect={(p) => router.push(`/clients/${p.id}`)}
+          onConvertProspect={openConversionModal}
+          onAddVisitForProspect={(id) => {
+            setAddVisitClientId(id);
+            setIsAddVisitModalOpen(true);
+          }}
+          onOpenNote={(id) => openQuickNote({ clientId: id })}
+        />
+      )}
+
+      {/* =====================================================================
           MODAL 1: CONVERT PROSPECT TO CLIENT (TRANSFORMER EN CLIENT)
          ===================================================================== */}
       {convertingProspect && (
@@ -1232,7 +1197,7 @@ export default function ProspectsPipelinePage() {
                     className="w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 px-3.5 py-2.5 text-xs font-mono font-bold text-slate-900 dark:text-zinc-100 focus:outline-none focus:border-emerald-600"
                   />
                   <p className="text-[11px] text-slate-400">
-                    Ce numéro sera immédiatement synchronisé avec le code-barres de livraison pour le sas de nuit du client.
+                    Ce numéro sera immédiatement enregistré comme Code Client AP et synchronisé avec le code-barres de livraison.
                   </p>
                 </div>
 
@@ -1295,7 +1260,7 @@ export default function ProspectsPipelinePage() {
                     </span>
                   </label>
                   <p className="text-[11px] text-slate-400 pl-5">
-                    Créera automatiquement les tâches : Collecte Kbis/RIB, installation affiche code-barres SAS et paramétrage tournée de livraison.
+                    Créera automatiquement les tâches : Collecte Kbis/RIB, paramétrage remises tarifaires et tournée de livraison.
                   </p>
                 </div>
 
@@ -1385,7 +1350,7 @@ export default function ProspectsPipelinePage() {
                     onChange={(e) => setNewActivity(e.target.value)}
                     className="w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-purple-600"
                   >
-                    {WORKSHOP_ACTIVITY_TYPES.map((a) => (
+                    {PROSPECT_ACTIVITY_TYPES.map((a) => (
                       <option key={a.value} value={a.value}>
                         {a.icon} {a.label}
                       </option>
@@ -1394,17 +1359,29 @@ export default function ProspectsPipelinePage() {
                 </div>
               </div>
 
-              {/* Contact Person & Phone */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Contact Person, Phone & Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <label className="font-bold text-slate-700 dark:text-zinc-300">
-                    Contact (Gérant / Chef d'atelier)
+                    Contact (Gérant / Acheteur)
                   </label>
                   <input
                     type="text"
                     value={newContact}
                     onChange={(e) => setNewContact(e.target.value)}
                     placeholder="Ex: M. Dupont"
+                    className="w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 px-3 py-2 text-xs text-slate-900 dark:text-zinc-100 focus:outline-none focus:border-purple-600"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="font-bold text-slate-700 dark:text-zinc-300">
+                    E-mail commercial
+                  </label>
+                  <input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="Ex: contact@pieces-pro.fr"
                     className="w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 px-3 py-2 text-xs text-slate-900 dark:text-zinc-100 focus:outline-none focus:border-purple-600"
                   />
                 </div>
@@ -1499,38 +1476,22 @@ export default function ProspectsPipelinePage() {
                 </div>
               </div>
 
-              {/* Competitor & Sas */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 dark:text-zinc-300">
-                    Fournisseur Principal Actuel
-                  </label>
-                  <select
-                    value={newSupplier}
-                    onChange={(e) => setNewSupplier(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 px-3 py-2 text-xs text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-purple-600"
-                  >
-                    {MAIN_COMPETITORS.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700 dark:text-zinc-300">
-                    Accès Sas de nuit
-                  </label>
-                  <select
-                    value={newSasAvailable}
-                    onChange={(e) => setNewSasAvailable(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 px-3 py-2 text-xs text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-purple-600"
-                  >
-                    <option value="DISPONIBLE">Sas disponible</option>
-                    <option value="A_INSTALLER">Sas à installer / convenir</option>
-                    <option value="NON">Livraison de jour uniquement</option>
-                  </select>
-                </div>
+              {/* Competitor / Distributeur actuel */}
+              <div className="space-y-1">
+                <label className="font-bold text-slate-700 dark:text-zinc-300">
+                  Fournisseur / Distributeur Principal Actuel
+                </label>
+                <select
+                  value={newSupplier}
+                  onChange={(e) => setNewSupplier(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 px-3 py-2 text-xs text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-purple-600"
+                >
+                  {MAIN_COMPETITORS.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Note */}
