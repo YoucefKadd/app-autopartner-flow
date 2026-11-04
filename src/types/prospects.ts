@@ -106,3 +106,39 @@ export const MAIN_COMPETITORS = [
   "Flauraud",
   "Autre distributeur local",
 ];
+
+export interface ProspectColumnConfig {
+  id: string;
+  label: string;
+  defaultVisible: boolean;
+  required?: boolean;
+}
+
+export const AVAILABLE_PROSPECT_COLUMNS: ProspectColumnConfig[] = [
+  { id: "company", label: "Enseigne / Nom Prospect", defaultVisible: true, required: true },
+  { id: "activity", label: "Activité Métier", defaultVisible: true },
+  { id: "contactName", label: "Contact / Interlocuteur", defaultVisible: true },
+  { id: "email", label: "E-mail Commercial", defaultVisible: true },
+  { id: "phone", label: "Téléphone", defaultVisible: true },
+  { id: "city", label: "Ville", defaultVisible: true },
+  { id: "postalCode", label: "Code Postal", defaultVisible: true },
+  { id: "stage", label: "Étape Pipeline", defaultVisible: true },
+  { id: "potential", label: "Potentiel Estimé", defaultVisible: true },
+  { id: "supplier", label: "Fournisseur Actuel", defaultVisible: true },
+  { id: "address", label: "Adresse Postale", defaultVisible: false },
+  { id: "actions", label: "Actions Rapides", defaultVisible: true },
+];
+
+export type ProspectSortField =
+  | "company"
+  | "activity"
+  | "contactName"
+  | "email"
+  | "phone"
+  | "city"
+  | "postalCode"
+  | "stage"
+  | "potential"
+  | "supplier"
+  | "address";
+

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -43,7 +43,15 @@ import { ClientItem, ClientStatus, formatRelativeDate } from "@/types/kam";
 import { AddressAutocomplete, AddressSuggestion } from "@/components/AddressAutocomplete";
 import { AddVisitModal } from "@/components/AddVisitModal";
 import { ProspectsMapView } from "@/components/ProspectsMapView";
-import { Map as MapIcon, SlidersHorizontal } from "lucide-react";
+import {
+  Map as MapIcon,
+  SlidersHorizontal,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  AlignJustify,
+  LayoutList,
+} from "lucide-react";
 
 import {
   ProspectStage,
@@ -55,6 +63,8 @@ import {
   normalizeProspectStage,
   PROSPECT_ACTIVITY_TYPES,
   MAIN_COMPETITORS,
+  AVAILABLE_PROSPECT_COLUMNS,
+  ProspectSortField,
 } from "@/types/prospects";
 
 export default function ProspectsPipelinePage() {
@@ -64,11 +74,81 @@ export default function ProspectsPipelinePage() {
 
   // View state: "kanban" (default pipeline) | "table" | "map"
   const [viewMode, setViewMode] = useState<"kanban" | "table" | "map">("kanban");
+  // Table display density: "standard" | "compact"
+  const [tableDensity, setTableDensity] = useState<"standard" | "compact">("standard");
   const [searchQuery, setSearchQuery] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("ALL");
   const [cityFilter, setCityFilter] = useState<string>("ALL");
   const [activityFilter, setActivityFilter] = useState<string>("ALL");
   const [showSansSuite, setShowSansSuite] = useState(false);
+
+  // Sorting state for table view
+  const [sortField, setSortField] = useState<ProspectSortField | null>(null);
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
+
+  // Column visibility state (persisted in localStorage)
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("apflow_prospect_columns_v1");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      } catch {}
+    }
+    return [
+      "company",
+      "activity",
+      "contactName",
+      "email",
+      "phone",
+      "city",
+      "stage",
+      "potential",
+      "supplier",
+      "actions",
+    ];
+  });
+  const [columnMenuOpen, setColumnMenuOpen] = useState(false);
+  const columnMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (columnMenuRef.current && !columnMenuRef.current.contains(e.target as Node)) {
+        setColumnMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const isColumnVisible = (colId: string) => visibleColumns.includes(colId);
+
+  function toggleColumn(colId: string) {
+    setVisibleColumns((prev) => {
+      let next: string[];
+      if (prev.includes(colId)) {
+        if (colId === "company") return prev; // Cannot hide company name
+        next = prev.filter((id) => id !== colId);
+      } else {
+        next = [...prev, colId];
+      }
+      if (typeof window !== "undefined") {
+        localStorage.setItem("apflow_prospect_columns_v1", JSON.stringify(next));
+      }
+      return next;
+    });
+  }
+
+  function handleSort(field: ProspectSortField) {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  }
 
   // Track stages locally per prospect: clientId -> ProspectStage
   const [prospectStages, setProspectStages] = useState<Record<string, ProspectStage>>({});
@@ -175,6 +255,54 @@ export default function ProspectsPipelinePage() {
       return true;
     });
   }, [prospectClients, prospectStages, prospectActivities, stageFilter, cityFilter, activityFilter, searchQuery]);
+
+  // Sorted prospects for Table view
+  const sortedProspects = useMemo(() => {
+    if (!sortField) return filteredProspects;
+    return [...filteredProspects].sort((a, b) => {
+      let cmp = 0;
+      if (sortField === "company") {
+        cmp = a.company.localeCompare(b.company, "fr", { sensitivity: "base" });
+      } else if (sortField === "activity") {
+        const actA = prospectActivities[a.id] || "";
+        const actB = prospectActivities[b.id] || "";
+        cmp = actA.localeCompare(actB, "fr");
+      } else if (sortField === "contactName") {
+        cmp = (a.contactName || "").localeCompare(b.contactName || "", "fr");
+      } else if (sortField === "email") {
+        cmp = (a.email || "").localeCompare(b.email || "", "fr");
+      } else if (sortField === "phone") {
+        cmp = (a.phone || "").localeCompare(b.phone || "");
+      } else if (sortField === "city") {
+        cmp = (a.city || "").localeCompare(b.city || "", "fr");
+      } else if (sortField === "postalCode") {
+        cmp = (a.postalCode || "").localeCompare(b.postalCode || "");
+      } else if (sortField === "potential") {
+        const pA = prospectPotentials[a.id] || 0;
+        const pB = prospectPotentials[b.id] || 0;
+        cmp = pA - pB;
+      } else if (sortField === "stage") {
+        const sA = prospectStages[a.id] || "A_DEMARCHER";
+        const sB = prospectStages[b.id] || "A_DEMARCHER";
+        cmp = sA.localeCompare(sB);
+      } else if (sortField === "supplier") {
+        const supA = prospectSuppliers[a.id] || "";
+        const supB = prospectSuppliers[b.id] || "";
+        cmp = supA.localeCompare(supB, "fr");
+      } else if (sortField === "address") {
+        cmp = (a.address || "").localeCompare(b.address || "", "fr");
+      }
+      return sortOrder === "asc" ? cmp : -cmp;
+    });
+  }, [
+    filteredProspects,
+    sortField,
+    sortOrder,
+    prospectPotentials,
+    prospectStages,
+    prospectActivities,
+    prospectSuppliers,
+  ]);
 
   // City options for filtering
   const cities = useMemo(() => {
@@ -474,46 +602,6 @@ export default function ProspectsPipelinePage() {
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
-          {/* View Mode Toggle: Kanban | Tableau | Carte */}
-          <div className="inline-flex items-center bg-white dark:bg-zinc-900 p-0.5 rounded-xl border border-slate-200/90 dark:border-zinc-800 shadow-2xs">
-            <button
-              type="button"
-              onClick={() => setViewMode("kanban")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                viewMode === "kanban"
-                  ? "bg-purple-600 text-white shadow-2xs"
-                  : "text-slate-600 dark:text-zinc-400 hover:text-slate-900"
-              }`}
-            >
-              <Kanban className="w-3.5 h-3.5" />
-              <span>Pipeline Kanban</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("table")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                viewMode === "table"
-                  ? "bg-purple-600 text-white shadow-2xs"
-                  : "text-slate-600 dark:text-zinc-400 hover:text-slate-900"
-              }`}
-            >
-              <TableIcon className="w-3.5 h-3.5" />
-              <span>Tableau Liste</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("map")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
-                viewMode === "map"
-                  ? "bg-purple-600 text-white shadow-2xs"
-                  : "text-slate-600 dark:text-zinc-400 hover:text-slate-900"
-              }`}
-            >
-              <MapIcon className="w-3.5 h-3.5" />
-              <span>Carte Territoires</span>
-            </button>
-          </div>
-
           {/* Add Prospect Button */}
           <button
             type="button"
@@ -578,8 +666,165 @@ export default function ProspectsPipelinePage() {
         </div>
       </div>
 
-      {/* 3. Search Bar & Filters Controls */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200/90 dark:border-zinc-800 shadow-2xs">
+      {/* 3. Controls & View Switcher Bar (Placed directly above the views) */}
+      <div className="flex flex-col gap-3 p-3 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200/90 dark:border-zinc-800 shadow-2xs">
+        {/* Top line of Controls: View Mode Switcher + Density + Columns (when in table) + Global Convert Helper */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-zinc-800">
+          {/* View Mode Toggle: Kanban | Tableau | Carte */}
+          <div className="inline-flex items-center bg-slate-100 dark:bg-zinc-950 p-1 rounded-xl border border-slate-200/90 dark:border-zinc-800 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setViewMode("kanban")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === "kanban"
+                  ? "bg-purple-600 text-white shadow-2xs"
+                  : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200"
+              }`}
+            >
+              <Kanban className="w-3.5 h-3.5" />
+              <span>Pipeline Kanban</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("table")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === "table"
+                  ? "bg-purple-600 text-white shadow-2xs"
+                  : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200"
+              }`}
+            >
+              <TableIcon className="w-3.5 h-3.5" />
+              <span>Tableau Liste</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("map")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                viewMode === "map"
+                  ? "bg-purple-600 text-white shadow-2xs"
+                  : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200"
+              }`}
+            >
+              <MapIcon className="w-3.5 h-3.5" />
+              <span>Carte Territoires</span>
+            </button>
+          </div>
+
+          {/* Right side controls: Density & Column visibility for Table mode */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {viewMode === "table" && (
+              <>
+                {/* Density Switcher: Standard vs Compact */}
+                <div className="inline-flex items-center bg-slate-100 dark:bg-zinc-950 p-0.5 rounded-xl border border-slate-200 dark:border-zinc-800 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setTableDensity("standard")}
+                    title="Vue Standard"
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+                      tableDensity === "standard"
+                        ? "bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 shadow-2xs font-bold"
+                        : "text-slate-500 dark:text-zinc-400 hover:text-slate-800"
+                    }`}
+                  >
+                    <LayoutList className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Standard</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTableDensity("compact")}
+                    title="Vue Compacte"
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg font-medium transition cursor-pointer ${
+                      tableDensity === "compact"
+                        ? "bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 shadow-2xs font-bold"
+                        : "text-slate-500 dark:text-zinc-400 hover:text-slate-800"
+                    }`}
+                  >
+                    <AlignJustify className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Compact</span>
+                  </button>
+                </div>
+
+                {/* Column Visibility Dropdown */}
+                <div className="relative" ref={columnMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setColumnMenuOpen(!columnMenuOpen)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 text-xs font-semibold text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer shadow-2xs"
+                    title="Personnaliser les colonnes du tableau prospect"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Colonnes</span>
+                    <span className="px-1.5 py-0.2 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[10px] font-bold">
+                      {visibleColumns.length}/{AVAILABLE_PROSPECT_COLUMNS.length}
+                    </span>
+                  </button>
+
+                  {columnMenuOpen && (
+                    <div className="absolute right-0 mt-1.5 w-64 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-xl p-2.5 z-40 space-y-1">
+                      <div className="flex items-center justify-between pb-2 mb-1 border-b border-slate-100 dark:border-zinc-800 px-1">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                          Colonnes à afficher
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const all = AVAILABLE_PROSPECT_COLUMNS.map((c) => c.id);
+                            setVisibleColumns(all);
+                            if (typeof window !== "undefined") {
+                              localStorage.setItem("apflow_prospect_columns_v1", JSON.stringify(all));
+                            }
+                          }}
+                          className="text-[10px] text-purple-600 font-bold hover:underline"
+                        >
+                          Tout cocher
+                        </button>
+                      </div>
+
+                      <div className="max-h-64 overflow-y-auto space-y-0.5">
+                        {AVAILABLE_PROSPECT_COLUMNS.map((col) => {
+                          const isChecked = isColumnVisible(col.id);
+                          const isLocked = col.id === "company";
+                          return (
+                            <label
+                              key={col.id}
+                              className={`flex items-center justify-between px-2 py-1.5 rounded-lg text-xs cursor-pointer select-none transition ${
+                                isChecked
+                                  ? "bg-purple-50/70 dark:bg-purple-950/30 text-purple-900 dark:text-purple-200"
+                                  : "text-slate-600 dark:text-zinc-400 hover:bg-slate-50 dark:hover:bg-zinc-800"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  disabled={isLocked}
+                                  onChange={() => toggleColumn(col.id)}
+                                  className="rounded text-purple-600 focus:ring-purple-500 w-3.5 h-3.5 cursor-pointer disabled:opacity-50"
+                                />
+                                <span className={isLocked ? "font-bold" : ""}>{col.label}</span>
+                              </div>
+                              {isLocked && (
+                                <span className="text-[10px] text-slate-400 italic">Requis</span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Global Conversion Helper Hint */}
+            <div className="text-xs text-slate-500 dark:text-zinc-400 flex items-center gap-1.5 shrink-0 ml-auto sm:ml-0">
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden sm:inline">« Convertir en Client AP » direct</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom line: Search and Filters */}
         <div className="flex items-center gap-2.5 flex-1 flex-wrap">
           {/* Search Bar */}
           <div className="relative flex-1 min-w-[200px]">
@@ -651,12 +896,6 @@ export default function ProspectsPipelinePage() {
               <span>Sans suite ({sansSuiteCount})</span>
             </button>
           )}
-        </div>
-
-        {/* Global Conversion Helper Hint */}
-        <div className="text-xs text-slate-500 dark:text-zinc-400 flex items-center gap-1.5 shrink-0">
-          <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Bouton « Convertir en Client AP » direct</span>
         </div>
       </div>
 
@@ -933,27 +1172,268 @@ export default function ProspectsPipelinePage() {
             <table className="w-full text-left text-xs text-slate-700 dark:text-zinc-300">
               <thead className="bg-slate-50 dark:bg-zinc-950/70 border-b border-slate-200 dark:border-zinc-800 text-[11px] font-bold uppercase text-slate-400">
                 <tr>
-                  <th className="py-3 px-4">Enseigne / Prospect</th>
-                  <th className="py-3 px-4">Activité Métier</th>
-                  <th className="py-3 px-4">Contact</th>
-                  <th className="py-3 px-4">E-mail</th>
-                  <th className="py-3 px-4">Téléphone</th>
-                  <th className="py-3 px-4">Ville &amp; CP</th>
-                  <th className="py-3 px-4">Étape Pipeline</th>
-                  <th className="py-3 px-4">Potentiel Estimé</th>
-                  <th className="py-3 px-4">Fournisseur Actuel</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  {isColumnVisible("company") && (
+                    <th
+                      onClick={() => handleSort("company")}
+                      className={`font-bold select-none cursor-pointer hover:text-slate-700 dark:hover:text-zinc-200 transition ${
+                        tableDensity === "compact" ? "py-2 px-3" : "py-3 px-4"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Enseigne / Prospect</span>
+                        {sortField === "company" ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="w-3.5 h-3.5 text-purple-600" />
+                          ) : (
+                            <ArrowDown className="w-3.5 h-3.5 text-purple-600" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-40" />
+                        )}
+                      </div>
+                    </th>
+                  )}
+
+                  {isColumnVisible("activity") && (
+                    <th
+                      onClick={() => handleSort("activity")}
+                      className={`font-bold select-none cursor-pointer hover:text-slate-700 dark:hover:text-zinc-200 transition ${
+                        tableDensity === "compact" ? "py-2 px-3" : "py-3 px-4"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Activité Métier</span>
+                        {sortField === "activity" ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="w-3.5 h-3.5 text-purple-600" />
+                          ) : (
+                            <ArrowDown className="w-3.5 h-3.5 text-purple-600" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-40" />
+                        )}
+                      </div>
+                    </th>
+                  )}
+
+                  {isColumnVisible("contactName") && (
+                    <th
+                      onClick={() => handleSort("contactName")}
+                      className={`font-bold select-none cursor-pointer hover:text-slate-700 dark:hover:text-zinc-200 transition ${
+                        tableDensity === "compact" ? "py-2 px-3" : "py-3 px-4"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Contact</span>
+                        {sortField === "contactName" ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="w-3.5 h-3.5 text-purple-600" />
+                          ) : (
+                            <ArrowDown className="w-3.5 h-3.5 text-purple-600" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-40" />
+                        )}
+                      </div>
+                    </th>
+                  )}
+
+                  {isColumnVisible("email") && (
+                    <th
+                      onClick={() => handleSort("email")}
+                      className={`font-bold select-none cursor-pointer hover:text-slate-700 dark:hover:text-zinc-200 transition ${
+                        tableDensity === "compact" ? "py-2 px-3" : "py-3 px-4"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>E-mail</span>
+                        {sortField === "email" ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="w-3.5 h-3.5 text-purple-600" />
+                          ) : (
+                            <ArrowDown className="w-3.5 h-3.5 text-purple-600" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-40" />
+                        )}
+                      </div>
+                    </th>
+                  )}
+
+                  {isColumnVisible("phone") && (
+                    <th
+                      onClick={() => handleSort("phone")}
+                      className={`font-bold select-none cursor-pointer hover:text-slate-700 dark:hover:text-zinc-200 transition ${
+                        tableDensity === "compact" ? "py-2 px-3" : "py-3 px-4"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Téléphone</span>
+                        {sortField === "phone" ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="w-3.5 h-3.5 text-purple-600" />
+                          ) : (
+                            <ArrowDown className="w-3.5 h-3.5 text-purple-600" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-40" />
+                        )}
+                      </div>
+                    </th>
+                  )}
+
+                  {isColumnVisible("city") && (
+                    <th
+                      onClick={() => handleSort("city")}
+                      className={`font-bold select-none cursor-pointer hover:text-slate-700 dark:hover:text-zinc-200 transition ${
+                        tableDensity === "compact" ? "py-2 px-3" : "py-3 px-4"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Ville</span>
+                        {sortField === "city" ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="w-3.5 h-3.5 text-purple-600" />
+                          ) : (
+                            <ArrowDown className="w-3.5 h-3.5 text-purple-600" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-40" />
+                        )}
+                      </div>
+                    </th>
+                  )}
+
+                  {isColumnVisible("postalCode") && (
+                    <th
+                      onClick={() => handleSort("postalCode")}
+                      className={`font-bold select-none cursor-pointer hover:text-slate-700 dark:hover:text-zinc-200 transition ${
+                        tableDensity === "compact" ? "py-2 px-3" : "py-3 px-4"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Code Postal</span>
+                        {sortField === "postalCode" ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="w-3.5 h-3.5 text-purple-600" />
+                          ) : (
+                            <ArrowDown className="w-3.5 h-3.5 text-purple-600" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-40" />
+                        )}
+                      </div>
+                    </th>
+                  )}
+
+                  {isColumnVisible("address") && (
+                    <th
+                      onClick={() => handleSort("address")}
+                      className={`font-bold select-none cursor-pointer hover:text-slate-700 dark:hover:text-zinc-200 transition ${
+                        tableDensity === "compact" ? "py-2 px-3" : "py-3 px-4"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Adresse</span>
+                        {sortField === "address" ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="w-3.5 h-3.5 text-purple-600" />
+                          ) : (
+                            <ArrowDown className="w-3.5 h-3.5 text-purple-600" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-40" />
+                        )}
+                      </div>
+                    </th>
+                  )}
+
+                  {isColumnVisible("stage") && (
+                    <th
+                      onClick={() => handleSort("stage")}
+                      className={`font-bold select-none cursor-pointer hover:text-slate-700 dark:hover:text-zinc-200 transition ${
+                        tableDensity === "compact" ? "py-2 px-3" : "py-3 px-4"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Étape Pipeline</span>
+                        {sortField === "stage" ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="w-3.5 h-3.5 text-purple-600" />
+                          ) : (
+                            <ArrowDown className="w-3.5 h-3.5 text-purple-600" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-40" />
+                        )}
+                      </div>
+                    </th>
+                  )}
+
+                  {isColumnVisible("potential") && (
+                    <th
+                      onClick={() => handleSort("potential")}
+                      className={`font-bold select-none cursor-pointer hover:text-slate-700 dark:hover:text-zinc-200 transition ${
+                        tableDensity === "compact" ? "py-2 px-3" : "py-3 px-4"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Potentiel Estimé</span>
+                        {sortField === "potential" ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="w-3.5 h-3.5 text-purple-600" />
+                          ) : (
+                            <ArrowDown className="w-3.5 h-3.5 text-purple-600" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-40" />
+                        )}
+                      </div>
+                    </th>
+                  )}
+
+                  {isColumnVisible("supplier") && (
+                    <th
+                      onClick={() => handleSort("supplier")}
+                      className={`font-bold select-none cursor-pointer hover:text-slate-700 dark:hover:text-zinc-200 transition ${
+                        tableDensity === "compact" ? "py-2 px-3" : "py-3 px-4"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span>Fournisseur Actuel</span>
+                        {sortField === "supplier" ? (
+                          sortOrder === "asc" ? (
+                            <ArrowUp className="w-3.5 h-3.5 text-purple-600" />
+                          ) : (
+                            <ArrowDown className="w-3.5 h-3.5 text-purple-600" />
+                          )
+                        ) : (
+                          <ArrowUpDown className="w-3 h-3 opacity-40" />
+                        )}
+                      </div>
+                    </th>
+                  )}
+
+                  {isColumnVisible("actions") && (
+                    <th
+                      className={`text-right font-bold ${
+                        tableDensity === "compact" ? "py-2 px-3" : "py-3 px-4"
+                      }`}
+                    >
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
-                {filteredProspects.length === 0 ? (
+                {sortedProspects.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="py-12 text-center text-slate-400">
+                    <td colSpan={visibleColumns.length} className="py-12 text-center text-slate-400">
                       Aucun prospect ne correspond aux critères
                     </td>
                   </tr>
                 ) : (
-                  filteredProspects.map((prospect) => {
+                  sortedProspects.map((prospect) => {
                     const currentStage = prospectStages[prospect.id] || "A_DEMARCHER";
                     const stageCfg =
                       ALL_PROSPECT_STAGES.find((s) => s.value === currentStage) ||
@@ -964,6 +1444,8 @@ export default function ProspectsPipelinePage() {
                       PROSPECT_ACTIVITY_TYPES.find((a) => a.value === actCode) ||
                       PROSPECT_ACTIVITY_TYPES[0];
                     const supplier = prospectSuppliers[prospect.id] || "Non renseigné";
+                    const cellPad =
+                      tableDensity === "compact" ? "py-1.5 px-3 text-[11px]" : "py-3 px-4 text-xs";
 
                     return (
                       <tr
@@ -971,132 +1453,166 @@ export default function ProspectsPipelinePage() {
                         className="hover:bg-slate-50/80 dark:hover:bg-zinc-800/40 transition-colors"
                       >
                         {/* Company */}
-                        <td className="py-3 px-4 font-bold text-slate-900 dark:text-zinc-100">
-                          <Link
-                            href={`/clients/${prospect.id}`}
-                            className="hover:text-purple-600 flex items-center gap-1.5"
-                          >
-                            <Building2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                            <span>{prospect.company}</span>
-                          </Link>
-                          {prospect.address && (
-                            <div className="text-[11px] text-slate-400 font-normal truncate mt-0.5 max-w-[200px]">
-                              {prospect.address}
-                            </div>
-                          )}
-                        </td>
+                        {isColumnVisible("company") && (
+                          <td className={`${cellPad} font-bold text-slate-900 dark:text-zinc-100`}>
+                            <Link
+                              href={`/clients/${prospect.id}`}
+                              className="hover:text-purple-600 flex items-center gap-1.5"
+                            >
+                              <Building2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                              <span>{prospect.company}</span>
+                            </Link>
+                            {tableDensity !== "compact" && prospect.address && (
+                              <div className="text-[11px] text-slate-400 font-normal truncate mt-0.5 max-w-[200px]">
+                                {prospect.address}
+                              </div>
+                            )}
+                          </td>
+                        )}
 
                         {/* Activity */}
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-[11px] font-semibold text-slate-700 dark:text-zinc-300">
-                            <span>{actCfg.icon}</span>
-                            <span>{actCfg.label}</span>
-                          </span>
-                        </td>
+                        {isColumnVisible("activity") && (
+                          <td className={`${cellPad} whitespace-nowrap`}>
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-[11px] font-semibold text-slate-700 dark:text-zinc-300">
+                              <span>{actCfg.icon}</span>
+                              <span>{actCfg.label}</span>
+                            </span>
+                          </td>
+                        )}
 
                         {/* Contact */}
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <div className="font-semibold text-slate-800 dark:text-zinc-200">
-                            {prospect.contactName || "—"}
-                          </div>
-                        </td>
+                        {isColumnVisible("contactName") && (
+                          <td className={`${cellPad} whitespace-nowrap`}>
+                            <div className="font-semibold text-slate-800 dark:text-zinc-200">
+                              {prospect.contactName || "—"}
+                            </div>
+                          </td>
+                        )}
 
                         {/* Email */}
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          {prospect.email ? (
-                            <a
-                              href={`mailto:${prospect.email}`}
-                              className="text-blue-600 hover:underline flex items-center gap-1"
-                            >
-                              <Mail className="w-3 h-3 shrink-0" />
-                              <span className="truncate max-w-[160px]">{prospect.email}</span>
-                            </a>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
+                        {isColumnVisible("email") && (
+                          <td className={`${cellPad} whitespace-nowrap`}>
+                            {prospect.email ? (
+                              <a
+                                href={`mailto:${prospect.email}`}
+                                className="text-blue-600 hover:underline flex items-center gap-1"
+                              >
+                                <Mail className="w-3 h-3 shrink-0" />
+                                <span className="truncate max-w-[160px]">{prospect.email}</span>
+                              </a>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                        )}
 
                         {/* Phone */}
-                        <td className="py-3 px-4 whitespace-nowrap font-mono text-[11px]">
-                          {prospect.phone && prospect.phone !== "NC" ? (
-                            <a
-                              href={`tel:${prospect.phone}`}
-                              className="text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1"
-                            >
-                              <Phone className="w-3 h-3 shrink-0" />
-                              <span>{prospect.phone}</span>
-                            </a>
-                          ) : (
-                            <span className="text-slate-400">—</span>
-                          )}
-                        </td>
+                        {isColumnVisible("phone") && (
+                          <td className={`${cellPad} whitespace-nowrap font-mono text-[11px]`}>
+                            {prospect.phone && prospect.phone !== "NC" ? (
+                              <a
+                                href={`tel:${prospect.phone}`}
+                                className="text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                              >
+                                <Phone className="w-3 h-3 shrink-0" />
+                                <span>{prospect.phone}</span>
+                              </a>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                        )}
 
-                        {/* City & CP */}
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <span className="font-medium text-slate-700 dark:text-zinc-300">
-                            📍 {prospect.postalCode ? `${prospect.postalCode} ` : ""}{prospect.city}
-                          </span>
-                        </td>
+                        {/* City */}
+                        {isColumnVisible("city") && (
+                          <td className={`${cellPad} whitespace-nowrap`}>
+                            <span className="font-medium text-slate-700 dark:text-zinc-300">
+                              📍 {prospect.city}
+                            </span>
+                          </td>
+                        )}
+
+                        {/* Postal Code */}
+                        {isColumnVisible("postalCode") && (
+                          <td className={`${cellPad} whitespace-nowrap font-mono text-[11px]`}>
+                            {prospect.postalCode || "—"}
+                          </td>
+                        )}
+
+                        {/* Address */}
+                        {isColumnVisible("address") && (
+                          <td className={`${cellPad} max-w-[220px] truncate text-slate-600 dark:text-zinc-400`}>
+                            {prospect.address || "—"}
+                          </td>
+                        )}
 
                         {/* Pipeline Stage */}
-                        <td className="py-3 px-4 whitespace-nowrap">
-                          <select
-                            value={currentStage}
-                            onChange={(e) =>
-                              handleMoveStage(prospect.id, e.target.value as ProspectStage)
-                            }
-                            className={`rounded-xl px-2.5 py-1 text-xs font-bold border focus:outline-none cursor-pointer ${stageCfg.badgeClass}`}
-                          >
-                            {ALL_PROSPECT_STAGES.map((s) => (
-                              <option key={s.value} value={s.value}>
-                                {s.label}
-                              </option>
-                            ))}
-                          </select>
-                        </td>
+                        {isColumnVisible("stage") && (
+                          <td className={`${cellPad} whitespace-nowrap`}>
+                            <select
+                              value={currentStage}
+                              onChange={(e) =>
+                                handleMoveStage(prospect.id, e.target.value as ProspectStage)
+                              }
+                              className={`rounded-xl px-2.5 py-1 text-xs font-bold border focus:outline-none cursor-pointer ${stageCfg.badgeClass}`}
+                            >
+                              {ALL_PROSPECT_STAGES.map((s) => (
+                                <option key={s.value} value={s.value}>
+                                  {s.label}
+                                </option>
+                              ))}
+                            </select>
+                          </td>
+                        )}
 
                         {/* Estimated Potential */}
-                        <td className="py-3 px-4 whitespace-nowrap font-mono font-bold text-purple-700 dark:text-purple-300">
-                          {formatEuro(potential)}
-                        </td>
+                        {isColumnVisible("potential") && (
+                          <td className={`${cellPad} whitespace-nowrap font-mono font-bold text-purple-700 dark:text-purple-300`}>
+                            {formatEuro(potential)}
+                          </td>
+                        )}
 
                         {/* Competitor */}
-                        <td className="py-3 px-4 whitespace-nowrap text-slate-500 text-[11px]">
-                          {supplier.split(" ")[0]}
-                        </td>
+                        {isColumnVisible("supplier") && (
+                          <td className={`${cellPad} whitespace-nowrap text-slate-500 text-[11px]`}>
+                            {supplier.split(" ")[0]}
+                          </td>
+                        )}
 
                         {/* Actions */}
-                        <td className="py-3 px-4 whitespace-nowrap text-right">
-                          <div className="inline-flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAddVisitClientId(prospect.id);
-                                setIsAddVisitModalOpen(true);
-                              }}
-                              title="Consigner une visite"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-slate-100"
-                            >
-                              <Car className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openQuickNote({ clientId: prospect.id })}
-                              title="Ajouter une note"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-slate-100"
-                            >
-                              <FileText className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openConversionModal(prospect)}
-                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-2xs"
-                            >
-                              <Sparkles className="w-3.5 h-3.5" />
-                              <span>Convertir</span>
-                            </button>
-                          </div>
-                        </td>
+                        {isColumnVisible("actions") && (
+                          <td className={`${cellPad} whitespace-nowrap text-right`}>
+                            <div className="inline-flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAddVisitClientId(prospect.id);
+                                  setIsAddVisitModalOpen(true);
+                                }}
+                                title="Consigner une visite"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-slate-100 dark:hover:bg-zinc-800"
+                              >
+                                <Car className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openQuickNote({ clientId: prospect.id })}
+                                title="Ajouter une note"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-slate-100 dark:hover:bg-zinc-800"
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openConversionModal(prospect)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-2xs"
+                              >
+                                <Sparkles className="w-3.5 h-3.5" />
+                                <span>Convertir</span>
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     );
                   })
