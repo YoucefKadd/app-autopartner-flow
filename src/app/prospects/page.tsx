@@ -74,6 +74,8 @@ export default function ProspectsPipelinePage() {
 
   // View state: "kanban" (default pipeline) | "table" | "map"
   const [viewMode, setViewMode] = useState<"kanban" | "table" | "map">("kanban");
+  // Active tab in mobile Kanban view: stage value
+  const [mobileKanbanStage, setMobileKanbanStage] = useState<ProspectStage>("A_DEMARCHER");
   // Table display density: "standard" | "compact"
   const [tableDensity, setTableDensity] = useState<"standard" | "compact">("standard");
   const [searchQuery, setSearchQuery] = useState("");
@@ -671,42 +673,42 @@ export default function ProspectsPipelinePage() {
         {/* Top line of Controls: View Mode Switcher + Density + Columns (when in table) + Global Convert Helper */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-zinc-800">
           {/* View Mode Toggle: Kanban | Tableau | Carte */}
-          <div className="inline-flex items-center bg-slate-100 dark:bg-zinc-950 p-1 rounded-xl border border-slate-200/90 dark:border-zinc-800 shadow-2xs">
+          <div className="flex items-center bg-slate-100 dark:bg-zinc-950 p-1 rounded-xl border border-slate-200/90 dark:border-zinc-800 shadow-2xs w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setViewMode("kanban")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 viewMode === "kanban"
                   ? "bg-purple-600 text-white shadow-2xs"
                   : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200"
               }`}
             >
               <Kanban className="w-3.5 h-3.5" />
-              <span>Pipeline Kanban</span>
+              <span>Pipeline</span>
             </button>
             <button
               type="button"
               onClick={() => setViewMode("table")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 viewMode === "table"
                   ? "bg-purple-600 text-white shadow-2xs"
                   : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200"
               }`}
             >
               <TableIcon className="w-3.5 h-3.5" />
-              <span>Tableau Liste</span>
+              <span>Tableau</span>
             </button>
             <button
               type="button"
               onClick={() => setViewMode("map")}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 viewMode === "map"
                   ? "bg-purple-600 text-white shadow-2xs"
                   : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200"
               }`}
             >
               <MapIcon className="w-3.5 h-3.5" />
-              <span>Carte Territoires</span>
+              <span>Carte</span>
             </button>
           </div>
 
@@ -903,45 +905,83 @@ export default function ProspectsPipelinePage() {
           VIEW 1: COMMERCIAL PIPELINE KANBAN (SIMPLIFIÉ & ADAPTÉ MÉTIER)
          ===================================================================== */}
       {viewMode === "kanban" && (
-        <div
-          className={`grid grid-cols-1 md:grid-cols-2 ${
-            showSansSuite ? "lg:grid-cols-5" : "lg:grid-cols-4"
-          } gap-4 items-start`}
-        >
-          {visibleKanbanStages.map((col) => {
-            const colProspects = filteredProspects.filter(
-              (p) => (prospectStages[p.id] || "A_DEMARCHER") === col.value
-            );
-            const isOver = dragOverColumn === col.value;
-            const colTotalPotential = colProspects.reduce(
-              (acc, p) => acc + (prospectPotentials[p.id] || 0),
-              0
-            );
+        <div className="space-y-4">
+          {/* Mobile stage selector tabs */}
+          <div className="flex md:hidden items-center gap-1.5 overflow-x-auto pb-1 max-w-full">
+            {visibleKanbanStages.map((st) => {
+              const count = filteredProspects.filter(
+                (p) => (prospectStages[p.id] || "A_DEMARCHER") === st.value
+              ).length;
+              const isActive = mobileKanbanStage === st.value;
+              return (
+                <button
+                  key={st.value}
+                  type="button"
+                  onClick={() => setMobileKanbanStage(st.value)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                    isActive
+                      ? "bg-purple-600 text-white shadow-2xs"
+                      : "bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-300 border border-slate-200 dark:border-zinc-800"
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${st.dotClass}`} />
+                  <span>{st.shortLabel}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${
+                      isActive
+                        ? "bg-white/20 text-white"
+                        : "bg-slate-100 dark:bg-zinc-800 text-slate-600 dark:text-zinc-400"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
-            return (
-              <div
-                key={col.value}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragOverColumn(col.value);
-                }}
-                onDragLeave={() => setDragOverColumn(null)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragOverColumn(null);
-                  if (draggedProspectId) {
-                    handleMoveStage(draggedProspectId, col.value);
-                    setDraggedProspectId(null);
-                  }
-                }}
-                className={`rounded-2xl border-2 transition-all p-3.5 space-y-3.5 min-h-[500px] ${
-                  col.columnBg
-                } ${
-                  isOver
-                    ? "border-purple-500 ring-2 ring-purple-500/20 shadow-md"
-                    : "border-slate-200/90 dark:border-zinc-800"
-                }`}
-              >
+          <div
+            className={`grid grid-cols-1 md:grid-cols-2 ${
+              showSansSuite ? "lg:grid-cols-5" : "lg:grid-cols-4"
+            } gap-4 items-start`}
+          >
+            {visibleKanbanStages.map((col) => {
+              const isColHiddenOnMobile = mobileKanbanStage !== col.value;
+              const colProspects = filteredProspects.filter(
+                (p) => (prospectStages[p.id] || "A_DEMARCHER") === col.value
+              );
+              const isOver = dragOverColumn === col.value;
+              const colTotalPotential = colProspects.reduce(
+                (acc, p) => acc + (prospectPotentials[p.id] || 0),
+                0
+              );
+
+              return (
+                <div
+                  key={col.value}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOverColumn(col.value);
+                  }}
+                  onDragLeave={() => setDragOverColumn(null)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragOverColumn(null);
+                    if (draggedProspectId) {
+                      handleMoveStage(draggedProspectId, col.value);
+                      setDraggedProspectId(null);
+                    }
+                  }}
+                  className={`${
+                    isColHiddenOnMobile ? "hidden md:block" : "block"
+                  } rounded-2xl border-2 transition-all p-3.5 space-y-3.5 min-h-[500px] ${
+                    col.columnBg
+                  } ${
+                    isOver
+                      ? "border-purple-500 ring-2 ring-purple-500/20 shadow-md"
+                      : "border-slate-200/90 dark:border-zinc-800"
+                  }`}
+                >
                 {/* Column Header */}
                 <div className="px-1 pb-2.5 border-b border-slate-200/80 dark:border-zinc-800">
                   <div className="flex items-center justify-between gap-1.5">
@@ -1161,15 +1201,125 @@ export default function ProspectsPipelinePage() {
             );
           })}
         </div>
+      </div>
       )}
 
       {/* =====================================================================
           VIEW 2: COMMERCIAL TABLE VIEW (TABLEAU COMPLET STYLE CLIENTS)
          ===================================================================== */}
       {viewMode === "table" && (
-        <div className="rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-700 dark:text-zinc-300">
+        <div className="space-y-3">
+          {/* Mobile Card View (optimized readability on small screens) */}
+          <div className="md:hidden space-y-2.5">
+            {sortedProspects.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-800 text-xs">
+                Aucun prospect ne correspond aux critères
+              </div>
+            ) : (
+              sortedProspects.map((prospect) => {
+                const currentStage = prospectStages[prospect.id] || "A_DEMARCHER";
+                const stageCfg =
+                  ALL_PROSPECT_STAGES.find((s) => s.value === currentStage) ||
+                  ALL_PROSPECT_STAGES[0];
+                const potential = prospectPotentials[prospect.id] || 25000;
+                const actCode = prospectActivities[prospect.id] || "REVENDEUR_PIECES";
+                const actCfg =
+                  PROSPECT_ACTIVITY_TYPES.find((a) => a.value === actCode) ||
+                  PROSPECT_ACTIVITY_TYPES[0];
+                const supplier = prospectSuppliers[prospect.id] || "Non renseigné";
+
+                return (
+                  <div
+                    key={prospect.id}
+                    className="p-3.5 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xs space-y-2.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <Link
+                          href={`/clients/${prospect.id}`}
+                          className="font-bold text-sm text-slate-900 dark:text-zinc-100 hover:text-purple-600 truncate block"
+                        >
+                          {prospect.company}
+                        </Link>
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+                          <MapPin className="w-3.5 h-3.5 text-[#d90416] shrink-0" />
+                          <span className="truncate">
+                            {prospect.postalCode ? `${prospect.postalCode} ` : ""}
+                            {prospect.city}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="font-mono font-bold text-xs text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-950/60 shrink-0">
+                        {formatEuro(potential)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 text-xs pt-1 border-t border-slate-100 dark:border-zinc-800">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-zinc-800 text-[11px] font-semibold text-slate-700 dark:text-zinc-300">
+                        <span>{actCfg.icon}</span>
+                        <span>{actCfg.label}</span>
+                      </span>
+                      <select
+                        value={currentStage}
+                        onChange={(e) =>
+                          handleMoveStage(prospect.id, e.target.value as ProspectStage)
+                        }
+                        className={`rounded-xl px-2 py-0.5 text-[11px] font-bold border focus:outline-none cursor-pointer ${stageCfg.badgeClass}`}
+                      >
+                        {ALL_PROSPECT_STAGES.map((s) => (
+                          <option key={s.value} value={s.value}>
+                            {s.shortLabel}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Contact & quick actions */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
+                      <div className="text-xs text-slate-600 dark:text-zinc-300 truncate">
+                        {prospect.contactName ? `👤 ${prospect.contactName}` : `Fournisseur : ${supplier.split(" ")[0]}`}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {prospect.phone && prospect.phone !== "NC" && (
+                          <a
+                            href={`tel:${prospect.phone}`}
+                            className="p-1.5 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300"
+                            title="Appeler"
+                          >
+                            <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                          </a>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAddVisitClientId(prospect.id);
+                            setIsAddVisitModalOpen(true);
+                          }}
+                          className="p-1.5 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300"
+                          title="Consigner une visite"
+                        >
+                          <Car className="w-3.5 h-3.5 text-red-600" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openConversionModal(prospect)}
+                          className="px-2.5 py-1 rounded-xl bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 shadow-2xs"
+                        >
+                          <Sparkles className="w-3 h-3" />
+                          <span>Convertir</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block rounded-2xl border border-slate-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs text-slate-700 dark:text-zinc-300">
               <thead className="bg-slate-50 dark:bg-zinc-950/70 border-b border-slate-200 dark:border-zinc-800 text-[11px] font-bold uppercase text-slate-400">
                 <tr>
                   {isColumnVisible("company") && (
@@ -1621,6 +1771,7 @@ export default function ProspectsPipelinePage() {
             </table>
           </div>
         </div>
+      </div>
       )}
 
       {/* =====================================================================
