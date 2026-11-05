@@ -115,6 +115,19 @@ export default function CaGlobalDashboardPage() {
   }, [isAllMonthsSelected, selectedMonths]);
 
   const [tableMode, setTableMode] = useState<"summary" | "grid12">("summary"); // summary | grid12
+  // KAM Monthly Target Goal State
+  const [kamMonthlyTarget, setKamMonthlyTarget] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem(`apflow_kam_monthly_target_${selectedYear}`);
+      if (saved) {
+        const val = parseInt(saved, 10);
+        if (!isNaN(val) && val > 0) return val;
+      }
+    }
+    return 100000; // Default 100k€
+  });
+  const [isEditingKamTarget, setIsEditingKamTarget] = useState(false);
+  const [editingKamTargetVal, setEditingKamTargetVal] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCity, setSelectedCity] = useState("ALL");
   const [selectedStatus, setSelectedStatus] = useState("ALL");
@@ -407,6 +420,46 @@ export default function CaGlobalDashboardPage() {
     } catch (err) {
       console.error("Error saving target to DB:", err);
     }
+  }
+
+  // Monthly projection calculation
+  const monthlyProjection = useMemo(() => {
+    // Current month CA realized
+    const currentMonthNum = currentMonthIdx + 1; // 1-12
+    const currentMonthCa = globalStats.monthlyTotals[currentMonthIdx]?.amount || 0;
+
+    // Days calculation for current month
+    const now = new Date();
+    const currentDay = now.getDate();
+    const daysInCurrentMonth = new Date(selectedYear, currentMonthNum, 0).getDate();
+
+    // Projected end of month CA based on linear run rate
+    const dailyRate = currentDay > 0 ? currentMonthCa / currentDay : 0;
+    const projectedCa = Math.round(dailyRate * daysInCurrentMonth);
+
+    // Achievement vs KAM monthly target
+    const currentPercent = kamMonthlyTarget > 0 ? Math.round((currentMonthCa / kamMonthlyTarget) * 100) : 0;
+    const projectedPercent = kamMonthlyTarget > 0 ? Math.round((projectedCa / kamMonthlyTarget) * 100) : 0;
+
+    return {
+      currentMonthNum,
+      currentMonthName: MONTH_NAMES[currentMonthIdx],
+      currentMonthCa,
+      currentDay,
+      daysInCurrentMonth,
+      dailyRate,
+      projectedCa,
+      currentPercent,
+      projectedPercent,
+    };
+  }, [globalStats.monthlyTotals, currentMonthIdx, selectedYear, kamMonthlyTarget]);
+
+  function handleSaveKamTarget(val: number) {
+    setKamMonthlyTarget(val);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`apflow_kam_monthly_target_${selectedYear}`, val.toString());
+    }
+    setIsEditingKamTarget(false);
   }
 
   function formatEuro(val: number) {
@@ -791,6 +844,142 @@ export default function CaGlobalDashboardPage() {
               <span>Tout afficher (Annuel)</span>
             </button>
           )}
+        </div>
+      </div>
+
+      {/* 2.5 KAM Monthly Target Gauge & Run-rate Projection */}
+      <div className="p-4 sm:p-5 rounded-2xl border-2 border-red-500/20 bg-gradient-to-r from-red-500/5 via-white to-purple-500/5 dark:from-red-950/20 dark:via-zinc-900 dark:to-purple-950/20 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 rounded-xl bg-[#d90416] text-white shadow-2xs">
+              <Target className="w-5 h-5" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-zinc-100">
+                  Objectif Mensuel KAM — {monthlyProjection.currentMonthName} {selectedYear}
+                </h2>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-bold">
+                  Jour {monthlyProjection.currentDay} / {monthlyProjection.daysInCurrentMonth}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-zinc-400">
+                Suivi du run-rate quotidien et projection d&apos;atterrissage fin de mois
+              </p>
+            </div>
+          </div>
+
+          {/* Edit KAM Target Button */}
+          <div className="flex items-center gap-2">
+            {isEditingKamTarget ? (
+              <div className="flex items-center gap-1.5 bg-white dark:bg-zinc-800 p-1 rounded-xl border border-[#d90416]">
+                <input
+                  type="text"
+                  value={editingKamTargetVal}
+                  onChange={(e) => setEditingKamTargetVal(e.target.value)}
+                  placeholder="Ex: 100000"
+                  className="w-24 px-2 py-1 text-xs font-mono font-bold rounded-lg border-0 bg-transparent text-slate-900 dark:text-zinc-100 focus:outline-none"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const n = parseInt(editingKamTargetVal.replace(/\D/g, ""), 10);
+                    if (!isNaN(n) && n > 0) handleSaveKamTarget(n);
+                    else setIsEditingKamTarget(false);
+                  }}
+                  className="p-1 rounded-md bg-[#d90416] text-white hover:bg-[#b80312]"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingKamTarget(false)}
+                  className="p-1 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingKamTargetVal(kamMonthlyTarget.toString());
+                  setIsEditingKamTarget(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-xs font-semibold text-slate-700 dark:text-zinc-200 hover:border-[#d90416] transition cursor-pointer shadow-2xs"
+                title="Modifier l'objectif mensuel"
+              >
+                <Pencil className="w-3.5 h-3.5 text-[#d90416]" />
+                <span>Objectif : <strong className="text-slate-900 dark:text-white font-mono">{formatEuro(kamMonthlyTarget)}</strong></span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Progress Gauges Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          {/* Gauge 1: Realized so far */}
+          <div className="p-3.5 rounded-xl bg-white/80 dark:bg-zinc-900/80 border border-slate-200/80 dark:border-zinc-800 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-500 uppercase tracking-wide">
+                1. Réalisé à ce jour
+              </span>
+              <span className="font-mono font-extrabold text-slate-900 dark:text-zinc-100">
+                {formatEuro(monthlyProjection.currentMonthCa)}
+              </span>
+            </div>
+            <div className="h-2.5 bg-slate-100 dark:bg-zinc-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#d90416] rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, monthlyProjection.currentPercent)}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+              <span>{monthlyProjection.currentPercent}% de l&apos;objectif</span>
+              <span>Reste : {formatEuro(Math.max(0, kamMonthlyTarget - monthlyProjection.currentMonthCa))}</span>
+            </div>
+          </div>
+
+          {/* Gauge 2: Run-rate projection at end of month */}
+          <div className="p-3.5 rounded-xl bg-white/80 dark:bg-zinc-900/80 border border-purple-200/80 dark:border-purple-900/40 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wide flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5" />
+                2. Projection Fin de Mois
+              </span>
+              <span className="font-mono font-extrabold text-purple-700 dark:text-purple-300">
+                {formatEuro(monthlyProjection.projectedCa)}
+              </span>
+            </div>
+            <div className="h-2.5 bg-purple-100 dark:bg-purple-950/60 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-purple-600 rounded-full transition-all duration-500"
+                style={{ width: `${Math.min(100, monthlyProjection.projectedPercent)}%` }}
+              />
+            </div>
+            <div className="flex items-center justify-between text-[11px] text-purple-700 dark:text-purple-300 font-medium">
+              <span>{monthlyProjection.projectedPercent}% projeté</span>
+              <span>
+                {monthlyProjection.projectedCa >= kamMonthlyTarget
+                  ? `+${formatEuro(monthlyProjection.projectedCa - kamMonthlyTarget)} d'avance`
+                  : `Écart : ${formatEuro(kamMonthlyTarget - monthlyProjection.projectedCa)}`}
+              </span>
+            </div>
+          </div>
+
+          {/* Gauge 3: Daily pace / Cadence */}
+          <div className="p-3.5 rounded-xl bg-white/80 dark:bg-zinc-900/80 border border-slate-200/80 dark:border-zinc-800 space-y-1.5 flex flex-col justify-center">
+            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wide">
+              3. Cadence Journalière Moyenne
+            </span>
+            <div className="text-xl font-extrabold font-mono text-slate-900 dark:text-zinc-100">
+              {formatEuro(monthlyProjection.dailyRate)} <span className="text-xs font-normal text-slate-400">/ jour</span>
+            </div>
+            <p className="text-[11px] text-slate-500">
+              Calculé sur les {monthlyProjection.currentDay} premiers jours ouvrés du mois
+            </p>
+          </div>
         </div>
       </div>
 

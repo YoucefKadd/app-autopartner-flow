@@ -37,6 +37,8 @@ import {
   ShieldCheck,
   Eye,
   EyeOff,
+  Bell,
+  Download,
 } from "lucide-react";
 import { useWorkspace } from "@/components/AppShell";
 import { ClientItem, ClientStatus, formatRelativeDate } from "@/types/kam";
@@ -166,6 +168,17 @@ export default function ProspectsPipelinePage() {
   const [isAddVisitModalOpen, setIsAddVisitModalOpen] = useState(false);
   const [addVisitClientId, setAddVisitClientId] = useState<string | null>(null);
 
+  // Selected prospects for bulk operations (export, actions)
+  const [selectedProspectIds, setSelectedProspectIds] = useState<string[]>([]);
+
+  // Reminders map: prospectId -> ISO date string
+  const [prospectReminders, setProspectReminders] = useState<Record<string, string>>({});
+
+  // Reminder modal state
+  const [reminderModalProspect, setReminderModalProspect] = useState<ClientItem | null>(null);
+  const [reminderDays, setReminderDays] = useState<number>(7);
+  const [reminderNote, setReminderNote] = useState<string>("");
+  const [isSavingReminder, setIsSavingReminder] = useState<boolean>(false);
   // Conversion Modal State
   const [convertingProspect, setConvertingProspect] = useState<ClientItem | null>(null);
   const [convertApCode, setConvertApCode] = useState("");
@@ -202,6 +215,7 @@ export default function ProspectsPipelinePage() {
     const loadedPots: Record<string, number> = {};
     const loadedActs: Record<string, string> = {};
     const loadedSups: Record<string, string> = {};
+    const loadedReminders: Record<string, string> = {};
 
     clients.forEach((c) => {
       if (c.status === "PROSPECT") {
@@ -222,6 +236,9 @@ export default function ProspectsPipelinePage() {
 
         const storedSup = localStorage.getItem(`apflow_prospect_supplier_${c.id}`);
         if (storedSup) loadedSups[c.id] = storedSup;
+
+        const storedReminder = localStorage.getItem(`apflow_prospect_reminder_${c.id}`);
+        if (storedReminder) loadedReminders[c.id] = storedReminder;
       }
     });
 
@@ -229,6 +246,7 @@ export default function ProspectsPipelinePage() {
     setProspectPotentials(loadedPots);
     setProspectActivities(loadedActs);
     setProspectSuppliers(loadedSups);
+    setProspectReminders(loadedReminders);
   }, [clients]);
 
   // Filter only prospects
@@ -258,10 +276,17 @@ export default function ProspectsPipelinePage() {
     });
   }, [prospectClients, prospectStages, prospectActivities, stageFilter, cityFilter, activityFilter, searchQuery]);
 
-  // Sorted prospects for Table view
+  // Sorted prospects for Table view (Prioritizes due reminders at the top if no explicit sort)
   const sortedProspects = useMemo(() => {
-    if (!sortField) return filteredProspects;
     return [...filteredProspects].sort((a, b) => {
+      // If no explicit sort, prioritize prospects with active reminders
+      if (!sortField) {
+        const remA = prospectReminders[a.id] ? new Date(prospectReminders[a.id]).getTime() : Infinity;
+        const remB = prospectReminders[b.id] ? new Date(prospectReminders[b.id]).getTime() : Infinity;
+        if (remA !== remB) return remA - remB;
+        return a.company.localeCompare(b.company, "fr", { sensitivity: "base" });
+      }
+
       let cmp = 0;
       if (sortField === "company") {
         cmp = a.company.localeCompare(b.company, "fr", { sensitivity: "base" });
@@ -304,6 +329,7 @@ export default function ProspectsPipelinePage() {
     prospectStages,
     prospectActivities,
     prospectSuppliers,
+    prospectReminders,
   ]);
 
   // City options for filtering
@@ -572,6 +598,135 @@ export default function ProspectsPipelinePage() {
     }
   }
 
+  // Toggle bulk selection
+  function toggleSelectProspect(id: string) {
+    setSelectedProspectIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  }
+
+  function toggleSelectAll() {
+    if (selectedProspectIds.length === filteredProspects.length) {
+      setSelectedProspectIds([]);
+    } else {
+      setSelectedProspectIds(filteredProspects.map((p) => p.id));
+    }
+  }
+
+  // Export selected or all filtered prospects to CSV / Excel compatible
+  function handleExportProspects() {
+    const listToExport =
+      selectedProspectIds.length > 0
+        ? filteredProspects.filter((p) => selectedProspectIds.includes(p.id))
+        : filteredProspects;
+
+    if (listToExport.length === 0) {
+      alert("Aucun prospect à exporter.");
+      return;
+    }
+
+    const headers = [
+      "Enseigne Prospect",
+      "Activité",
+      "Contact",
+      "E-mail",
+      "Téléphone",
+      "Adresse",
+      "Code Postal",
+      "Ville",
+      "Étape Pipeline",
+      "Potentiel Estimé (€)",
+      "Fournisseur Actuel",
+      "Rappel Programmé",
+    ];
+
+    const rows = listToExport.map((p) => {
+      const stage = prospectStages[p.id] || "A_DEMARCHER";
+      const stageLabel = ALL_PROSPECT_STAGES.find((s) => s.value === stage)?.label || stage;
+      const act = prospectActivities[p.id] || "REVENDEUR_PIECES";
+      const actLabel = PROSPECT_ACTIVITY_TYPES.find((a) => a.value === act)?.label || act;
+      const pot = prospectPotentials[p.id] || 25000;
+      const sup = prospectSuppliers[p.id] || "Non renseigné";
+      const reminder = prospectReminders[p.id]
+        ? new Date(prospectReminders[p.id]).toLocaleDateString("fr-FR")
+        : "";
+
+      return [
+        `"${(p.company || "").replace(/"/g, '""')}"`,
+        `"${actLabel.replace(/"/g, '""')}"`,
+        `"${(p.contactName || "").replace(/"/g, '""')}"`,
+        `"${(p.email || "").replace(/"/g, '""')}"`,
+        `"${(p.phone || "").replace(/"/g, '""')}"`,
+        `"${(p.address || "").replace(/"/g, '""')}"`,
+        `"${(p.postalCode || "").replace(/"/g, '""')}"`,
+        `"${(p.city || "").replace(/"/g, '""')}"`,
+        `"${stageLabel.replace(/"/g, '""')}"`,
+        pot,
+        `"${sup.replace(/"/g, '""')}"`,
+        `"${reminder}"`,
+      ].join(";");
+    });
+
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + [headers.join(";"), ...rows].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute(
+      "download",
+      `export_prospects_${new Date().toISOString().slice(0, 10)}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  // Program reminder for a prospect
+  async function handleSaveReminder() {
+    if (!reminderModalProspect) return;
+    setIsSavingReminder(true);
+    try {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + Number(reminderDays));
+      const isoDate = dueDate.toISOString();
+
+      // Save to localStorage for quick retrieval & sorting
+      localStorage.setItem(`apflow_prospect_reminder_${reminderModalProspect.id}`, isoDate);
+      setProspectReminders((prev) => ({ ...prev, [reminderModalProspect.id]: isoDate }));
+
+      // Automatically create a Task in Kanban
+      const targetKamId = activeUser?.id || users[0]?.id;
+      if (targetKamId) {
+        await fetch("/api/tasks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: `Relance prospect : ${reminderModalProspect.company}`,
+            description:
+              reminderNote.trim() ||
+              `Rappel automatique planifié à J+${reminderDays} pour le suivi commercial des pièces.`,
+            status: "TODO",
+            category: "PROSPECTION",
+            priority: "HIGH",
+            dueDate: isoDate,
+            clientId: reminderModalProspect.id,
+            kamId: targetKamId,
+          }),
+        });
+
+        if (activeUser?.id) refreshWorkspace(activeUser.id);
+        else refreshWorkspace();
+      }
+
+      setReminderModalProspect(null);
+      setReminderNote("");
+      alert(`Rappel programmé avec succès pour le ${dueDate.toLocaleDateString("fr-FR")} ! Une tâche a été ajoutée à votre Kanban.`);
+    } catch (err: any) {
+      alert("Erreur lors de la programmation du rappel.");
+    } finally {
+      setIsSavingReminder(false);
+    }
+  }
+
   function formatEuro(num: number) {
     return new Intl.NumberFormat("fr-FR", {
       style: "currency",
@@ -712,8 +867,23 @@ export default function ProspectsPipelinePage() {
             </button>
           </div>
 
-          {/* Right side controls: Density & Column visibility for Table mode */}
+          {/* Right side controls: Density & Column visibility + Export button */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Export Prospects Button */}
+            <button
+              type="button"
+              onClick={handleExportProspects}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 text-xs font-semibold text-slate-700 dark:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition cursor-pointer shadow-2xs"
+              title="Exporter les prospects sélectionnés ou filtrés au format Excel / CSV"
+            >
+              <Download className="w-3.5 h-3.5 text-purple-600" />
+              <span>
+                {selectedProspectIds.length > 0
+                  ? `Exporter (${selectedProspectIds.length})`
+                  : "Exporter CSV"}
+              </span>
+            </button>
+
             {viewMode === "table" && (
               <>
                 {/* Density Switcher: Standard vs Compact */}
@@ -1119,6 +1289,22 @@ export default function ProspectsPipelinePage() {
                               </button>
                               <button
                                 type="button"
+                                onClick={() => setReminderModalProspect(prospect)}
+                                title={
+                                  prospectReminders[prospect.id]
+                                    ? `Rappel programmé pour le ${new Date(prospectReminders[prospect.id]).toLocaleDateString("fr-FR")}`
+                                    : "Programmer une relance / rappel automatique"
+                                }
+                                className={`p-1.5 rounded-lg border transition ${
+                                  prospectReminders[prospect.id]
+                                    ? "bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300"
+                                    : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:text-amber-600"
+                                }`}
+                              >
+                                <Bell className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => {
                                   setAddVisitClientId(prospect.id);
                                   setIsAddVisitModalOpen(true);
@@ -1304,6 +1490,22 @@ export default function ProspectsPipelinePage() {
                         )}
                         <button
                           type="button"
+                          onClick={() => setReminderModalProspect(prospect)}
+                          title={
+                            prospectReminders[prospect.id]
+                              ? `Rappel : ${new Date(prospectReminders[prospect.id]).toLocaleDateString("fr-FR")}`
+                              : "Programmer une relance"
+                          }
+                          className={`p-1.5 rounded-xl border transition ${
+                            prospectReminders[prospect.id]
+                              ? "bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-800 text-amber-700"
+                              : "bg-slate-100 dark:bg-zinc-800 border-transparent text-slate-700 dark:text-zinc-300"
+                          }`}
+                        >
+                          <Bell className="w-3.5 h-3.5 text-amber-600" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => {
                             setAddVisitClientId(prospect.id);
                             setIsAddVisitModalOpen(true);
@@ -1335,6 +1537,20 @@ export default function ProspectsPipelinePage() {
               <table className="w-full text-left text-xs text-slate-700 dark:text-zinc-300">
               <thead className="bg-slate-50 dark:bg-zinc-950/70 border-b border-slate-200 dark:border-zinc-800 text-[11px] font-bold uppercase text-slate-400">
                 <tr>
+                  {/* Select All Checkbox */}
+                  <th className={`w-10 text-center ${tableDensity === "compact" ? "py-2 px-2" : "py-3 px-3"}`}>
+                    <input
+                      type="checkbox"
+                      checked={
+                        filteredProspects.length > 0 &&
+                        selectedProspectIds.length === filteredProspects.length
+                      }
+                      onChange={toggleSelectAll}
+                      className="rounded text-purple-600 focus:ring-purple-500 w-3.5 h-3.5 cursor-pointer"
+                      title="Tout sélectionner / désélectionner"
+                    />
+                  </th>
+
                   {isColumnVisible("company") && (
                     <th
                       onClick={() => handleSort("company")}
@@ -1591,7 +1807,7 @@ export default function ProspectsPipelinePage() {
               <tbody className="divide-y divide-slate-100 dark:divide-zinc-800">
                 {sortedProspects.length === 0 ? (
                   <tr>
-                    <td colSpan={visibleColumns.length} className="py-12 text-center text-slate-400">
+                    <td colSpan={visibleColumns.length + 1} className="py-12 text-center text-slate-400">
                       Aucun prospect ne correspond aux critères
                     </td>
                   </tr>
@@ -1609,12 +1825,26 @@ export default function ProspectsPipelinePage() {
                     const supplier = prospectSuppliers[prospect.id] || "Non renseigné";
                     const cellPad =
                       tableDensity === "compact" ? "py-1.5 px-3 text-[11px]" : "py-3 px-4 text-xs";
+                    const isSelected = selectedProspectIds.includes(prospect.id);
 
                     return (
                       <tr
                         key={prospect.id}
-                        className="hover:bg-slate-50/80 dark:hover:bg-zinc-800/40 transition-colors"
+                        className={`transition-colors ${
+                          isSelected
+                            ? "bg-purple-50/70 dark:bg-purple-950/30"
+                            : "hover:bg-slate-50/80 dark:hover:bg-zinc-800/40"
+                        }`}
                       >
+                        {/* Checkbox column */}
+                        <td className={`w-10 text-center ${cellPad}`}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectProspect(prospect.id)}
+                            className="rounded text-purple-600 focus:ring-purple-500 w-3.5 h-3.5 cursor-pointer"
+                          />
+                        </td>
                         {/* Company */}
                         {isColumnVisible("company") && (
                           <td className={`${cellPad} font-bold text-slate-900 dark:text-zinc-100`}>
@@ -1746,6 +1976,22 @@ export default function ProspectsPipelinePage() {
                         {isColumnVisible("actions") && (
                           <td className={`${cellPad} whitespace-nowrap text-right`}>
                             <div className="inline-flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setReminderModalProspect(prospect)}
+                                title={
+                                  prospectReminders[prospect.id]
+                                    ? `Rappel programmé pour le ${new Date(prospectReminders[prospect.id]).toLocaleDateString("fr-FR")}`
+                                    : "Programmer une relance / rappel automatique"
+                                }
+                                className={`p-1.5 rounded-lg border transition ${
+                                  prospectReminders[prospect.id]
+                                    ? "bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-800 text-amber-700 dark:text-amber-300"
+                                    : "bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 text-slate-700 dark:text-zinc-300 hover:text-amber-600"
+                                }`}
+                              >
+                                <Bell className="w-3 h-3" />
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -2205,6 +2451,125 @@ export default function ProspectsPipelinePage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================================
+          MODAL 3: PROGRAMMER UN RAPPEL / RELANCE PROSPECT AUTOMATIQUE
+         ===================================================================== */}
+      {reminderModalProspect && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-zinc-800">
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 rounded-xl bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300">
+                  <Bell className="w-5 h-5" />
+                </span>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-zinc-100">
+                    Planifier un Rappel Prospect
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {reminderModalProspect.company}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReminderModalProspect(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 dark:text-zinc-300">
+                  Délai de rappel automatique :
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: "Demain", days: 1 },
+                    { label: "Dans 3j", days: 3 },
+                    { label: "Dans 7j", days: 7 },
+                    { label: "Dans 14j", days: 14 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.days}
+                      type="button"
+                      onClick={() => setReminderDays(preset.days)}
+                      className={`py-2 px-2.5 rounded-xl font-bold transition text-center cursor-pointer border ${
+                        reminderDays === preset.days
+                          ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+                          : "bg-slate-50 dark:bg-zinc-950 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-800 hover:border-amber-400"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 dark:text-zinc-300">
+                  Date cible exacte :
+                </label>
+                <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-amber-900 dark:text-amber-200 flex items-center justify-between">
+                  <span className="font-medium">Date d&apos;échéance :</span>
+                  <span className="font-mono font-bold">
+                    {new Date(Date.now() + reminderDays * 86400000).toLocaleDateString("fr-FR", {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-bold text-slate-700 dark:text-zinc-300">
+                  Motif / Consigne du rappel :
+                </label>
+                <textarea
+                  rows={3}
+                  value={reminderNote}
+                  onChange={(e) => setReminderNote(e.target.value)}
+                  placeholder="Ex: Rappeler l'acheteur pour faire le point sur le devis comparatif de freins & filtration..."
+                  className="w-full rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 p-2.5 text-xs text-slate-900 dark:text-zinc-100 focus:outline-none focus:border-amber-600"
+                />
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-50 dark:bg-zinc-950 border border-slate-200/80 dark:border-zinc-800 text-[11px] text-slate-500 space-y-1">
+                <p className="flex items-center gap-1.5 text-purple-700 dark:text-purple-300 font-semibold">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  Effet automatique :
+                </p>
+                <p>• Fait remonter ce prospect en tête de liste à l&apos;approche de l&apos;échéance.</p>
+                <p>• Crée automatiquement une tâche prioritaire dans votre Kanban.</p>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setReminderModalProspect(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 text-xs font-semibold text-slate-600 dark:text-zinc-300 hover:bg-slate-50"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingReminder}
+                  onClick={handleSaveReminder}
+                  className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <Bell className="w-3.5 h-3.5" />
+                  <span>{isSavingReminder ? "Enregistrement..." : "Valider le Rappel"}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
