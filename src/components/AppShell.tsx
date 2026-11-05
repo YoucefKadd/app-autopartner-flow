@@ -42,6 +42,9 @@ import {
   UserPlus,
   Map,
   FileSpreadsheet,
+  Bell,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import { ClientItem, KamUser, NoteItem, TaskItem, TaskStatus, TASK_STATUS_CONFIG, parseTaskChecklist, ClientVisit, getInitials, hasPermission, getAssignedManagerIds } from "@/types/kam";
 import { QuickNoteModal } from "@/components/QuickNoteModal";
@@ -112,8 +115,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [globalSearch, setGlobalSearch] = useState("");
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("apflow_dismissed_notifications");
+        if (saved) return JSON.parse(saved);
+      } catch {
+        // ignore
+      }
+    }
+    return [];
+  });
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const notificationsRef = useRef<HTMLDivElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Modals state
@@ -144,13 +160,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMobileDrawerOpen(false);
     setSearchDropdownOpen(false);
+    setNotificationsOpen(false);
+    setProfileMenuOpen(false);
   }, [pathname]);
 
-  // Close search dropdown on click outside
+  // Close search and notification dropdowns on click outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
         setSearchDropdownOpen(false);
+      }
+      if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) {
+        setNotificationsOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -493,6 +514,150 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     () => clients.filter((c) => c.status === "PROSPECT").length,
     [clients]
   );
+
+  // Computed Notifications: tasks due/overdue, priority tasks, prospect reminders, clients needing follow-up
+  const activeNotifications = useMemo(() => {
+    const list: Array<{
+      id: string;
+      title: string;
+      message: string;
+      timeLabel: string;
+      category: "TASK_OVERDUE" | "TASK_TODAY" | "TASK_PRIORITY" | "PROSPECT_REMINDER" | "CLIENT_INACTIVE";
+      href: string;
+      isUrgent: boolean;
+    }> = [];
+
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+
+    // 1. Tasks: overdue or due today or priority
+    for (const t of tasks) {
+      if (t.status === "DONE" || t.status === "ARCHIVED") continue;
+      if (dismissedNotificationIds.includes(`task_${t.id}`)) continue;
+
+      if (t.dueDate) {
+        if (t.dueDate < todayStr) {
+          list.push({
+            id: `task_${t.id}`,
+            title: "Tâche en retard",
+            message: `${t.title}${t.client ? ` — ${t.client.company}` : ""}`,
+            timeLabel: `Échéance dépassée (${t.dueDate})`,
+            category: "TASK_OVERDUE",
+            href: "/taches",
+            isUrgent: true,
+          });
+        } else if (t.dueDate === todayStr) {
+          list.push({
+            id: `task_${t.id}`,
+            title: "Tâche pour aujourd'hui",
+            message: `${t.title}${t.client ? ` — ${t.client.company}` : ""}`,
+            timeLabel: "Échéance aujourd'hui",
+            category: "TASK_TODAY",
+            href: "/taches",
+            isUrgent: true,
+          });
+        } else if (t.priority) {
+          list.push({
+            id: `task_${t.id}`,
+            title: "Tâche prioritaire",
+            message: `${t.title}${t.client ? ` — ${t.client.company}` : ""}`,
+            timeLabel: `Échéance le ${t.dueDate}`,
+            category: "TASK_PRIORITY",
+            href: "/taches",
+            isUrgent: false,
+          });
+        }
+      } else if (t.priority) {
+        list.push({
+          id: `task_${t.id}`,
+          title: "Tâche prioritaire urgente",
+          message: `${t.title}${t.client ? ` — ${t.client.company}` : ""}`,
+          timeLabel: "Priorité élevée",
+          category: "TASK_PRIORITY",
+          href: "/taches",
+          isUrgent: false,
+        });
+      }
+    }
+
+    // 2. Prospect Reminders stored in localStorage
+    if (typeof window !== "undefined") {
+      const prospectClients = clients.filter((c) => c.status === "PROSPECT");
+      for (const p of prospectClients) {
+        const notifId = `prospect_reminder_${p.id}`;
+        if (dismissedNotificationIds.includes(notifId)) continue;
+        const storedReminder = localStorage.getItem(`apflow_prospect_reminder_${p.id}`);
+        if (storedReminder) {
+          const reminderDate = new Date(storedReminder);
+          const diffMs = reminderDate.getTime() - now.getTime();
+          const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+          if (diffDays <= 1) {
+            list.push({
+              id: notifId,
+              title: diffDays < 0 ? "Relance prospect en retard" : "Relance prospect à faire",
+              message: `Relancer ${p.company} (${p.contactName || "Contact"})`,
+              timeLabel:
+                diffDays < 0
+                  ? `Retard de ${Math.abs(diffDays)}j`
+                  : diffDays === 0
+                  ? "Aujourd'hui"
+                  : "Demain",
+              category: "PROSPECT_REMINDER",
+              href: "/prospects",
+              isUrgent: diffDays <= 0,
+            });
+          }
+        }
+      }
+    }
+
+    // 3. Clients in portfolio without contact for > 60 days
+    const activeClients = clients.filter((c) => c.status === "VIP" || c.status === "ACTIVE");
+    for (const c of activeClients) {
+      const notifId = `client_dormant_${c.id}`;
+      if (dismissedNotificationIds.includes(notifId)) continue;
+      if (c.lastContactAt) {
+        const lastContact = new Date(c.lastContactAt);
+        const daysSinceContact = Math.floor((now.getTime() - lastContact.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysSinceContact >= 60) {
+          list.push({
+            id: notifId,
+            title: "Client sans contact récent",
+            message: `${c.company} — Aucune visite/contact depuis ${daysSinceContact} jours`,
+            timeLabel: `Dernier contact : il y a ${daysSinceContact}j`,
+            category: "CLIENT_INACTIVE",
+            href: `/clients/${c.id}`,
+            isUrgent: false,
+          });
+        }
+      }
+    }
+
+    // Sort: urgent first, then by priority
+    return list.sort((a, b) => (b.isUrgent ? 1 : 0) - (a.isUrgent ? 1 : 0));
+  }, [tasks, clients, dismissedNotificationIds]);
+
+  function dismissNotification(id: string, e?: React.MouseEvent) {
+    if (e) e.stopPropagation();
+    setDismissedNotificationIds((prev) => {
+      const next = [...prev, id];
+      if (typeof window !== "undefined") {
+        localStorage.setItem("apflow_dismissed_notifications", JSON.stringify(next));
+      }
+      return next;
+    });
+  }
+
+  function clearAllNotifications() {
+    const allIds = activeNotifications.map((n) => n.id);
+    setDismissedNotificationIds((prev) => {
+      const next = Array.from(new Set([...prev, ...allIds]));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("apflow_dismissed_notifications", JSON.stringify(next));
+      }
+      return next;
+    });
+  }
 
   // Render standalone layout without navbar if on login page
   if (isLoginPage) {
@@ -891,6 +1056,161 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Moon className="w-4 h-4" />
               )}
             </button>
+
+            {/* Notification Bell Dropdown (à gauche du profil) */}
+            <div className="relative" ref={notificationsRef}>
+              <button
+                type="button"
+                onClick={() => {
+                  setNotificationsOpen(!notificationsOpen);
+                  setProfileMenuOpen(false);
+                }}
+                title="Notifications & Rappels"
+                className="relative p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              >
+                <Bell className="w-4 h-4" />
+                {activeNotifications.length > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold text-white bg-[#d90416] rounded-full shadow-xs animate-pulse">
+                    {activeNotifications.length > 99 ? "99+" : activeNotifications.length}
+                  </span>
+                )}
+              </button>
+
+              {notificationsOpen && (
+                <div className="absolute right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 mt-2 w-80 sm:w-96 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl p-0 z-50 overflow-hidden text-slate-800 dark:text-zinc-200 animate-in fade-in zoom-in-95 duration-100">
+                  {/* Header */}
+                  <div className="px-4 py-3 bg-slate-50 dark:bg-zinc-800/80 border-b border-slate-200/80 dark:border-zinc-800 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-red-500/10 text-[#d90416]">
+                        <Bell className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-xs font-bold text-slate-900 dark:text-white">
+                          Notifications & Rappels
+                        </h3>
+                        <p className="text-[10px] text-slate-500 dark:text-zinc-400">
+                          {activeNotifications.length} alerte{activeNotifications.length > 1 ? "s" : ""} en attente
+                        </p>
+                      </div>
+                    </div>
+                    {activeNotifications.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={clearAllNotifications}
+                        className="text-[11px] font-semibold text-[#d90416] hover:underline cursor-pointer"
+                      >
+                        Tout marquer lu
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Notification List */}
+                  <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-zinc-800">
+                    {activeNotifications.length === 0 ? (
+                      <div className="p-8 text-center space-y-2">
+                        <div className="w-10 h-10 mx-auto rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                          <CheckCircle2 className="w-5 h-5" />
+                        </div>
+                        <p className="text-xs font-bold text-slate-800 dark:text-zinc-200">
+                          Tout est à jour !
+                        </p>
+                        <p className="text-[11px] text-slate-400 max-w-[200px] mx-auto">
+                          Aucune tâche en retard, relance urgente ou alerte d&apos;inactivité.
+                        </p>
+                      </div>
+                    ) : (
+                      activeNotifications.map((n) => (
+                        <div
+                          key={n.id}
+                          onClick={() => {
+                            setNotificationsOpen(false);
+                            router.push(n.href);
+                          }}
+                          className={`p-3 transition cursor-pointer flex items-start gap-3 hover:bg-slate-50 dark:hover:bg-zinc-800/60 ${
+                            n.isUrgent ? "bg-red-500/5 dark:bg-red-950/15" : ""
+                          }`}
+                        >
+                          <div className="mt-0.5 shrink-0">
+                            {n.category === "TASK_OVERDUE" ? (
+                              <div className="p-1.5 rounded-lg bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                                <AlertTriangle className="w-3.5 h-3.5" />
+                              </div>
+                            ) : n.category === "PROSPECT_REMINDER" ? (
+                              <div className="p-1.5 rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
+                                <Bell className="w-3.5 h-3.5" />
+                              </div>
+                            ) : n.category === "CLIENT_INACTIVE" ? (
+                              <div className="p-1.5 rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
+                                <Clock className="w-3.5 h-3.5" />
+                              </div>
+                            ) : (
+                              <div className="p-1.5 rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                                <CheckSquare className="w-3.5 h-3.5" />
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <span
+                                className={`text-[10px] font-bold uppercase tracking-wider ${
+                                  n.isUrgent
+                                    ? "text-rose-600 dark:text-rose-400"
+                                    : "text-slate-500 dark:text-zinc-400"
+                                }`}
+                              >
+                                {n.title}
+                              </span>
+                              <span className="text-[10px] font-medium text-slate-400 shrink-0">
+                                {n.timeLabel}
+                              </span>
+                            </div>
+                            <p className="text-xs font-semibold text-slate-800 dark:text-zinc-100 truncate mt-0.5">
+                              {n.message}
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={(e) => dismissNotification(n.id, e)}
+                            title="Masquer cette notification"
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-1 rounded-md hover:bg-slate-200/50 dark:hover:bg-zinc-700/50 transition shrink-0"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Footer Shortcut */}
+                  {activeNotifications.length > 0 && (
+                    <div className="p-2.5 bg-slate-50 dark:bg-zinc-800/50 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNotificationsOpen(false);
+                          router.push("/taches");
+                        }}
+                        className="text-slate-600 dark:text-zinc-300 hover:text-[#d90416] font-semibold transition"
+                      >
+                        Voir le Kanban des tâches →
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNotificationsOpen(false);
+                          router.push("/prospects");
+                        }}
+                        className="text-slate-600 dark:text-zinc-300 hover:text-[#d90416] font-semibold transition"
+                      >
+                        Pipeline prospects →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
             <span className="h-5 w-[1px] bg-slate-200 dark:bg-slate-700/80 hidden sm:inline-block" />
 
