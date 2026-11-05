@@ -584,8 +584,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
           </div>
 
-          {/* Center: Global Search Input + Red Circular Quick Note (+) Button */}
-          <div ref={searchContainerRef} className="flex items-center gap-1.5 sm:gap-2 flex-1 max-w-[200px] xs:max-w-xs sm:max-w-md lg:max-w-xl mx-1.5 sm:mx-4 relative">
+          {/* Center: Global Search Input */}
+          <div ref={searchContainerRef} className="flex items-center gap-1.5 sm:gap-2 flex-1 max-w-full sm:max-w-md lg:max-w-xl mx-1.5 sm:mx-4 relative">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
@@ -628,11 +628,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               )}
             </div>
 
+            {/* Quick Note (+) Button: Visible on tablet & desktop navbar only */}
             <button
               type="button"
               onClick={() => openQuickNote()}
               title="Ajouter une note rapide"
-              className="w-8 h-8 rounded-full bg-[#d90416] hover:bg-[#b80312] text-white flex items-center justify-center shadow-sm transition-transform active:scale-95 shrink-0"
+              className="hidden md:flex w-8 h-8 rounded-full bg-[#d90416] hover:bg-[#b80312] text-white items-center justify-center shadow-sm transition-transform active:scale-95 shrink-0"
             >
               <Plus className="w-4 h-4 stroke-[2.5]" />
             </button>
@@ -864,17 +865,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          {/* Right: Activity Reports + Dark mode toggle + User Profile (Notice: Bell & Comment icons removed per user request) */}
+          {/* Right: Activity Reports (hidden on small screens) + Dark mode toggle + User Profile */}
           <div className="flex items-center gap-1.5 sm:gap-3">
-            {/* Activity Reports Button */}
+            {/* Activity Reports Button (desktop/tablet only to keep navbar light on phone) */}
             <button
               type="button"
               onClick={() => setIsActivityReportOpen(true)}
               title="Générer un Rapport d'Activité (Journalier, Hebdo, Mensuel - CSV, Excel, PDF)"
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-zinc-200 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded-lg transition-colors border border-slate-200 dark:border-zinc-700 cursor-pointer shadow-2xs"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:text-zinc-200 bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 rounded-lg transition-colors border border-slate-200 dark:border-zinc-700 cursor-pointer shadow-2xs"
             >
               <FileSpreadsheet className="w-4 h-4 text-[#d90416]" />
-              <span className="hidden sm:inline">Rapports</span>
+              <span>Rapports</span>
             </button>
 
             {/* Dark mode button */}
@@ -1778,6 +1779,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               tasks={tasks}
               kamName={activeUser?.name}
             />
+
+            {/* Mobile Floating Action Button (+) placed at bottom-right of the screen */}
+            <button
+              type="button"
+              onClick={() => openQuickNote()}
+              title="Ajouter une note rapide"
+              className="md:hidden fixed bottom-6 right-5 z-40 w-14 h-14 rounded-full bg-[#d90416] hover:bg-[#b80312] text-white flex items-center justify-center shadow-xl active:scale-90 transition-all border-2 border-white/30"
+              aria-label="Nouvelle note rapide"
+            >
+              <Plus className="w-7 h-7 stroke-[2.5]" />
+            </button>
           </>
         )}
       </div>
