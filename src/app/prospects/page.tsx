@@ -826,78 +826,91 @@ export default function ProspectsPipelinePage() {
           </div>
         </div>
 
-        {/* Bottom line: Search and Filters */}
-        <div className="flex items-center gap-2.5 flex-1 flex-wrap">
-          {/* Search Bar */}
-          <div className="relative flex-1 min-w-[200px]">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+        {/* Search and Filters */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 w-full">
+          {/* Prominent Search Bar (Full width on mobile, comfortable touch padding & text) */}
+          <div className="relative w-full sm:flex-1">
+            <Search className="w-4 h-4 sm:w-4 sm:h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Rechercher par enseigne atelier, contact, ville..."
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 text-xs text-slate-800 dark:text-zinc-200 placeholder:text-slate-400 focus:outline-none focus:border-purple-600 transition"
+              className="w-full pl-10 pr-9 py-2.5 sm:py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 text-sm sm:text-xs text-slate-800 dark:text-zinc-200 placeholder:text-slate-400 focus:outline-none focus:border-purple-600 focus:bg-white dark:focus:bg-zinc-900 transition shadow-2xs"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 cursor-pointer"
+                title="Effacer la recherche"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
-          {/* Stage Filter */}
-          <select
-            value={stageFilter}
-            onChange={(e) => setStageFilter(e.target.value)}
-            className="rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-purple-600 cursor-pointer"
-          >
-            <option value="ALL">Toutes les étapes du pipeline</option>
-            {ALL_PROSPECT_STAGES.map((st) => (
-              <option key={st.value} value={st.value}>
-                {st.label}
-              </option>
-            ))}
-          </select>
-
-          {/* Activity / Type Filter */}
-          <select
-            value={activityFilter}
-            onChange={(e) => setActivityFilter(e.target.value)}
-            className="rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-purple-600 cursor-pointer"
-          >
-            <option value="ALL">Tous les types de prospects</option>
-            {PROSPECT_ACTIVITY_TYPES.map((a) => (
-              <option key={a.value} value={a.value}>
-                {a.icon} {a.label}
-              </option>
-            ))}
-          </select>
-
-          {/* City Filter */}
-          <select
-            value={cityFilter}
-            onChange={(e) => setCityFilter(e.target.value)}
-            className="rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 px-3 py-2 text-xs font-semibold text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-purple-600 cursor-pointer"
-          >
-            <option value="ALL">Toutes les villes ({cities.length})</option>
-            {cities.map((city) => (
-              <option key={city} value={city}>
-                {city}
-              </option>
-            ))}
-          </select>
-
-          {/* Toggle Collapsible Sans Suite Column */}
-          {viewMode === "kanban" && (
-            <button
-              type="button"
-              onClick={() => setShowSansSuite(!showSansSuite)}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer ${
-                showSansSuite
-                  ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700"
-                  : "bg-slate-50 dark:bg-zinc-950 text-slate-500 dark:text-zinc-400 border-slate-200 dark:border-zinc-800 hover:text-slate-700"
-              }`}
-              title="Afficher ou masquer la colonne des prospects classés sans suite"
+          {/* Filters (Horizontal wrap / scrollable on mobile) */}
+          <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+            {/* Stage Filter */}
+            <select
+              value={stageFilter}
+              onChange={(e) => setStageFilter(e.target.value)}
+              className="flex-1 sm:flex-none rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 px-3 py-2 sm:py-2 text-xs font-semibold text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-purple-600 cursor-pointer"
             >
-              {showSansSuite ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-              <span>Sans suite ({sansSuiteCount})</span>
-            </button>
-          )}
+              <option value="ALL">Toutes les étapes</option>
+              {ALL_PROSPECT_STAGES.map((st) => (
+                <option key={st.value} value={st.value}>
+                  {st.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Activity / Type Filter */}
+            <select
+              value={activityFilter}
+              onChange={(e) => setActivityFilter(e.target.value)}
+              className="flex-1 sm:flex-none rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 px-3 py-2 sm:py-2 text-xs font-semibold text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-purple-600 cursor-pointer"
+            >
+              <option value="ALL">Tous les types</option>
+              {PROSPECT_ACTIVITY_TYPES.map((a) => (
+                <option key={a.value} value={a.value}>
+                  {a.icon} {a.label}
+                </option>
+              ))}
+            </select>
+
+            {/* City Filter */}
+            <select
+              value={cityFilter}
+              onChange={(e) => setCityFilter(e.target.value)}
+              className="flex-1 sm:flex-none rounded-xl border border-slate-200 dark:border-zinc-700 bg-slate-50 dark:bg-zinc-950 px-3 py-2 sm:py-2 text-xs font-semibold text-slate-700 dark:text-zinc-200 focus:outline-none focus:border-purple-600 cursor-pointer"
+            >
+              <option value="ALL">Toutes les villes ({cities.length})</option>
+              {cities.map((city) => (
+                <option key={city} value={city}>
+                  {city}
+                </option>
+              ))}
+            </select>
+
+            {/* Toggle Collapsible Sans Suite Column */}
+            {viewMode === "kanban" && (
+              <button
+                type="button"
+                onClick={() => setShowSansSuite(!showSansSuite)}
+                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition cursor-pointer shrink-0 ${
+                  showSansSuite
+                    ? "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 border-zinc-300 dark:border-zinc-700"
+                    : "bg-slate-50 dark:bg-zinc-950 text-slate-500 dark:text-zinc-400 border-slate-200 dark:border-zinc-800 hover:text-slate-700"
+                }`}
+                title="Afficher ou masquer la colonne des prospects classés sans suite"
+              >
+                {showSansSuite ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                <span>Sans suite ({sansSuiteCount})</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
