@@ -585,9 +585,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Center: Global Search Input + Red Circular Quick Note (+) Button */}
-          <div ref={searchContainerRef} className="flex items-center gap-2 flex-1 max-w-[220px] xs:max-w-xs sm:max-w-md lg:max-w-xl mx-2 sm:mx-4 relative">
+          <div ref={searchContainerRef} className="flex items-center gap-1.5 sm:gap-2 flex-1 max-w-[200px] xs:max-w-xs sm:max-w-md lg:max-w-xl mx-1.5 sm:mx-4 relative">
             <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 ref={searchInputRef}
                 type="text"
@@ -614,16 +614,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     setSearchDropdownOpen(false);
                   }
                 }}
-                placeholder="Rechercher par Code AP (ex: 3306131), client, ville..."
-                className="w-full pl-8 sm:pl-9 pr-8 py-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-xs text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416] transition-colors"
+                placeholder="Rechercher Code AP, client..."
+                className="w-full pl-8 sm:pl-9 pr-7 sm:pr-8 py-1.5 rounded-full bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-xs text-slate-900 dark:text-zinc-100 placeholder:text-slate-400 focus:outline-none focus:border-[#d90416] transition-colors"
               />
               {globalSearch && (
                 <button
                   type="button"
                   onClick={() => setGlobalSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 p-0.5"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3.5 h-3.5" />
                 </button>
               )}
             </div>
@@ -637,16 +637,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Plus className="w-4 h-4 stroke-[2.5]" />
             </button>
 
-            {/* Global Search Results Dropdown Overlay */}
+            {/* Global Search Results Dropdown Overlay (Full width & comfortably sized on mobile) */}
             {searchDropdownOpen && searchResults && (
-              <div className="absolute top-full left-0 right-0 mt-2 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl p-3 z-50 text-slate-800 dark:text-zinc-200 max-h-[80vh] overflow-y-auto space-y-3">
-                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-zinc-800 text-[11px] text-slate-500 dark:text-slate-400">
-                  <span>Résultats trouvés : <strong>{searchResults.totalCount}</strong></span>
+              <div className="fixed sm:absolute top-14 sm:top-full left-2 right-2 sm:left-0 sm:right-auto sm:w-[480px] lg:w-[560px] mt-1 sm:mt-2 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 shadow-2xl p-3.5 z-50 text-slate-800 dark:text-zinc-200 max-h-[75vh] sm:max-h-[80vh] overflow-y-auto space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-zinc-800 text-xs text-slate-500 dark:text-slate-400">
+                  <span>Résultats trouvés : <strong className="text-slate-900 dark:text-zinc-100">{searchResults.totalCount}</strong></span>
                   <button
                     onClick={() => setSearchDropdownOpen(false)}
-                    className="hover:text-white"
+                    className="font-bold text-[#d90416] hover:underline px-2 py-0.5 rounded-lg"
                   >
-                    Fermer
+                    Fermer ✕
                   </button>
                 </div>
 
